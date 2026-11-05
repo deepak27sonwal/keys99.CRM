@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-surface text-slate-800 antialiased; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+
+@layer components {
+  .card { @apply bg-white rounded-xl border border-slate-200/70 shadow-card; }
+  .btn { @apply inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-card hover:bg-slate-50 transition; }
+  .btn-gold { @apply border-gold-500 bg-gradient-to-b from-gold-400 to-gold-500 text-white hover:from-gold-500 hover:to-gold-600; }
+  .btn-brand { @apply border-brand-700 bg-brand-700 text-white hover:bg-brand-800; }
+  .select { @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-card; }
+}
