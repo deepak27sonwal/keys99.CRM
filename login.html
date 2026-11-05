@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login · Keys99 CRM</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="login-wrap"><div class="login">
+    <h1>Keys99 <span style="color:var(--gold-500)">CRM</span></h1>
+    <p class="sub">Sign in to your channel partner account.</p>
+    <form id="form">
+      <input id="email" type="email" placeholder="Email" required autocomplete="username">
+      <input id="password" type="password" placeholder="Password" required autocomplete="current-password">
+      <div class="err" id="err"></div>
+      <button class="btn gold" style="justify-content:center">Sign in</button>
+    </form>
+    <p class="muted" id="demo" style="margin-top:14px;font-size:13px"></p>
+  </div></div>
+  <script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
