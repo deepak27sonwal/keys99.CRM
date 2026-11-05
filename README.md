@@ -16,3 +16,6 @@ Data is mock data in `src/lib/data.ts` for now; Supabase integration is next.
 npm install
 npm run dev
 ```
+
+## Live demo
+https://deepak27sonwal.github.io/keys99.CRM/ (auto-deployed from `main` via GitHub Actions)

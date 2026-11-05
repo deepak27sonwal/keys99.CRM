@@ -40,6 +40,11 @@ function KeyValues({ rows }: { rows: [string, React.ReactNode][] }) {
   );
 }
 
+// Required for static export: pre-render the sample customer.
+export function generateStaticParams() {
+  return [{ id: c.id }];
+}
+
 export default function CustomerProfile() {
   const order = ["New", "Contacted", "Interested", "Qualified", "Site Visit", "Negotiation", "Booking"];
   const cur = order.indexOf("Qualified");
