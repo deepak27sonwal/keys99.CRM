@@ -19,6 +19,7 @@ async function mountShell(active) {
   const root = document.getElementById("root");
   render(root, html`
     <div class="app">
+      <div class="sidebar-backdrop" id="backdrop"></div>
       <aside class="sidebar" id="sidebar">
         <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
         <nav class="nav">
@@ -33,7 +34,7 @@ async function mountShell(active) {
           <div class="top-actions">
             <span class="bell"><i data-lucide="bell"></i></span>
             <i data-lucide="message-circle" class="wa"></i>
-            <i data-lucide="calendar-days"></i>
+            <i data-lucide="calendar-days" class="cal"></i>
             <button class="user" id="userBtn" title="${Data.configured ? "Click to log out" : "Demo mode"}">
               ${avatar(email, 40)}<span class="who"><b>${email}</b><span>Admin</span></span>
             </button>
@@ -42,7 +43,11 @@ async function mountShell(active) {
         <main id="main">${Data.configured ? raw("") : html`<div class="banner">Demo mode: showing sample data. Add your Supabase URL and key in <code>js/config.js</code> to use real data.</div>`}<div id="page"></div></main>
       </div>
     </div>`);
-  document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("open");
+  const sb = document.getElementById("sidebar"), bd = document.getElementById("backdrop");
+  const toggle = (open) => { sb.classList.toggle("open", open); bd.classList.toggle("open", open); };
+  document.getElementById("menuBtn").onclick = () => toggle(!sb.classList.contains("open"));
+  bd.onclick = () => toggle(false);
+  sb.querySelectorAll("a").forEach((a) => (a.onclick = () => toggle(false)));
   document.getElementById("userBtn").onclick = () => { if (Data.configured && confirm("Log out?")) Data.signOut(); };
   return document.getElementById("page");
 }
