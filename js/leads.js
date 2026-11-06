@@ -6,7 +6,7 @@
   const state = { leads: [], tab: "All Leads", selected: null, q: "", checked: new Set() };
 
   try { state.leads = await Data.getLeads(); } catch (e) { page.innerHTML = '<div class="card empty">Could not load leads: ' + esc(e.message) + "</div>"; return; }
-  state.selected = state.leads[0] || null;
+  state.selected = window.innerWidth > 1200 ? state.leads[0] || null : null;
 
   const counts = () => {
     if (!Data.configured) return DEMO.tabCounts;
@@ -56,11 +56,11 @@
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Agent", "Status", "Next Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((l) => html`<tr class="lead-row ${state.selected && state.selected.id === l.id ? "sel" : ""}" data-id="${l.id}">
-            <td><input type="checkbox" data-check="${l.id}" ${state.checked.has(l.id) ? raw("checked") : raw("")}></td><td>${l.id}</td>
-            <td><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td>${l.mobile}</td>
-            <td class="tight">${l.requirement}<small>${l.budget}</small></td><td class="tight"><b>${l.project}</b><small>${l.location}</small></td>
-            <td><div class="row">${avatar(l.agent, 24)}${l.agent}</div></td><td>${badge(l.status)}</td>
-            <td style="font-size:12px"><i data-lucide="calendar" style="width:12px;height:12px"></i> ${l.followUp}</td>
+            <td data-label="Select"><input type="checkbox" data-check="${l.id}" ${state.checked.has(l.id) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
+            <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
+            <td class="tight" data-label="Requirement">${l.requirement}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project}</b><small>${l.location}</small></td>
+            <td data-label="Agent"><div class="row">${avatar(l.agent, 24)}${l.agent}</div></td><td data-label="Status">${badge(l.status)}</td>
+            <td data-label="Next Follow-up" style="font-size:12px"><i data-lucide="calendar" style="width:12px;height:12px"></i> ${l.followUp}</td>
             <td><div class="row" style="gap:12px"><i data-lucide="phone" class="green-t"></i><i data-lucide="message-circle" class="wa-t"></i><i data-lucide="pencil"></i></div></td></tr>`) : html`<tr><td colspan="10" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing 1 – ${rows.length} of ${Data.configured ? state.leads.length : "3,248"} leads</span>
           <div class="pager"><button aria-label="Previous"><i data-lucide="chevron-left"></i></button>${["1", "2", "3", "4", "5", "…", "406"].map((p) => html`<button class="${p === "1" ? "active" : ""}">${p}</button>`)}<button aria-label="Next"><i data-lucide="chevron-right"></i></button></div></div>
