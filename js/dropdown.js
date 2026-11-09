@@ -16,7 +16,7 @@
  *      container.appendChild(dd.el);   dd.value / dd.setValue("a") / dd.setOptions([...])
  *
  * Features: keyboard (↑ ↓ Home End Enter Esc Tab, type-to-jump), search for long lists,
- * ARIA combobox/listbox, flips above when there is no room, bottom sheet on phones,
+ * ARIA combobox/listbox, flips above when there is no room (always anchored to the field, also on phones),
  * works inside scrolling modals (popup is positioned with fixed coordinates).
  */
 const Dropdown = (() => {
@@ -24,14 +24,15 @@ const Dropdown = (() => {
   let open = null;     // currently open instance
   let uid = 0;
 
-  const isPhone = () => window.matchMedia("(max-width: 600px)").matches;
+  const isTouch = () => window.matchMedia("(pointer: coarse)").matches;   // phones/tablets: do not auto-open the keyboard
   const ICON_CHEVRON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const ICON_CHECK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
   const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   function closeOpen(refocus) { if (open) open.close(refocus); }
   document.addEventListener("mousedown", (e) => { if (open && !open.pop.contains(e.target) && !open.wrap.contains(e.target)) closeOpen(); });
-  window.addEventListener("resize", () => closeOpen());
+  // The on-screen keyboard also fires "resize": keep the list open (and re-anchored) while typing in its search box.
+  window.addEventListener("resize", () => { if (!open) return; if (open.pop.contains(document.activeElement)) open.position(); else closeOpen(); });
   window.addEventListener("scroll", (e) => { if (open && !open.pop.contains(e.target)) closeOpen(); }, true);
 
   function build(sel) {
@@ -66,9 +67,8 @@ const Dropdown = (() => {
 
     function position() {
       const r = btn.getBoundingClientRect(), pop = inst.pop;
-      if (isPhone()) { pop.style.cssText = ""; pop.classList.add("dd-sheet"); return; }
-      pop.classList.remove("dd-sheet");
-      pop.style.minWidth = Math.max(r.width, 180) + "px";
+      // Always anchored under the field (above it when there is no room below), on phones too.
+      pop.style.minWidth = Math.min(Math.max(r.width, 180), innerWidth - 16) + "px"; pop.style.maxWidth = innerWidth - 16 + "px";
       pop.style.left = "0px"; pop.style.top = "0px"; pop.style.maxHeight = "";
       const ph = pop.offsetHeight, pw = pop.offsetWidth, below = innerHeight - r.bottom - 12, above = r.top - 12;
       const flip = ph > below && above > below;
@@ -134,30 +134,27 @@ const Dropdown = (() => {
       const pop = document.createElement("div");
       pop.className = "dd-pop"; pop.setAttribute("role", "presentation");
       const searchable = sel.hasAttribute("data-search") || sel.options.length > SEARCH_AT;
-      pop.innerHTML = (isPhone() ? '<div class="dd-grab" aria-hidden="true"></div>' : "") +
-        (searchable ? '<div class="dd-search"><input type="text" placeholder="Search…" aria-label="Search options" autocomplete="off"></div>' : "") +
+      pop.innerHTML = (searchable ? '<div class="dd-search"><input type="text" placeholder="Search…" aria-label="Search options" autocomplete="off"></div>' : "") +
         `<ul class="dd-list" role="listbox" id="${id}-list" tabindex="-1"></ul>`;
-      let backdrop = null;
-      if (isPhone()) { backdrop = document.createElement("div"); backdrop.className = "dd-backdrop"; backdrop.addEventListener("mousedown", () => close(true)); backdrop.addEventListener("touchstart", () => close(true), { passive: true }); document.body.appendChild(backdrop); }
       document.body.appendChild(pop);
-      inst.pop = pop; inst.backdrop = backdrop; open = inst;
+      inst.pop = pop; open = inst;
       btn.setAttribute("aria-expanded", "true"); wrap.classList.add("open");
       renderList(); position();
       pop.addEventListener("keydown", onKey);
       pop.addEventListener("mousemove", (e) => { const li = e.target.closest(".dd-opt"); if (li) { const n = inst.items.findIndex((o) => o.i === Number(li.dataset.i)); if (n !== inst.active) setActive(n, false); } });
       pop.addEventListener("click", (e) => { const li = e.target.closest(".dd-opt"); if (li) choose(inst.items.findIndex((o) => o.i === Number(li.dataset.i))); });
       const s = pop.querySelector(".dd-search input");
-      if (s) { s.addEventListener("input", () => renderList(s.value)); s.focus(); } else pop.querySelector(".dd-list").focus({ preventScroll: true });
+      if (s) { s.addEventListener("input", () => renderList(s.value)); if (!isTouch()) s.focus(); else pop.querySelector(".dd-list").focus({ preventScroll: true }); } else pop.querySelector(".dd-list").focus({ preventScroll: true });
       const act = pop.querySelector(".dd-opt.dd-act"); if (act) act.scrollIntoView({ block: "nearest" });
     }
     function close(refocus) {
       if (!inst.pop) return;
-      inst.pop.remove(); if (inst.backdrop) inst.backdrop.remove();
-      inst.pop = null; inst.backdrop = null; if (open === inst) open = null;
+      inst.pop.remove();
+      inst.pop = null; if (open === inst) open = null;
       btn.setAttribute("aria-expanded", "false"); btn.removeAttribute("aria-activedescendant"); wrap.classList.remove("open");
       if (refocus) btn.focus({ preventScroll: true });
     }
-    inst.close = close;
+    inst.close = close; inst.position = position;
     btn.addEventListener("click", () => (inst.pop ? close(true) : show()));
     btn.addEventListener("keydown", (e) => { if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); inst.pop ? close(true) : show(); } });
     return inst;
