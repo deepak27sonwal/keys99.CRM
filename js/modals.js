@@ -1,5 +1,9 @@
 // Small modal helpers shared by the leads and customer pages.
-const STATUSES = ["New", "Contacted", "Interested", "Qualified", "Site Visit", "Negotiation", "Booked", "Lost"];
+// Lead stages, in display order. "Spam" sits second-to-contacted by design; it is not part of the sales funnel.
+const STATUSES = ["New Leads", "Contacted", "Spam", "Interested", "Visit Scheduled", "Visit Done", "On Negotiations", "Token Done", "Booking Done", "Post Sale"];
+const PIPELINE = STATUSES.filter((s) => s !== "Spam");               // funnel / progress order
+const CLOSED = ["Spam", "Booking Done", "Post Sale"];               // no follow-up needed any more
+const BOOKED = ["Booking Done", "Post Sale"];                       // counted as bookings / conversions
 
 function openModal(title, body, onSubmit, submitLabel = "Save") {
   const ov = document.createElement("div");
@@ -32,7 +36,7 @@ function openAddLead(done) {
     ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Project", "project")}
     ${field("Developer", "developer")}${field("Location", "location")}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
-    ${selectField("Status", "status", STATUSES.slice(0, 7))}</div>`,
+    ${selectField("Status", "status", STATUSES)}</div>`,
     async (f) => { await Data.addLead(f); toast("Lead added"); done && done(); });
 }
 function openEditLead(lead, done) {
@@ -63,7 +67,7 @@ function openSiteVisit(lead, done) {
     ${selectField("Status", "status", ["Scheduled", "Confirmed", "Completed", "Cancelled"])}</div>`,
     async (f) => {
       await Data.addSiteVisit({ enquiry_id: lead.dbId, project: f.project || null, visit_at: fromLocalInput(f.visit_at), status: f.status });
-      if (["New", "Contacted", "Interested", "Qualified"].includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Site Visit" });
+      if (["New Leads", "Contacted", "Interested"].includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Visit Scheduled" });
       toast("Site visit scheduled"); done && done();
     });
 }
@@ -78,11 +82,11 @@ function openBooking(lead, done) {
       await Data.addBooking({ enquiry_id: lead.dbId, project: f.project, developer: f.developer || null, booking_date: f.booking_date,
         booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100, commission_status: f.commission_status,
         received_on: f.commission_status === "Received" ? f.booking_date : null });
-      await Data.updateLead(lead.dbId, { status: "Booked" });
+      await Data.updateLead(lead.dbId, { status: "Booking Done" });
       toast("Deal recorded"); done && done();
     });
 }
-function openLost(lead, label, done) {
-  openModal(label, html`<div class="form">${selectField("Reason", "reason", label === "Mark as Spam" ? ["Spam"] : ["Budget mismatch", "Bought elsewhere", "Not responding", "Location not suitable", "Other"], "", "full")}</div>`,
-    async (f) => { await Data.updateLead(lead.dbId, { status: "Lost", lostReason: f.reason }); toast("Marked as lost"); done && done(); }, "Confirm");
+function openSpam(lead, done) {
+  openModal("Mark as Spam", html`<div class="form">${selectField("Reason", "reason", ["Spam / fake enquiry", "Wrong number", "Duplicate", "Not interested", "Budget mismatch", "Not responding", "Other"], "", "full")}</div>`,
+    async (f) => { await Data.updateLead(lead.dbId, { status: "Spam", lostReason: f.reason }); toast("Marked as spam"); done && done(); }, "Confirm");
 }

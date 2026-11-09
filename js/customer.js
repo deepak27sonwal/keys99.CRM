@@ -2,7 +2,7 @@
   const page = await mountShell("customer");
   if (!page) return;
   const id = new URLSearchParams(location.search).get("id");
-  const ORDER = ["New", "Contacted", "Interested", "Qualified", "Site Visit", "Negotiation", "Booking"];
+  const ORDER = PIPELINE;
   const IC = { call: ["#16a34a", "phone"], visit: ["#3b82f6", "calendar-check"], doc: ["#e8a91f", "file-text"], new: ["#94a3b8", "plus"], deal: ["#0f7a6b", "handshake"] };
   const kv = (rows) => html`<dl class="kv2">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v || "—"}</dd>`)}</dl>`;
   const title = (icon, text, extra) => html`<div class="ch"><i data-lucide="${icon}"></i><h3>${text}</h3>${extra ? html`<div style="margin-left:auto">${extra}</div>` : raw("")}</div>`;
@@ -40,7 +40,7 @@
 
   function draw() {
     const tl = timeline(), projs = projects(), deal = cust.bookings[0], expected = cust.bookings.reduce((t, b) => t + Number(b.commission_amount), 0);
-    const cur = ORDER.indexOf(lead.status === "Booked" ? "Booking" : lead.status), done = () => load().then((ok) => ok && draw());
+    const cur = ORDER.indexOf(lead.status), done = () => load().then((ok) => ok && draw());
     const stats = [[tl.length, "Total Interactions", "users"], [cust.visits.length, "Site Visits", "calendar-check"], [cust.bookings.length, "Deal / Booking", "handshake"], [fmtMoney(expected), "Expected Commission", "coins"]];
     const tabs = [["Overview", "Overview"], ["Interactions", "Interactions (" + tl.length + ")"], ["Site Visits", "Site Visits (" + cust.visits.length + ")"], ["Deals", "Deals & Bookings (" + cust.bookings.length + ")"], ["Documents", "Documents"], ["Notes", "Notes"]];
 
@@ -61,7 +61,7 @@
         <section class="card p">${title("zap", "Current Status & Next Action")}<dl class="kv2" style="grid-template-columns:110px 1fr;align-items:center">
           <dt>Lead Status</dt><dd><select class="select" id="statusSel" style="width:100%">${STATUSES.map((s) => html`<option ${s === lead.status ? raw("selected") : raw("")}>${s}</option>`)}</select></dd>
           <dt>Next Follow-up</dt><dd class="row"><i data-lucide="calendar" style="width:14px"></i>${lead.followUpTs ? lead.followUp : "Not scheduled"}<button class="icon-btn" id="followBtn" aria-label="Schedule follow-up" style="margin-left:auto"><i data-lucide="pencil" class="muted" style="width:13px"></i></button></dd>
-          ${lead.status === "Lost" ? html`<dt>Lost reason</dt><dd>${lead.lostReason || "—"}</dd>` : raw("")}</dl></section>
+          ${lead.status === "Spam" ? html`<dt>Spam reason</dt><dd>${lead.lostReason || "—"}</dd>` : raw("")}</dl></section>
         <section class="card p">${dealCard}</section>
       </div>
       <section class="card p">${title("bell", "Activity Timeline")}${timelineList(tl.slice(0, 8))}</section></div>`;
@@ -86,21 +86,21 @@
           ${lead.location ? html`<div class="row"><i data-lucide="map-pin" class="brand-t" style="width:15px"></i>${lead.location}</div>` : raw("")}
           ${lead.priority ? html`<span class="prio"><i data-lucide="star"></i>${lead.priority}</span>` : raw("")}</div></section>
         <section class="card p"><div class="stats">${stats.map(([v, l, ic]) => html`<div class="stat"><i data-lucide="${ic}"></i><div><b>${v}</b><span>${l}</span></div></div>`)}</div>
-          <div class="stepper">${ORDER.map((s, i) => html`<div class="s ${i < cur ? "done" : i === cur ? "cur" : ""}"><div class="c">${i <= cur && lead.status !== "Lost" ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div></section>
+          <div class="stepper">${ORDER.map((s, i) => html`<div class="s ${i < cur ? "done" : i === cur ? "cur" : ""}"><div class="c">${i <= cur ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div></section>
       </div>
       <div class="card tabs-box">${tabs.map(([k, label]) => html`<button data-tab="${k}" class="${k === state.tab ? "active" : ""}">${label}</button>`)}</div>
       ${state.tab === "Overview" ? overview : other[state.tab]}
       <section class="card outcome"><i data-lucide="flag"></i><div><h3>Lead Outcome</h3><small class="muted">Update final status for this lead.</small></div>
         <button class="btn green" id="keep"><i data-lucide="check"></i>Keep Active</button><button class="btn amber" id="reopen"><i data-lucide="refresh-cw"></i>Reopen Lead</button>
-        <button class="btn red" id="lost"><i data-lucide="x"></i>Mark as Lost</button><button class="btn" id="spam"><i data-lucide="ban"></i>Mark as Spam</button>
-        ${lead.status === "Lost" ? html`<div class="lr"><label>Lost reason</label><b>${lead.lostReason || "—"}</b></div>` : raw("")}</section>`);
+        <button class="btn red" id="spam"><i data-lucide="ban"></i>Mark as Spam</button>
+        ${lead.status === "Spam" ? html`<div class="lr"><label>Spam reason</label><b>${lead.lostReason || "—"}</b></div>` : raw("")}</section>`);
 
     const on = (sel, fn) => { const el = page.querySelector(sel); if (el) el.onclick = fn; };
     page.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; draw(); }));
     on("#editBtn", () => openEditLead(lead, done)); on("#editBtn2", () => openEditLead(lead, done)); on("#followBtn", () => openFollowUp(lead, done));
     on("#dealBtn", () => openBooking(lead, done)); on("#visitBtn", () => openSiteVisit(lead, done)); on("#visitBtn2", () => openSiteVisit(lead, done)); on("#noteBtn2", () => openNote(lead, done));
-    on("#keep", () => toast("Lead stays active")); on("#lost", () => openLost(lead, "Mark as Lost", done)); on("#spam", () => openLost(lead, "Mark as Spam", done));
-    on("#reopen", async () => { if (lead.status !== "Lost") return toast("Lead is already active"); await Data.updateLead(lead.dbId, { status: "Contacted", lostReason: "" }); toast("Lead reopened"); done(); });
+    on("#keep", () => toast("Lead stays active")); on("#spam", () => openSpam(lead, done));
+    on("#reopen", async () => { if (lead.status !== "Spam") return toast("Lead is already active"); await Data.updateLead(lead.dbId, { status: "New Leads", lostReason: "" }); toast("Lead reopened"); done(); });
     const ss = page.querySelector("#statusSel");
     if (ss) ss.onchange = async () => { try { await Data.updateLead(lead.dbId, { status: ss.value }); toast("Status updated"); done(); } catch (e) { alert("Could not update: " + e.message); } };
   }

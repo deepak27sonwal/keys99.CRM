@@ -28,7 +28,7 @@
 
   function stats(b) {
     const L = leads.filter((l) => inR(l.createdAt, b)), V = visits.filter((v) => inR(v.visit_at, b)), B = bookings.filter((x) => inR(bkDate(x), b));
-    return { L, V, B, total: L.length, fresh: L.filter((l) => l.status === "New").length, qualified: L.filter((l) => l.status === "Qualified").length,
+    return { L, V, B, total: L.length, fresh: L.filter((l) => l.status === "New Leads").length, qualified: L.filter((l) => l.status === "Interested").length,
       due: sum(B.filter((x) => x.commission_status === "Pending"), (x) => x.commission_amount), recv: sum(B.filter((x) => x.commission_status === "Received"), (x) => x.commission_amount) };
   }
 
@@ -58,7 +58,7 @@
     const kpis = [
       ["Total Leads", cur.total.toLocaleString("en-IN"), d(cur.total, prev && prev.total), "users", 1],
       ["New Leads", cur.fresh.toLocaleString("en-IN"), d(cur.fresh, prev && prev.fresh), "user-plus"],
-      ["Qualified Leads", cur.qualified.toLocaleString("en-IN"), d(cur.qualified, prev && prev.qualified), "clipboard-check"],
+      ["Interested Leads", cur.qualified.toLocaleString("en-IN"), d(cur.qualified, prev && prev.qualified), "clipboard-check"],
       ["Site Visits", cur.V.length, d(cur.V.length, prev && prev.V.length), "calendar-check"],
       ["Bookings", cur.B.length, d(cur.B.length, prev && prev.B.length), "handshake"],
       ["Brokerage (Due)", fmtMoney(cur.due), d(cur.due, prev && prev.due), "coins"],
@@ -72,15 +72,14 @@
     const COLORS = ["#0f7a6b", "#e8a91f", "#3b6fe0", "#9b6fe0", "#2e86de", "#c3c9cf"];
 
     // pipeline (current status of leads created in range)
-    const stages = [["New Enquiry", "New"], ["Contacted", "Contacted"], ["Interested", "Interested"], ["Qualified", "Qualified"], ["Site Visit", "Site Visit"], ["Negotiation", "Negotiation"], ["Booked", "Booked"]]
-      .map(([label, st]) => [label, cur.L.filter((l) => l.status === st).length]);
+    const stages = PIPELINE.map((st) => [st, cur.L.filter((l) => l.status === st).length]);
     const maxStage = Math.max(1, ...stages.map((s) => s[1]));
-    const fcol = ["#0b6b5d", "#0f7a6b", "#0f7a6b", "#e8a91f", "#e8a91f", "#f3c04c", "#e8a91f"];
+    const fcol = ["#3b82f6", "#f59e0b", "#8b5cf6", "#84cc16", "#14b8a6", "#6366f1", "#f97316", "#059669", "#0ea5e9"];
 
     // upcoming visits, follow-ups, agents, developers, recent
     const now = new Date();
     const upcoming = visits.filter((v) => ["Scheduled", "Confirmed"].includes(v.status) && new Date(v.visit_at) >= now).sort((a, b) => new Date(a.visit_at) - new Date(b.visit_at)).slice(0, 3);
-    const todays = leads.filter((l) => l.followUpTs && sameDay(l.followUpTs, now) && !["Lost", "Booked"].includes(l.status)).sort((a, b) => new Date(a.followUpTs) - new Date(b.followUpTs));
+    const todays = leads.filter((l) => l.followUpTs && sameDay(l.followUpTs, now) && !CLOSED.includes(l.status)).sort((a, b) => new Date(a.followUpTs) - new Date(b.followUpTs));
     const agentMap = group(cur.B, (x) => (byId.get(x.enquiry_id) || {}).agent || "Unassigned");
     const agents = [...agentMap].map(([n, a]) => [n, a.length, sum(a, (x) => x.commission_amount)]).sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 3);
     const devMap = group(cur.B, (x) => x.developer || (byId.get(x.enquiry_id) || {}).developer || "Others");

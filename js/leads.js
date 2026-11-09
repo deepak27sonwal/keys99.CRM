@@ -1,7 +1,7 @@
 (async function () {
   const page = await mountShell("leads");
   if (!page) return;
-  const TABS = ["All Leads", "New", "Contacted", "Qualified", "Site Visit", "Negotiation", "Booked", "Lost"];
+  const TABS = ["All Leads", ...STATUSES];
   const PAGE = 25;
   const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "" }, range: "all", page: 1, sig: "", checked: new Set() };
@@ -29,9 +29,8 @@
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
   function stepper(status) {
-    const steps = ["New", "Contacted", "Interested", "Qualified", "Site Visit", "Booking"];
-    const i2 = status === "Negotiation" ? 4 : steps.indexOf(status === "Booked" ? "Booking" : status);
-    return html`<div class="stepper">${steps.map((s, i) => html`<div class="s ${i < i2 ? "done" : i === i2 ? "cur" : ""}"><div class="c">${i <= i2 ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div>`;
+    const i2 = PIPELINE.indexOf(status);                       // Spam -> -1 (nothing highlighted)
+    return html`<div class="stepper">${PIPELINE.map((s, i) => html`<div class="s ${i < i2 ? "done" : i === i2 ? "cur" : ""}"><div class="c">${i <= i2 ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div>`;
   }
   function drawer(l) {
     if (!l) return raw("");
@@ -53,7 +52,7 @@
   // Follow-up chip: flags overdue / due-today follow-ups on open leads.
   function followUp(l) {
     if (!l.followUpTs) return { cls: "fu-none", out: raw("—") };
-    const t = new Date(l.followUpTs), now = new Date(), live = !["Lost", "Booked"].includes(l.status);
+    const t = new Date(l.followUpTs), now = new Date(), live = !CLOSED.includes(l.status);
     if (live && t < now && !sameDay(t, now)) return { cls: "fu-over", out: html`<i data-lucide="alarm-clock"></i><span class="fu-w">Overdue · </span>${l.followUp}` };
     if (live && sameDay(t, now)) return { cls: "fu-today", out: html`<i data-lucide="bell-ring"></i><span class="fu-w">Today · </span>${t.toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" })}` };
     return { cls: "", out: html`<i data-lucide="calendar"></i>${l.followUp}` };
@@ -71,9 +70,9 @@
     const filtered = state.tab === "All Leads" ? b : b.filter((l) => l.status === state.tab);
     const pages = Math.max(1, Math.ceil(filtered.length / PAGE)); state.page = Math.min(state.page, pages);
     const rows = filtered.slice((state.page - 1) * PAGE, state.page * PAGE);
-    const booked = counts.Booked || 0;
-    const kpis = [["Total Leads", b.length.toLocaleString("en-IN"), "", "users", 1], ["New Leads", counts.New || 0, "", "user-plus"], ["Qualified Leads", counts.Qualified || 0, "", "clipboard-check"],
-      ["Site Visits", counts["Site Visit"] || 0, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Conversion Rate", b.length ? ((booked / b.length) * 100).toFixed(2) + "%" : "0%", "", "trending-up"]];
+    const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), visits = (counts["Visit Scheduled"] || 0) + (counts["Visit Done"] || 0);
+    const kpis = [["Total Leads", b.length.toLocaleString("en-IN"), "", "users", 1], ["New Leads", counts["New Leads"] || 0, "", "user-plus"], ["Interested", counts.Interested || 0, "", "clipboard-check"],
+      ["Visits", visits, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Conversion Rate", b.length ? ((booked / b.length) * 100).toFixed(2) + "%" : "0%", "", "trending-up"]];
     const sel = (key, label) => html`<select class="select" data-f="${key}"><option value="">${label}: All</option>${uniq(key).map((v) => html`<option ${state.f[key] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
 
     render(page, html`
@@ -101,6 +100,9 @@
             <button data-page="${state.page + 1}" ${state.page >= pages ? raw("disabled") : raw("")} aria-label="Next"><i data-lucide="chevron-right"></i></button></div></div>
       </div>${drawer(state.selected)}</div>`);
     bind(filtered);
+    // centre the current stage inside the (horizontally scrollable) progress bar without scrolling the page
+    const cur = page.querySelector(".drawer .stepper .s.cur");
+    if (cur) { const bar = cur.parentElement; bar.scrollLeft += cur.getBoundingClientRect().left - bar.getBoundingClientRect().left - (bar.clientWidth - cur.clientWidth) / 2; }
   }
 
   const refresh = async () => { if (await load()) draw(); };

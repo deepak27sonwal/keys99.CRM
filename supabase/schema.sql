@@ -3,7 +3,7 @@
 
 -- CRM fields (nullable or defaulted, so the landing-page insert keeps working).
 alter table public.enquiries
-  add column if not exists status        text  not null default 'New',
+  add column if not exists status        text  not null default 'New Leads',
   add column if not exists follow_up     timestamptz,
   add column if not exists budget        text,
   add column if not exists location      text,
@@ -15,7 +15,7 @@ alter table public.enquiries
 
 alter table public.enquiries
   add constraint enquiries_status_check
-  check (status in ('New','Contacted','Interested','Qualified','Site Visit','Negotiation','Booked','Lost'));
+  check (status in ('New Leads','Contacted','Spam','Interested','Visit Scheduled','Visit Done','On Negotiations','Token Done','Booking Done','Post Sale'));
 
 create index if not exists enquiries_status_idx     on public.enquiries (status);
 create index if not exists enquiries_created_at_idx on public.enquiries (created_at desc);
@@ -67,3 +67,12 @@ alter table public.site_visits enable row level security;
 alter table public.bookings    enable row level security;
 create policy "CRM users full access" on public.site_visits for all to authenticated using (true) with check (true);
 create policy "CRM users full access" on public.bookings    for all to authenticated using (true) with check (true);
+
+-- Stage rename (already applied): New->New Leads, Qualified->Interested, Site Visit->Visit Scheduled,
+-- Negotiation->On Negotiations, Booked->Booking Done, Lost->Spam. Run this only on a database that still has the old stages:
+--   alter table public.enquiries drop constraint if exists enquiries_status_check;
+--   update public.enquiries set status = case status when 'New' then 'New Leads' when 'Qualified' then 'Interested'
+--     when 'Site Visit' then 'Visit Scheduled' when 'Negotiation' then 'On Negotiations' when 'Booked' then 'Booking Done'
+--     when 'Lost' then 'Spam' else status end where status in ('New','Qualified','Site Visit','Negotiation','Booked','Lost');
+--   alter table public.enquiries alter column status set default 'New Leads';
+--   (then add the new enquiries_status_check shown above)
