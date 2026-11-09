@@ -41,3 +41,46 @@ function buildingSvg() {
   }
   return raw(s + "</svg>");
 }
+
+// ---- formatting & helpers ----
+function fmtMoney(n) {
+  n = Number(n) || 0;
+  if (n >= 1e7) return "₹ " + (n / 1e7).toFixed(2).replace(/\.?0+$/, "") + " Cr";
+  if (n >= 1e5) return "₹ " + (n / 1e5).toFixed(1).replace(/\.0$/, "") + " L";
+  return "₹ " + n.toLocaleString("en-IN");
+}
+function relTime(ts) {
+  const s = Math.max(0, (Date.now() - new Date(ts)) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " hr ago";
+  if (s < 86400 * 30) return Math.floor(s / 86400) + " d ago";
+  return fmtDate(ts);
+}
+const digits = (s) => String(s || "").replace(/\D/g, "");
+function telHref(mobile) { const d = digits(mobile); return d ? "tel:" + (d.length === 10 ? "+91" + d : "+" + d) : "#"; }
+function waHref(mobile) { const d = digits(mobile); return d ? "https://wa.me/" + (d.length === 10 ? "91" + d : d) : "#"; }
+function toLocalInput(ts) {
+  if (!ts) return "";
+  const d = new Date(ts); if (isNaN(d)) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+function csvCell(v) {
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // block spreadsheet formula injection
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function downloadCsv(name, header, rows) {
+  const body = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + body], { type: "text/csv" }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}

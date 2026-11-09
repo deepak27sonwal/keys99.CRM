@@ -5,22 +5,25 @@ Channel Partner CRM for real estate: leads, customers, bookings and commissions.
 **Stack:** plain HTML, CSS and JavaScript + Supabase. No build step, no Node.js.
 
 ## Pages
-- `index.html` Dashboard (sample data for now)
-- `leads.html` Leads Management with Lead Details drawer, tab filters, search and Add Lead
-- `customer.html?id=L-28651` Customer Profile
-- `login.html` Supabase email/password login
+- `index.html` Dashboard: KPIs, lead trend, sources, pipeline, visits, follow-ups, agents, commission (date-range filter)
+- `leads.html` Leads: tabs, filters, search, paging, CSV export, Add/Edit lead, notes, follow-ups
+- `customer.html?id=L-5` Customer profile: details, repeat enquiries, timeline, site visits, bookings, lead outcome
+- `login.html` Sign-in (show/hide password, forgot password, returns you to the page you were on); `reset.html` sets a new password from the emailed link
 
 ## Run locally
-Open `index.html` in a browser, or serve the folder:
+Serve the folder and sign in with a Supabase user (there is no demo mode; all data is real):
 ```bash
 python3 -m http.server 8000
 ```
-It runs in **demo mode** (sample data) until Supabase is configured.
 
-## Connect Supabase
-1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
-2. Authentication -> Users -> add a user (email + password).
-3. Put the Project URL and anon/publishable key in `js/config.js`.
+## Supabase
+The CRM runs on the **Housing mantra enquiries** project (URL and publishable key are in `js/config.js`).
+- Leads are the rows of the existing `enquiries` table (the landing-page form keeps writing there).
+- `site_visits` and `bookings` hold visits, deals and brokerage commission.
+- `supabase/schema.sql` has every change (CRM columns, the two tables, Row Level Security: signed-in users only).
+- To log in, add a user: Supabase dashboard -> Authentication -> Users -> Add user (email + password).
+- Password reset emails: Authentication -> URL Configuration -> add your site URL (and `.../reset.html`) to Redirect URLs.
+- Keep **Allow new users to sign up** turned off (Authentication -> Sign In / Providers), so only invited users can sign in.
 
 ## Live demo
 https://deepak27sonwal.github.io/keys99.CRM/ (deployed from `main` by GitHub Actions)

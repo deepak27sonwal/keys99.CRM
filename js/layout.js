@@ -10,13 +10,11 @@ const NAV = [
 ];
 
 async function mountShell(active) {
-  let email = "Deepak Mahto";
-  if (Data.configured) {
-    const s = await Data.session();
-    if (!s) { location.href = "login.html"; return null; }
-    email = s.user.email;
-  }
   const root = document.getElementById("root");
+  if (!Data.configured) { root.innerHTML = '<div style="padding:40px;font-family:sans-serif">Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in <code>js/config.js</code>.</div>'; return null; }
+  const sess = await Data.session();
+  if (!sess) { location.replace("login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() + location.search)); return null; }
+  const email = sess.user.email;
   render(root, html`
     <div class="app">
       <div class="sidebar-backdrop" id="backdrop"></div>
@@ -35,12 +33,12 @@ async function mountShell(active) {
             <span class="bell"><i data-lucide="bell"></i></span>
             <i data-lucide="message-circle" class="wa"></i>
             <i data-lucide="calendar-days" class="cal"></i>
-            <button class="user" id="userBtn" title="${Data.configured ? "Click to log out" : "Demo mode"}">
+            <button class="user" id="userBtn" title="Click to log out">
               ${avatar(email, 40)}<span class="who"><b>${email}</b><span>Admin</span></span>
             </button>
           </div>
         </header>
-        <main id="main">${Data.configured ? raw("") : html`<div class="banner">Demo mode: showing sample data. Add your Supabase URL and key in <code>js/config.js</code> to use real data.</div>`}<div id="page"></div></main>
+        <main id="main"><div id="page"><div class="empty">Loading…</div></div></main>
       </div>
     </div>`);
   const sb = document.getElementById("sidebar"), bd = document.getElementById("backdrop");
@@ -48,11 +46,14 @@ async function mountShell(active) {
   document.getElementById("menuBtn").onclick = () => toggle(!sb.classList.contains("open"));
   bd.onclick = () => toggle(false);
   sb.querySelectorAll("a").forEach((a) => (a.onclick = () => toggle(false)));
-  document.getElementById("userBtn").onclick = () => { if (Data.configured && confirm("Log out?")) Data.signOut(); };
+  document.getElementById("userBtn").onclick = () => { if (confirm("Log out?")) Data.signOut(); };
+  const gs = document.getElementById("globalSearch");
+  if (active !== "leads") gs.onkeydown = (e) => { if (e.key === "Enter" && gs.value.trim()) location.href = "leads.html?q=" + encodeURIComponent(gs.value.trim()); };
   return document.getElementById("page");
 }
 
 function kpiCard([label, value, delta, icon, primary, green]) {
+  const neg = String(delta).startsWith("-");
   return html`<div class="kpi ${primary ? "primary" : ""} ${green ? "greenic" : ""}"><i data-lucide="${icon}"></i>
-    <div><div class="lbl">${label}</div><div class="val">${value}</div><div class="dl"><i data-lucide="arrow-up"></i>${delta}</div></div></div>`;
+    <div><div class="lbl">${label}</div><div class="val">${value}</div>${delta ? html`<div class="dl ${neg ? "neg" : ""}"><i data-lucide="${neg ? "arrow-down" : "arrow-up"}"></i>${delta}</div>` : raw('<div class="dl">&nbsp;</div>')}</div></div>`;
 }

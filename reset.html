@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Set new password · Keys99 CRM</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
+      <div><h2>Choose a new password.</h2><p>Use at least 8 characters. You'll be signed in right after.</p></div>
+      <div class="auth-art" id="art"></div>
+    </aside>
+    <main class="auth-main">
+      <div class="auth-card">
+        <div class="m-logo"><b>Keys<span>99</span> CRM</b></div>
+        <h1>Set new password</h1>
+        <p class="sub" id="sub">Checking your reset link…</p>
+        <form id="form" novalidate hidden>
+          <label>New password
+            <span class="pw"><input id="pw1" type="password" autocomplete="new-password" required minlength="8"><button type="button" id="toggle" aria-label="Show password"><i data-lucide="eye"></i></button></span>
+          </label>
+          <label>Confirm password
+            <input id="pw2" type="password" autocomplete="new-password" required minlength="8">
+          </label>
+          <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
+          <button class="btn gold auth-submit" id="btn" type="submit">Update password</button>
+        </form>
+        <p class="auth-foot"><a href="login.html" class="auth-link">← Back to sign in</a></p>
+      </div>
+    </main>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/reset.js"></script>
+</body>
+</html>
