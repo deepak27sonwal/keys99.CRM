@@ -375,11 +375,7 @@ table{width:100%;border-collapse:collapse}
 .dd-opt svg{color:var(--brand-600);flex-shrink:0}
 .dd-group{padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .dd-none{padding:14px;text-align:center;color:var(--muted);font-size:13px}
-.dd-backdrop{position:fixed;inset:0;z-index:119;background:rgba(15,23,42,.45)}
-.dd-grab{width:40px;height:4px;border-radius:2px;background:#cbd5e1;margin:8px auto 2px}
-.dd-pop.dd-sheet{left:0;right:0;bottom:0;top:auto;width:100%;max-height:70vh;border-radius:16px 16px 0 0;border-width:1px 0 0}
-.dd-pop.dd-sheet .dd-opt{padding:14px 12px;font-size:16px}
-.dd-pop.dd-sheet .dd-search input{font-size:16px;padding:11px 12px}
+@media(max-width:600px){.dd-opt{padding:12px;font-size:15px}.dd-search input{font-size:16px;padding:10px 12px}}
 .filters .dd{flex:0 1 auto}
 @media(max-width:900px){.filters .dd{flex:1 1 140px}}
 

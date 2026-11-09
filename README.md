@@ -25,7 +25,7 @@ const dd = Dropdown.create({ options: ["A", { value: "b", label: "B" }], value: 
                              searchable: true, name: "field", onChange: (value, label) => {} });
 container.appendChild(dd.el);   // dd.value, dd.setValue("a"), dd.setOptions([...]), dd.setDisabled(true)
 ```
-Keyboard: ↑ ↓ Home End Enter Esc Tab and type-to-jump. On phones the list opens as a bottom sheet.
+Keyboard: ↑ ↓ Home End Enter Esc Tab and type-to-jump. The list always opens right under the field (above it if there is no room), on phones too.
 
 ## Run locally
 Serve the folder and sign in with a Supabase user (there is no demo mode; all data is real):
