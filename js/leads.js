@@ -81,12 +81,12 @@
         <div class="page-head"><div><h1>Leads Management</h1><p class="sub">Capture, track and convert your property enquiries.</p></div>
           <div class="btns"><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
         <div class="kpis k6">${kpis.map(kpiCard)}</div>
-        <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
+        <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === "All Leads" ? "" : "has-stage s-" + slug(t)} ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
         <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Agent", "Status", "Created", "Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
-          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row st-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
+          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
