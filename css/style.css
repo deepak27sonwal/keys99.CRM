@@ -342,3 +342,35 @@ table{width:100%;border-collapse:collapse}
   .leads-t tr.lead-row.sel td[data-label="Actions"]{background:#e9f3f1}
   .leads-t td[data-label="Actions"]{padding-left:10px;padding-right:12px}
 }
+
+/* ---------- custom dropdown (js/dropdown.js) ---------- */
+.dd{position:relative;display:inline-block;min-width:120px;vertical-align:middle}
+.dd-block,.form .dd,.kv2 .dd{display:block;width:100%}
+.dd>select{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}
+.dd-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:38px;padding:8px 10px 8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:var(--shadow);color:var(--text);text-align:left;font-weight:400;transition:border-color .15s,box-shadow .15s}
+.dd-btn:hover{border-color:#cbd5e1}
+.dd-btn:focus-visible,.dd.open .dd-btn{outline:none;border-color:var(--brand-500);box-shadow:0 0 0 3px rgba(15,122,107,.15)}
+.dd-btn:disabled{opacity:.6;cursor:not-allowed;background:#f8fafc}
+.dd-btn svg{flex-shrink:0;color:var(--muted);transition:transform .15s}
+.dd.open .dd-btn svg{transform:rotate(180deg)}
+.dd-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-ph{color:var(--muted)}
+.dd-pop{position:fixed;z-index:120;display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.18),0 2px 6px rgba(15,23,42,.08);overflow:hidden}
+.dd-search{padding:8px;border-bottom:1px solid var(--line)}
+.dd-search input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;outline:none;font-size:14px}
+.dd-search input:focus{border-color:var(--brand-500)}
+.dd-list{list-style:none;overflow-y:auto;padding:4px;outline:none;overscroll-behavior:contain}
+.dd-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;font-size:14px}
+.dd-opt.dd-act{background:var(--brand-50)}
+.dd-opt.sel{font-weight:600;color:var(--brand-700)}
+.dd-opt.dis{opacity:.45;cursor:not-allowed}
+.dd-opt svg{color:var(--brand-600);flex-shrink:0}
+.dd-group{padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.dd-none{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+.dd-backdrop{position:fixed;inset:0;z-index:119;background:rgba(15,23,42,.45)}
+.dd-grab{width:40px;height:4px;border-radius:2px;background:#cbd5e1;margin:8px auto 2px}
+.dd-pop.dd-sheet{left:0;right:0;bottom:0;top:auto;width:100%;max-height:70vh;border-radius:16px 16px 0 0;border-width:1px 0 0}
+.dd-pop.dd-sheet .dd-opt{padding:14px 12px;font-size:16px}
+.dd-pop.dd-sheet .dd-search input{font-size:16px;padding:11px 12px}
+.filters .dd{flex:0 1 auto}
+@media(max-width:900px){.filters .dd{flex:1 1 140px}}

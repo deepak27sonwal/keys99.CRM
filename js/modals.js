@@ -6,6 +6,7 @@ function openModal(title, body, onSubmit, submitLabel = "Save") {
   ov.className = "overlay open";
   ov.innerHTML = `<form class="modal"><h2>${esc(title)}</h2>${body.__raw}<div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn gold" type="submit">${esc(submitLabel)}</button></div></form>`;
   document.body.appendChild(ov);
+  if (window.Dropdown) Dropdown.upgrade(ov);
   if (window.lucide) lucide.createIcons();
   const close = () => ov.remove();
   ov.querySelector("[data-x]").onclick = close;
@@ -17,7 +18,7 @@ function openModal(title, body, onSubmit, submitLabel = "Save") {
     try { await onSubmit(Object.fromEntries(new FormData(form))); close(); }
     catch (err) { btn.disabled = false; alert("Could not save: " + err.message); }
   };
-  const first = form.querySelector("input,select,textarea"); if (first) first.focus();
+  const first = form.querySelector("input:not([type=hidden]),textarea,.dd-btn,select:not([data-dd-ready])"); if (first) first.focus();
 }
 const field = (label, name, value = "", type = "text", attrs = "", cls = "") =>
   html`<label class="${cls}">${label}<input name="${name}" type="${type}" value="${value}" ${raw(attrs)}></label>`;
