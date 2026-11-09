@@ -132,6 +132,7 @@ table{width:100%;border-collapse:collapse}
 .leads-t td{padding:9px 6px;border-bottom:1px solid #f1f5f9;white-space:nowrap}
 .leads-t tr.lead-row{cursor:pointer}.leads-t tr.lead-row:hover{background:rgba(232,244,241,.5)}.leads-t tr.sel{background:rgba(232,244,241,.8)}
 .acts{display:flex;gap:8px;align-items:center}
+.act-t{display:none}
 .act{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);transition:.15s;padding:0}
 .act [data-lucide]{width:20px;height:20px}
 .act-call{color:#16a34a;border-color:#bbf7d0;background:#f0fdf4}.act-call:hover{background:#dcfce7}
@@ -319,10 +320,17 @@ table{width:100%;border-collapse:collapse}
   .leads-t tr.lead-row.sel{border-color:var(--brand-500)}
   .leads-t td{display:block;border:0;padding:0;white-space:normal;font-size:13px}
   .leads-t td::before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
-  .leads-t td[data-label="Customer"]{grid-column:1/-1;padding-right:150px;min-height:44px;display:flex;align-items:center}
-  .leads-t td[data-label="Actions"]{position:absolute;top:10px;right:10px;padding:0;border:0}
-  .act{width:44px;height:44px}.act [data-lucide]{width:22px;height:22px}.acts{gap:6px}
+  .leads-t td[data-label="Customer"]{grid-column:1/-1;padding-right:110px;min-height:40px;display:flex;align-items:center}
   .leads-t td[data-label="Customer"] .row{min-width:0}.leads-t td[data-label="Customer"] b{overflow-wrap:anywhere}
+  /* status badge: top-right corner of the card */
+  .leads-t td[data-label="Status"]{position:absolute;top:12px;right:12px;padding:0}
+  .leads-t td[data-label="Status"]::before{display:none}
+  /* call / WhatsApp / edit: a full-width row along the bottom of the card */
+  .leads-t td[data-label="Actions"]{grid-column:1/-1;padding:12px 0 0;margin-top:4px;border-top:1px solid #f1f5f9}
+  .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+  .act{width:100%;height:46px;border-radius:12px;gap:8px;font-size:14px;font-weight:600}
+  .act [data-lucide]{width:22px;height:22px}
+  .act-t{display:inline}
   .leads-t td[data-label="Customer"]::before,.leads-t td[data-label="Select"]::before,.leads-t td[data-label="Actions"]::before{display:none}
   .leads-t td[data-label="Select"]{display:none}
   .leads-t tr:not(.lead-row) td{display:block;grid-column:1/-1}
