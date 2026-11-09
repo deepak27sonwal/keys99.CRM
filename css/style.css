@@ -62,9 +62,9 @@ h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
 .btn.red{background:#fef2f2;border-color:#fca5a5;color:var(--red)}
 .select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:var(--shadow);min-width:120px}
 .badge{display:inline-block;padding:3px 11px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
-.b-New{background:#dbeafe;color:#1d4ed8}.b-Contacted{background:#fef3c7;color:#92400e}.b-Interested{background:#ede9fe;color:#6d28d9}
-.b-Qualified{background:#dcfce7;color:#15803d}.b-Site-Visit{background:#ecfccb;color:#4d7c0f}.b-Negotiation{background:#e0e7ff;color:#4338ca}
-.b-Booked{background:#d1fae5;color:#047857}.b-Lost{background:#fee2e2;color:#b91c1c}
+.b-New-Leads{background:#dbeafe;color:#1d4ed8}.b-Contacted{background:#fef3c7;color:#92400e}.b-Spam{background:#fee2e2;color:#b91c1c}.b-Interested{background:#ede9fe;color:#6d28d9}
+.b-Visit-Scheduled{background:#ecfccb;color:#4d7c0f}.b-Visit-Done{background:#ccfbf1;color:#0f766e}.b-On-Negotiations{background:#e0e7ff;color:#4338ca}
+.b-Token-Done{background:#ffedd5;color:#c2410c}.b-Booking-Done{background:#d1fae5;color:#047857}.b-Post-Sale{background:#e0f2fe;color:#0369a1}
 .b-Scheduled{background:#fef3c7;color:#92400e}.b-Confirmed{background:#dcfce7;color:#15803d}.b-Pending{background:#fef3c7;color:#92400e}
 .green-t{color:#16a34a}.wa-t{color:#22c55e}.brand-t{color:var(--brand-500)}.gold-t{color:var(--gold-500)}.muted{color:var(--muted)}
 .row{display:flex;align-items:center;gap:8px}
@@ -169,7 +169,7 @@ table{width:100%;border-collapse:collapse}
 .stepper .done .c{background:#15803d;border-color:#15803d}
 .stepper .cur .c{background:var(--gold-500);border-color:var(--gold-500)}
 .stepper .cur span{color:var(--gold-600);font-weight:700}
-.stepper span{margin-top:4px;white-space:nowrap}
+.stepper span{margin-top:4px;white-space:normal;text-align:center;line-height:1.2;padding:0 3px}
 .note{display:flex;gap:8px;background:#f8fafc;border-radius:8px;padding:12px}
 .drawer-f{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;border-top:1px solid var(--line)}
 .drawer-f .btn{justify-content:center}
@@ -272,7 +272,7 @@ table{width:100%;border-collapse:collapse}
 /* ---------- responsive ---------- */
 .grid>*,.cols>*,.col>*,.top-row>*,.split>*,.bc>*,.deal>*{min-width:0}
 .sidebar-backdrop{display:none}
-.stepper{overflow-x:auto}
+.stepper{overflow-x:auto;scrollbar-width:thin}.stepper .s{min-width:72px}
 .tabs-box{overflow-x:auto;flex-wrap:nowrap}.tabs-box button{white-space:nowrap}
 
 @media(max-width:1500px){
@@ -385,8 +385,8 @@ table{width:100%;border-collapse:collapse}
 
 /* ---------- lead rows / cards: status accents, follow-up flags ---------- */
 .leads-t tr.lead-row{--accent:#94a3b8}
-.st-New{--accent:#3b82f6}.st-Contacted{--accent:#f59e0b}.st-Interested{--accent:#8b5cf6}.st-Qualified{--accent:#16a34a}
-.st-Site-Visit{--accent:#84cc16}.st-Negotiation{--accent:#6366f1}.st-Booked{--accent:#059669}.st-Lost{--accent:#ef4444}
+.st-New-Leads{--accent:#3b82f6}.st-Contacted{--accent:#f59e0b}.st-Spam{--accent:#ef4444}.st-Interested{--accent:#8b5cf6}.st-Visit-Scheduled{--accent:#84cc16}
+.st-Visit-Done{--accent:#14b8a6}.st-On-Negotiations{--accent:#6366f1}.st-Token-Done{--accent:#f97316}.st-Booking-Done{--accent:#059669}.st-Post-Sale{--accent:#0ea5e9}
 .fu [data-lucide]{width:13px;height:13px;vertical-align:-2px;margin-right:4px}
 .fu{font-size:12px}
 .fu-over{color:#b91c1c;font-weight:600}.fu-today{color:#b45309;font-weight:600}.fu-none{color:var(--muted)}

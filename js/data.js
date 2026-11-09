@@ -35,7 +35,7 @@ const Data = {
     return {
       id: "L-" + r.id, dbId: r.id, name: r.name || "Unknown", mobile: r.phone || "", email: r.email || "",
       requirement: r.interest || "", budget: r.budget || "", project: r.project || "", developer: r.developer || "",
-      location: r.location || "", agent, status: r.status || "New", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
+      location: r.location || "", agent, status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
       source: r.source || "Website", propertyType: r.property_type || "", bhk: r.bhk || "", priority: r.priority || "",
       notes: r.notes || "", lostReason: r.lost_reason || "", createdAt: r.created_at, acts: Array.isArray(r.activities) ? r.activities : [],
     };
@@ -102,7 +102,7 @@ const Data = {
   async addLead(f) {
     const { error } = await this.client.from("enquiries").insert({
       name: f.name, phone: f.mobile, email: f.email || null, interest: f.requirement || null, budget: f.budget || null,
-      project: f.project || null, developer: f.developer || null, location: f.location || null, source: f.source || null, status: f.status || "New",
+      project: f.project || null, developer: f.developer || null, location: f.location || null, source: f.source || null, status: f.status || "New Leads",
     });
     if (error) throw error;
   },
