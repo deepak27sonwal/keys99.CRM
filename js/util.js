@@ -25,6 +25,12 @@ function avatar(name, size = 32) {
   return html`<span class="avatar" style="width:${size}px;height:${size}px;background:${AV_COLORS[h]};font-size:${Math.round(size * 0.38)}px">${ini}</span>`;
 }
 const badge = (status) => html`<span class="badge b-${slug(status)}">${status}</span>`;
+// Date only, e.g. "Nov 08, 2026".
+function fmtDay(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  return isNaN(d) ? "—" : d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+}
 function fmtDate(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
