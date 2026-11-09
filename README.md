@@ -19,8 +19,8 @@ It runs in **demo mode** (sample data) until Supabase is configured.
 
 ## Supabase
 The CRM runs on the **Housing mantra enquiries** project (URL and publishable key are in `js/config.js`).
-- `supabase/schema.sql` creates `leads` and `activities` (Row Level Security: signed-in users only).
-- `supabase/backfill_from_enquiries.sql` copied the existing `enquiries` into `leads` (already run).
+- Leads are the rows of the existing `enquiries` table. No extra tables.
+- `supabase/schema.sql` adds the CRM columns (status, follow_up, budget, ...) and policies for signed-in users.
 - To log in, add a user: Supabase dashboard -> Authentication -> Users -> Add user (email + password).
 
 ## Live demo
