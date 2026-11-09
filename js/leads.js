@@ -4,7 +4,7 @@
   const TABS = ["All Leads", "New", "Contacted", "Qualified", "Site Visit", "Negotiation", "Booked", "Lost"];
   const PAGE = 25;
   const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
-  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "" }, range: "all", page: 1, expanded: new Set(), sig: "", checked: new Set() };
+  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "" }, range: "all", page: 1, sig: "", checked: new Set() };
 
   async function load() {
     try { state.leads = await Data.getLeads(); }
@@ -58,13 +58,6 @@
     if (live && sameDay(t, now)) return { cls: "fu-today", out: html`<i data-lucide="bell-ring"></i><span class="fu-w">Today · </span>${t.toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" })}` };
     return { cls: "", out: html`<i data-lucide="calendar"></i>${l.followUp}` };
   }
-  const isPhone = () => window.matchMedia("(max-width: 900px)").matches;
-  function toggleCard(tr, force) {
-    const id = Number(tr.dataset.id), open = force === undefined ? !tr.classList.contains("open") : force;
-    tr.classList.toggle("open", open); open ? state.expanded.add(id) : state.expanded.delete(id);
-    const b = tr.querySelector(".more-btn"); if (b) b.setAttribute("aria-expanded", String(open));
-  }
-
   function pageButtons(cur, total) {
     const set = new Set([1, total, cur - 1, cur, cur + 1].filter((n) => n >= 1 && n <= total)), out = [];
     [...set].sort((a, b) => a - b).forEach((n, i, a) => { if (i && n - a[i - 1] > 1) out.push("…"); out.push(n); });
@@ -93,14 +86,14 @@
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Agent", "Status", "Next Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
-          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l), open = state.expanded.has(l.dbId); return html`<tr class="lead-row st-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${open ? "open" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
+          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row st-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
             <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status">${badge(l.status)}</td>
             <td data-label="Next Follow-up" class="fu ${fu.cls}">${fu.out}</td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
-            <td data-label="More" class="more-cell"><button type="button" class="more-btn" data-more="${l.dbId}" aria-expanded="${open}"><span class="more-t"></span><i data-lucide="chevron-down"></i></button><button type="button" class="open-btn" data-open="${l.dbId}">Open lead details<i data-lucide="arrow-right"></i></button></td>
+            <td data-label="Open" class="more-cell"><button type="button" class="open-btn" data-open="${l.dbId}">Open lead details<i data-lucide="arrow-right"></i></button></td>
             <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button></div></td></tr>`; })
             : html`<tr><td colspan="10" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing ${filtered.length ? (state.page - 1) * PAGE + 1 : 0} – ${(state.page - 1) * PAGE + rows.length} of ${filtered.length.toLocaleString("en-IN")} leads</span>
@@ -119,10 +112,8 @@
     page.querySelectorAll("[data-page]").forEach((x) => (x.onclick = () => { state.page = Number(x.dataset.page); draw(); }));
     page.querySelectorAll("tr.lead-row").forEach((r) => (r.onclick = (e) => {
       if (e.target.closest("input,a,button")) return;
-      if (isPhone()) return toggleCard(r);                       // phone: tap the card to expand / collapse
       state.selected = state.leads.find((l) => l.dbId === Number(r.dataset.id)); draw();
     }));
-    page.querySelectorAll("[data-more]").forEach((x) => (x.onclick = () => toggleCard(x.closest("tr"))));
     page.querySelectorAll("[data-open]").forEach((x) => (x.onclick = () => { state.selected = state.leads.find((l) => l.dbId === Number(x.dataset.open)); draw(); }));
     page.querySelectorAll("[data-check]").forEach((c) => (c.onchange = () => { const id = Number(c.dataset.check); c.checked ? state.checked.add(id) : state.checked.delete(id); }));
     page.querySelectorAll("[data-edit]").forEach((x) => (x.onclick = () => openEditLead(state.leads.find((l) => l.dbId === Number(x.dataset.edit)), refresh)));
