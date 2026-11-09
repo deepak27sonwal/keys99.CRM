@@ -17,10 +17,11 @@ python3 -m http.server 8000
 ```
 It runs in **demo mode** (sample data) until Supabase is configured.
 
-## Connect Supabase
-1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
-2. Authentication -> Users -> add a user (email + password).
-3. Put the Project URL and anon/publishable key in `js/config.js`.
+## Supabase
+The CRM runs on the **Housing mantra enquiries** project (URL and publishable key are in `js/config.js`).
+- `supabase/schema.sql` creates `leads` and `activities` (Row Level Security: signed-in users only).
+- `supabase/backfill_from_enquiries.sql` copied the existing `enquiries` into `leads` (already run).
+- To log in, add a user: Supabase dashboard -> Authentication -> Users -> Add user (email + password).
 
 ## Live demo
 https://deepak27sonwal.github.io/keys99.CRM/ (deployed from `main` by GitHub Actions)
