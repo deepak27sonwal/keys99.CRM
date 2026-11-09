@@ -13,7 +13,7 @@ const Data = {
     const { data } = await this.client.auth.getSession();
     return data.session;
   },
-  async signOut() { if (this.client) await this.client.auth.signOut(); location.href = "login.html"; },
+  async signOut() { if (this.client) await this.client.auth.signOut(); location.replace("login.html"); },
 
   // PostgREST returns at most 1000 rows per request, so page through.
   async fetchAll(table, build) {

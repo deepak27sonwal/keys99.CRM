@@ -3,23 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login · Keys99 CRM</title>
+  <title>Sign in · Keys99 CRM</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="login-wrap"><div class="login">
-    <h1>Keys99 <span style="color:var(--gold-500)">CRM</span></h1>
-    <p class="sub">Sign in to your channel partner account.</p>
-    <form id="form">
-      <input id="email" type="email" placeholder="Email" required autocomplete="username">
-      <input id="password" type="password" placeholder="Password" required autocomplete="current-password">
-      <div class="err" id="err"></div>
-      <button class="btn gold" style="justify-content:center">Sign in</button>
-    </form>
-    <p class="muted" id="demo" style="margin-top:14px;font-size:13px"></p>
-  </div></div>
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
+      <div>
+        <h2>Every enquiry, one place.</h2>
+        <p>Track leads from your landing pages and website, schedule site visits and follow bookings through to brokerage.</p>
+        <ul>
+          <li><i data-lucide="user-search"></i>Leads and follow-ups in one pipeline</li>
+          <li><i data-lucide="calendar-check"></i>Site visits and bookings</li>
+          <li><i data-lucide="wallet"></i>Brokerage due and received</li>
+        </ul>
+      </div>
+      <div class="auth-art" id="art"></div>
+    </aside>
+
+    <main class="auth-main">
+      <div class="auth-card">
+        <div class="m-logo"><b>Keys<span>99</span> CRM</b></div>
+
+        <section id="signinView">
+          <h1>Welcome back</h1>
+          <p class="sub">Sign in to your Keys99 account.</p>
+          <form id="signinForm" novalidate>
+            <label>Email
+              <input id="email" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com">
+            </label>
+            <label>Password
+              <span class="pw">
+                <input id="password" type="password" autocomplete="current-password" required placeholder="Your password">
+                <button type="button" id="togglePw" aria-label="Show password"><i data-lucide="eye"></i></button>
+              </span>
+            </label>
+            <div class="auth-row"><span></span><button type="button" class="auth-link" id="forgotBtn">Forgot password?</button></div>
+            <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
+            <button class="btn gold auth-submit" id="submitBtn" type="submit">Sign in</button>
+          </form>
+        </section>
+
+        <section id="resetView" hidden>
+          <h1>Reset password</h1>
+          <p class="sub">Enter your email and we'll send you a link to set a new password.</p>
+          <form id="resetForm" novalidate>
+            <label>Email
+              <input id="resetEmail" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com">
+            </label>
+            <div class="auth-msg" id="resetMsg" role="alert" aria-live="polite"></div>
+            <button class="btn gold auth-submit" id="resetBtn" type="submit">Send reset link</button>
+            <button type="button" class="auth-link" id="backBtn" style="align-self:center">← Back to sign in</button>
+          </form>
+        </section>
+
+        <p class="auth-foot">Access is by invitation only. Ask your administrator for an account.</p>
+      </div>
+    </main>
+  </div>
   <script src="js/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script src="js/util.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>

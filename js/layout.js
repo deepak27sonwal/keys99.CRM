@@ -13,7 +13,7 @@ async function mountShell(active) {
   const root = document.getElementById("root");
   if (!Data.configured) { root.innerHTML = '<div style="padding:40px;font-family:sans-serif">Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in <code>js/config.js</code>.</div>'; return null; }
   const sess = await Data.session();
-  if (!sess) { location.href = "login.html"; return null; }
+  if (!sess) { location.replace("login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() + location.search)); return null; }
   const email = sess.user.email;
   render(root, html`
     <div class="app">
