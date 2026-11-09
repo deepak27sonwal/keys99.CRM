@@ -1,6 +1,6 @@
 const cfg = window.KEYS99_CONFIG || {};
 if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
-  document.getElementById("demo").innerHTML = 'Supabase is not configured yet. <a href="index.html" style="color:var(--brand-600);font-weight:600">Continue in demo mode</a>';
+  document.getElementById("demo").textContent = "Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in js/config.js.";
 } else {
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   sb.auth.getSession().then(({ data }) => { if (data.session) location.href = "index.html"; });

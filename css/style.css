@@ -77,6 +77,7 @@ h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
 .kpi .lbl{font-size:12px;color:var(--muted);white-space:nowrap}
 .kpi .val{font-size:24px;font-weight:700;line-height:1.15}
 .kpi .dl{font-size:12px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:2px}
+.kpi .dl.neg{color:var(--red)}.kpi.primary .dl.neg{color:#fecaca}
 .kpi .dl [data-lucide]{width:12px;height:12px;color:inherit}
 .kpi.primary{background:linear-gradient(135deg,var(--brand-500),var(--brand-800));border-color:var(--brand-700);color:#fff}
 .kpi.primary [data-lucide]{color:#fff}.kpi.primary .lbl{color:var(--brand-50)}.kpi.primary .dl{color:#bbf7d0}
@@ -228,6 +229,13 @@ table{width:100%;border-collapse:collapse}
 .empty{padding:40px;text-align:center;color:var(--muted)}
 
 
+.c-Booked{background:#d1fae5;color:#047857}.c-Enquired{background:#e0e7ff;color:#4338ca}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.form textarea{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-weight:400;resize:vertical}
+.icon-btn{background:none;border:0;padding:2px;display:inline-flex;color:inherit}
+.empty-sm{padding:14px 0;color:var(--muted);font-size:13px}
+.tl .ic.gold{background:var(--gold-500)}
+.drawer-f .btn:disabled{opacity:.5}
 /* ---------- responsive ---------- */
 .grid>*,.cols>*,.col>*,.top-row>*,.split>*,.bc>*,.deal>*{min-width:0}
 .sidebar-backdrop{display:none}
