@@ -51,6 +51,29 @@
     return { labels: keys.map(lab), leads: keys.map((k) => n.get(k)), conv: keys.map((k) => c.get(k)) };
   }
 
+  // Funnel: each stage shows how many leads have reached it (that stage or any later one), so it only ever narrows.
+  // Spam is outside the funnel. "here" = leads currently sitting in the stage.
+  function buildFunnel(L) {
+    const live = L.filter((l) => l.status !== "Spam"), at = (l) => PIPELINE.indexOf(l.status);
+    const reached = PIPELINE.map((_, i) => live.filter((l) => at(l) >= i).length);
+    const here = PIPELINE.map((st) => L.filter((l) => l.status === st).length);
+    return { reached, here, spam: L.length - live.length, total: live.length };
+  }
+  function funnelView(f) {
+    if (!f.total) return html`<div class="empty-sm">No leads in this period.</div>`;
+    const W = 320, H = 34, GAP = 4, MIN = 0.5, n = PIPELINE.length;
+    const wd = f.reached.map((c) => W * (MIN + (1 - MIN) * (c / f.total)));
+    const seg = (st, i) => {
+      const y = i * (H + GAP), tw = wd[i], bw = i < n - 1 ? wd[i + 1] : tw * 0.82, x = (v) => ((W - v) / 2).toFixed(1);
+      const pts = `${x(tw)},${y} ${(+x(tw) + tw).toFixed(1)},${y} ${(+x(bw) + bw).toFixed(1)},${y + H} ${x(bw)},${y + H}`;
+      return html`<g class="f-seg s-${slug(st)}"><title>${st}: ${f.reached[i]} reached · ${f.here[i]} currently here</title><polygon points="${pts}"></polygon>
+        <text x="${W / 2}" y="${y + H / 2 + 4}" text-anchor="middle"><tspan class="f-name">${st}</tspan><tspan class="f-n" dx="6">${f.reached[i]}</tspan></text></g>`;
+    };
+    const conv = ((f.reached[n - 2] / f.total) * 100).toFixed(1).replace(/\.0$/, "");   // reached Booking Done or later
+    return html`<svg class="f-svg" viewBox="0 0 ${W} ${n * (H + GAP) - GAP}" role="img" aria-label="Sales pipeline funnel: ${PIPELINE.map((st, i) => st + " " + f.reached[i]).join(", ")}">${PIPELINE.map(seg)}</svg>
+      <div class="f-foot"><span>Reached Booking Done: <b>${conv}%</b></span><span>Spam (not in funnel): <b>${f.spam}</b></span></div>`;
+  }
+
   function draw() {
     charts.forEach((c) => c.destroy()); charts = [];
     const bd = bounds(state.range), cur = stats(bd.cur), prev = bd.prev ? stats(bd.prev) : null;
@@ -72,9 +95,7 @@
     const COLORS = ["#0f7a6b", "#e8a91f", "#3b6fe0", "#9b6fe0", "#2e86de", "#c3c9cf"];
 
     // pipeline (current status of leads created in range)
-    const stages = PIPELINE.map((st) => [st, cur.L.filter((l) => l.status === st).length]);
-    const maxStage = Math.max(1, ...stages.map((s) => s[1]));
-    const fcol = ["#3b82f6", "#f59e0b", "#8b5cf6", "#84cc16", "#14b8a6", "#6366f1", "#f97316", "#059669", "#0ea5e9"];
+    const funnel = buildFunnel(cur.L);
 
     // upcoming visits, follow-ups, agents, developers, recent
     const now = new Date();
@@ -100,8 +121,7 @@
         <section class="card p"><div class="ch"><h3>Lead Trend</h3><div class="legend"><span><i style="background:#0f7a6b"></i>New Leads</span><span><i style="background:#e8a91f"></i>Bookings</span></div></div><div class="chart-box"><canvas id="trend"></canvas></div></section>
         <section class="card p"><div class="ch"><h3>Lead Source</h3></div>${srcs.length ? html`<div class="donut-wrap"><div class="donut"><canvas id="src"></canvas><div class="mid"><b>${cur.total}</b><span>Total Leads</span></div></div>
           <ul class="dl-list">${srcs.map(([n, v], i) => html`<li><i style="background:${COLORS[i]}"></i><span>${n}</span><em>${Math.round((v / cur.total) * 100)}%</em></li>`)}</ul></div>` : html`<div class="empty-sm">No leads in this period.</div>`}</section>
-        <section class="card p funnel"><div class="ch"><h3>Sales Pipeline</h3>${more()}</div>
-          ${stages.map(([s, n], i) => html`<div class="f"><div class="track"><div class="bar" style="width:${Math.max(48, (n / maxStage) * 100)}%;background:${fcol[i]}">${s}</div></div><b>${n}</b></div>`)}</section>
+        <section class="card p funnel"><div class="ch"><h3>Sales Pipeline</h3>${more()}</div>${funnelView(funnel)}</section>
       </div>
       <div class="grid g-3">
         <section class="card p"><div class="ch"><i data-lucide="calendar-check"></i><h3>Upcoming Site Visits</h3></div>

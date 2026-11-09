@@ -62,9 +62,6 @@ h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
 .btn.red{background:#fef2f2;border-color:#fca5a5;color:var(--red)}
 .select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:var(--shadow);min-width:120px}
 .badge{display:inline-block;padding:3px 11px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
-.b-New-Leads{background:#dbeafe;color:#1d4ed8}.b-Contacted{background:#fef3c7;color:#92400e}.b-Spam{background:#fee2e2;color:#b91c1c}.b-Interested{background:#ede9fe;color:#6d28d9}
-.b-Visit-Scheduled{background:#ecfccb;color:#4d7c0f}.b-Visit-Done{background:#ccfbf1;color:#0f766e}.b-On-Negotiations{background:#e0e7ff;color:#4338ca}
-.b-Token-Done{background:#ffedd5;color:#c2410c}.b-Booking-Done{background:#d1fae5;color:#047857}.b-Post-Sale{background:#e0f2fe;color:#0369a1}
 .b-Scheduled{background:#fef3c7;color:#92400e}.b-Confirmed{background:#dcfce7;color:#15803d}.b-Pending{background:#fef3c7;color:#92400e}
 .green-t{color:#16a34a}.wa-t{color:#22c55e}.brand-t{color:var(--brand-500)}.gold-t{color:var(--gold-500)}.muted{color:var(--muted)}
 .row{display:flex;align-items:center;gap:8px}
@@ -101,10 +98,10 @@ h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
 .dl-list{flex:1;list-style:none}
 .dl-list li{display:flex;align-items:center;gap:8px;padding:4px 0}
 .dl-list i{width:10px;height:10px;border-radius:2px}.dl-list span{flex:1}.dl-list em{font-style:normal;color:var(--muted)}
-.funnel .f{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.funnel .track{flex:1;background:#f1f5f9;border-radius:4px}
-.funnel .bar{margin:0 auto;border-radius:4px;padding:6px 0;text-align:center;font-size:12px;font-weight:600;color:#fff}
-.funnel b{width:40px;text-align:right}
+.f-svg{display:block;width:100%;height:auto;margin-top:4px}
+.f-seg{cursor:default}.f-seg polygon{transition:filter .15s}.f-seg:hover polygon{filter:brightness(1.1)}
+.f-seg text{fill:#fff;pointer-events:none}.f-name{font:600 12px Inter,system-ui,sans-serif}.f-n{font:800 13px Inter,system-ui,sans-serif}
+.f-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;font-size:12px;color:var(--muted)}.f-foot b{color:var(--text)}
 .list{list-style:none}
 .list li{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f1f5f9}
 .list li:last-child{border:0}
@@ -380,9 +377,7 @@ table{width:100%;border-collapse:collapse}
 @media(max-width:900px){.filters .dd{flex:1 1 140px}}
 
 /* ---------- lead rows / cards: status accents, follow-up flags ---------- */
-.leads-t tr.lead-row{--accent:#94a3b8}
-.st-New-Leads{--accent:#3b82f6}.st-Contacted{--accent:#f59e0b}.st-Spam{--accent:#ef4444}.st-Interested{--accent:#8b5cf6}.st-Visit-Scheduled{--accent:#84cc16}
-.st-Visit-Done{--accent:#14b8a6}.st-On-Negotiations{--accent:#6366f1}.st-Token-Done{--accent:#f97316}.st-Booking-Done{--accent:#059669}.st-Post-Sale{--accent:#0ea5e9}
+.leads-t tr.lead-row{--accent:var(--stage,#94a3b8)}
 .fu [data-lucide]{width:13px;height:13px;vertical-align:-2px;margin-right:4px}
 .fu{font-size:12px}
 .fu-over{color:#b91c1c;font-weight:600}.fu-today{color:#b45309;font-weight:600}.fu-none{color:var(--muted)}
@@ -443,3 +438,11 @@ table{width:100%;border-collapse:collapse}
   .last-act small{color:var(--muted);font-size:12px}
   .leads-t td[data-label="Actions"]{order:9}
 }
+
+/* ---------- stage colours: the single source of truth (sales funnel, badges, card accents, tabs) ---------- */
+.s-New-Leads{--stage:#2563eb}.s-Contacted{--stage:#b45309}.s-Spam{--stage:#b91c1c}.s-Interested{--stage:#7c3aed}.s-Visit-Scheduled{--stage:#4d7c0f}
+.s-Visit-Done{--stage:#0f766e}.s-On-Negotiations{--stage:#4f46e5}.s-Token-Done{--stage:#c2410c}.s-Booking-Done{--stage:#047857}.s-Post-Sale{--stage:#0369a1}
+.badge[class*=" s-"]{background:var(--stage);color:#fff}
+.f-seg polygon{fill:var(--stage)}
+.pill.has-stage::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--stage);margin-right:7px;vertical-align:1px}
+.pill.has-stage.active{background:var(--stage);border-color:var(--stage);color:#fff}.pill.has-stage.active::before{background:#fff}

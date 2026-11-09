@@ -24,7 +24,7 @@ function avatar(name, size = 32) {
   const ini = String(name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   return html`<span class="avatar" style="width:${size}px;height:${size}px;background:${AV_COLORS[h]};font-size:${Math.round(size * 0.38)}px">${ini}</span>`;
 }
-const badge = (status) => html`<span class="badge b-${slug(status)}">${status}</span>`;
+const badge = (status) => html`<span class="badge s-${slug(status)}">${status}</span>`;
 // Date only, e.g. "Nov 08, 2026".
 function fmtDay(ts) {
   if (!ts) return "—";
