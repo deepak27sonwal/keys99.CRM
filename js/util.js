@@ -13,6 +13,7 @@ function html(strings, ...vals) {
 }
 function render(el, tpl) {
   el.innerHTML = tpl.__raw;
+  if (window.Dropdown) Dropdown.upgrade(el);
   if (window.lucide) lucide.createIcons();
 }
 const slug = (s) => String(s).replace(/\s+/g, "-");

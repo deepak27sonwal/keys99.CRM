@@ -10,6 +10,23 @@ Channel Partner CRM for real estate: leads, customers, bookings and commissions.
 - `customer.html?id=L-5` Customer profile: details, repeat enquiries, timeline, site visits, bookings, lead outcome
 - `login.html` Sign-in (show/hide password, forgot password, returns you to the page you were on); `reset.html` sets a new password from the emailed link
 
+## Reusable dropdown (`js/dropdown.js`)
+Every `<select>` rendered through `render()` or a modal is upgraded to a styled dropdown automatically; the native
+`<select>` stays in the DOM (hidden), so `.value`, `FormData`, `onchange` and `required` keep working.
+```html
+<select name="status">...</select>             <!-- upgraded automatically -->
+<select data-native>...</select>               <!-- opt out -->
+<select data-search>...</select>               <!-- always show the search box (shown by default above 8 options) -->
+<select data-placeholder="Pick one">...</select>
+```
+Or build one from code:
+```js
+const dd = Dropdown.create({ options: ["A", { value: "b", label: "B" }], value: "b", placeholder: "Choose…",
+                             searchable: true, name: "field", onChange: (value, label) => {} });
+container.appendChild(dd.el);   // dd.value, dd.setValue("a"), dd.setOptions([...]), dd.setDisabled(true)
+```
+Keyboard: ↑ ↓ Home End Enter Esc Tab and type-to-jump. On phones the list opens as a bottom sheet.
+
 ## Run locally
 Serve the folder and sign in with a Supabase user (there is no demo mode; all data is real):
 ```bash
