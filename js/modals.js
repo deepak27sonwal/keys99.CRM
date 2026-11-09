@@ -53,8 +53,9 @@ function openNote(lead, done) {
     async (f) => { await Data.addNote(lead, f.text.trim()); toast("Note added"); done && done(); });
 }
 function openFollowUp(lead, done) {
-  openModal("Schedule Follow-up", html`<div class="form">${field("Date & time *", "follow_up", toLocalInput(lead.followUpTs), "datetime-local", "required", "full")}</div>`,
-    async (f) => { await Data.updateLead(lead.dbId, { followUp: fromLocalInput(f.follow_up) }); toast("Follow-up scheduled"); done && done(); });
+  openModal("Schedule Follow-up", html`<div class="form">${field("Date & time *", "follow_up", toLocalInput(lead.followUpTs), "datetime-local", "required", "full")}
+    <label class="full">Follow-up note (optional)<textarea name="note" rows="3" placeholder="e.g. Share pricing and book a site visit"></textarea></label></div>`,
+    async (f) => { await Data.scheduleFollowUp(lead, fromLocalInput(f.follow_up), (f.note || "").trim()); toast("Follow-up scheduled"); done && done(); });
 }
 function openSiteVisit(lead, done) {
   openModal("Schedule Site Visit", html`<div class="form">
