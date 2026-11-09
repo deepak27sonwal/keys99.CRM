@@ -75,6 +75,24 @@ const Data = {
     const { error } = await this.client.from("enquiries").update(row).eq("id", dbId);
     if (error) throw error;
   },
+  // Schedule (or clear) the next follow-up; an optional note is saved as an activity so it shows on the card.
+  async scheduleFollowUp(lead, followUp, note) {
+    const row = { follow_up: followUp };
+    if (note) {
+      const s = await this.session();
+      row.activities = [...lead.acts, { type: "call", title: "Follow-up scheduled", description: note, at: new Date().toISOString(), by: s ? s.user.email : "", due: followUp }];
+    }
+    const { error } = await this.client.from("enquiries").update(row).eq("id", lead.dbId);
+    if (error) throw error;
+  },
+  // Most recent thing that happened on a lead: a note, a follow-up note or, failing that, the enquiry itself.
+  lastActivity(l) {
+    const acts = l.acts.filter((a) => a && a.at && a.description).sort((a, b) => new Date(b.at) - new Date(a.at));
+    const a = acts[0];
+    if (a) return { label: a.title === "Follow-up scheduled" ? "Follow-up note" : a.title === "Note" ? "Last note" : "Last activity", text: a.description, at: a.at, by: a.by || "", icon: a.title === "Follow-up scheduled" ? "phone-call" : "message-square-text" };
+    if (l.notes) return { label: "Note", text: l.notes, at: l.createdAt, by: "", icon: "message-square-text" };
+    return { label: "Enquiry received", text: "From " + l.source + (l.project ? " for " + l.project : ""), at: l.createdAt, by: "", icon: "inbox" };
+  },
   async addNote(lead, text) {
     const s = await this.session();
     const acts = [...lead.acts, { type: "doc", title: "Note", description: text, at: new Date().toISOString(), by: s ? s.user.email : "" }];
