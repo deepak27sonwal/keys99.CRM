@@ -91,3 +91,13 @@ function toast(msg) {
   t.className = "toast"; t.textContent = msg; document.body.appendChild(t);
   setTimeout(() => t.remove(), 2600);
 }
+
+// ---- dates & times (local time) ----
+const pad2 = (n) => String(n).padStart(2, "0");
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayKey = (d) => { d = new Date(d); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const startOfDay = (d) => { d = new Date(d); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+const fmtTime = (ts) => { const d = new Date(ts); return isNaN(d) ? "—" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }).replace(/\u202f/g, " "); };
+const fmtLongDay = (d) => { d = new Date(d); return `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`; };
+// "2026-11-18" + "10:30" (local) -> ISO string
+const localISO = (date, time) => new Date(`${date}T${time}`).toISOString();

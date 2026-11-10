@@ -76,3 +76,15 @@ create policy "CRM users full access" on public.bookings    for all to authentic
 --     when 'Lost' then 'Spam' else status end where status in ('New','Qualified','Site Visit','Negotiation','Booked','Lost');
 --   alter table public.enquiries alter column status set default 'New Leads';
 --   (then add the new enquiries_status_check shown above)
+
+-- Site visit plan and outcome (used by the Site Visit Management page).
+alter table public.site_visits
+  add column if not exists pickup_at   timestamptz,
+  add column if not exists site_end_at timestamptz,
+  add column if not exists end_at      timestamptz,
+  add column if not exists outcome     text,
+  add column if not exists remarks     text;
+alter table public.site_visits add constraint site_visits_outcome_check
+  check (outcome is null or outcome in ('Interested','Not Interested','Need More Time'));
+alter table public.site_visits add constraint site_visits_end_after_start
+  check (end_at is null or end_at >= visit_at);
