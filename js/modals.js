@@ -90,3 +90,42 @@ function openSpam(lead, done) {
   openModal("Mark as Spam", html`<div class="form">${selectField("Reason", "reason", ["Spam / fake enquiry", "Wrong number", "Duplicate", "Not interested", "Budget mismatch", "Not responding", "Other"], "", "full")}</div>`,
     async (f) => { await Data.updateLead(lead.dbId, { status: "Spam", lostReason: f.reason }); toast("Marked as spam"); done && done(); }, "Confirm");
 }
+
+// ---- site visits (used by the Site Visits page) ----
+const VISIT_STATUSES = ["Scheduled", "Confirmed", "Completed", "Cancelled"];
+const visitTimes = (f) => {
+  if (f.end && f.end <= f.start) throw new Error("End time must be after the start time.");
+  if (f.pickup && f.pickup > f.start) throw new Error("Pickup time must be before the visit starts.");
+  return { visit_at: localISO(f.date, f.start), end_at: f.end ? localISO(f.date, f.end) : null, pickup_at: f.pickup ? localISO(f.date, f.pickup) : null };
+};
+const timeFields = (v) => html`${field("Date *", "date", v.date, "date", "required")}${field("Start time *", "start", v.start, "time", "required")}
+  ${field("End time", "end", v.end, "time")}${field("Pickup time (optional)", "pickup", v.pickup, "time")}`;
+
+function openScheduleVisit(leads, defaults, done) {
+  const today = dayKey(new Date());
+  const opts = leads.map((l) => html`<option value="${l.dbId}">${l.name} · ${l.mobile} · ${l.id}</option>`);
+  openModal("Schedule Site Visit", html`<div class="form">
+    <label class="full">Lead *<select name="lead" data-search data-placeholder="Search by name, phone or ID…" required><option value=""></option>${opts}</select></label>
+    ${field("Project", "project", "", "text", 'placeholder="Defaults to the lead\'s project"', "full")}
+    ${timeFields({ date: (defaults && defaults.date) || today, start: "10:00", end: "11:30", pickup: "" })}
+    ${selectField("Status", "status", VISIT_STATUSES.slice(0, 2), "Scheduled", "full")}</div>`,
+    async (f) => {
+      const lead = leads.find((l) => String(l.dbId) === f.lead); if (!lead) throw new Error("Choose a lead.");
+      await Data.addSiteVisit({ enquiry_id: lead.dbId, project: f.project || lead.project || null, status: f.status, ...visitTimes(f) });
+      if (["New Leads", "Contacted", "Interested"].includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Visit Scheduled" });
+      toast("Site visit scheduled"); done && done();
+    });
+}
+function openEditVisit(vm, done, onlyTimes) {
+  const v = vm.raw, dt = toLocalInput(v.visit_at), pick = (ts) => (ts ? toLocalInput(ts).slice(11, 16) : "");
+  openModal(onlyTimes ? "Reschedule Visit" : "Edit Site Visit", html`<div class="form">
+    ${onlyTimes ? raw("") : html`${field("Project", "project", v.project || "", "text", "", "full")}`}
+    ${timeFields({ date: dt.slice(0, 10), start: dt.slice(11, 16), end: pick(v.end_at), pickup: pick(v.pickup_at) })}
+    ${onlyTimes ? raw("") : selectField("Status", "status", VISIT_STATUSES, v.status, "full")}</div>`,
+    async (f) => {
+      const patch = visitTimes(f);
+      if (v.site_end_at && patch.end_at) patch.site_end_at = null;           // plan times are re-derived from the new window
+      if (!onlyTimes) { patch.project = f.project || null; patch.status = f.status; }
+      await Data.updateSiteVisit(v.id, patch); toast(onlyTimes ? "Visit rescheduled" : "Visit updated"); done && done();
+    });
+}

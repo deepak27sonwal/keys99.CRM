@@ -111,6 +111,10 @@ const Data = {
     const { error } = await this.client.from("site_visits").insert({ ...v, created_by: s ? s.user.email : null });
     if (error) throw error;
   },
+  async updateSiteVisit(id, patch) {
+    const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
+    if (error) throw error;
+  },
   async addBooking(b) {
     const s = await this.session();
     const { error } = await this.client.from("bookings").insert({ ...b, created_by: s ? s.user.email : null });
