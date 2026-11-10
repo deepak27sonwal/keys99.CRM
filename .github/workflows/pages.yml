@@ -25,7 +25,15 @@ jobs:
       - name: Prepare site
         run: |
           mkdir _site
-          cp -r index.html leads.html customer.html login.html css js _site/
+          # publish every page, so new pages are never forgotten
+          cp ./*.html _site/
+          cp -r css js _site/
+          # fail the build if any page referenced from the app is missing
+          missing=0
+          for ref in $(grep -rhoE "[a-z0-9-]+\.html" ./*.html js | sort -u); do
+            [ -f "_site/$ref" ] || { echo "::error::$ref is linked but missing from the site"; missing=1; }
+          done
+          exit $missing
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
