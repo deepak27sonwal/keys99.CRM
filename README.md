@@ -9,6 +9,7 @@ Channel Partner CRM for real estate: leads, customers, bookings and commissions.
 - `leads.html` Leads: tabs, filters, search, paging, CSV export, Add/Edit lead, notes, follow-ups
 - `customer.html?id=L-5` Customer profile: details, repeat enquiries, timeline, site visits, bookings, lead outcome
 - `site-visits.html` Site Visit Management: calendar (month/week/day), day list, visit details + plan + outcome, list and team views, insights, CSV and calendar (.ics) export
+- `site-visit.html?id=7` Site Visit Details: customer, project, workflow (confirm / visited / completed), outcome, documents and photos (private storage), agent checklist, ratings and feedback, remarks + next action (creates a follow-up), activity timeline
 - `login.html` Sign-in (show/hide password, forgot password, returns you to the page you were on); `reset.html` sets a new password from the emailed link
 
 ## Reusable dropdown (`js/dropdown.js`)

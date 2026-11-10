@@ -2,7 +2,7 @@
   const page = await mountShell("visits");
   if (!page) return;
   const MIN = 60000, OPEN = ["Scheduled", "Confirmed"], EARLY = ["New Leads", "Contacted", "Interested", "Visit Scheduled"];
-  const OUTCOMES = [["Interested", "Interested", "Move to Negotiations"], ["Not Interested", "Not Interested", "Mark as Spam"], ["Need More Time", "Need More Time", "Follow-up Later"]];
+  const OUTCOMES = [["Interested", "Interested", "Move to Negotiations"], ["Not Interested", "Not Interested", "Mark as Spam"], ["Need More Time", "Need More Time", "Follow-up Later"], ["No Response", "No Response", "Re-attempt"]];
   const state = { view: "calendar", mode: "month", day: startOfDay(new Date()), selId: null, range: "month", q: "", status: "" };
   let leads = [], visits = [], bookings = [], byId = new Map(), booked = new Set(), V = [];
 
@@ -85,7 +85,7 @@
     const l = v.lead, plan = [["Pickup (Optional)", v.pickup ? fmtTime(v.pickup) : "—", "car"], ["Site Visit", `${fmtTime(v.start)} – ${fmtTime(v.siteEnd)}`, "map-pin"], ["Project Discussion", `${fmtTime(v.siteEnd)} – ${fmtTime(v.end)}`, "users"]];
     const locked = v.status === "Cancelled";
     return html`<section class="card p sv-det">
-      <div class="ch"><i data-lucide="map-pin"></i><h3>Site Visit Details</h3><div class="row" style="margin-left:auto"><button class="btn sm" id="editVisit"><i data-lucide="pencil"></i>Edit</button>${kebab(v.id)}</div></div>
+      <div class="ch"><i data-lucide="map-pin"></i><h3>Site Visit Details</h3><div class="row" style="margin-left:auto"><a class="btn sm" href="site-visit.html?id=${v.id}"><i data-lucide="expand"></i>Full page</a><button class="btn sm" id="editVisit"><i data-lucide="pencil"></i>Edit</button>${kebab(v.id)}</div></div>
       <div class="det-top"><div class="thumb big">${buildingSvg()}</div><div><h4>${v.project}</h4><div class="vc-line"><i data-lucide="map-pin"></i>${v.place || "—"}</div><div class="vc-line"><i data-lucide="calendar"></i>${fmtLongDay(v.start)}</div><div class="vc-line"><i data-lucide="clock"></i>${range2(v)}</div><span class="badge b-${v.status}">${v.status}</span></div></div>
       <div class="sub-card"><div class="ch"><i data-lucide="user"></i><h3>Customer Information</h3></div><div class="cust">${avatar(v.name, 52)}<div class="cust-i"><a href="customer.html?id=${encodeURIComponent(l.id || "")}"><b>${v.name}</b></a>
         <div class="vc-line"><i data-lucide="phone"></i><a href="${telHref(v.mobile)}">${v.mobile || "—"}</a>${v.mobile ? html`<a href="${waHref(v.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a>` : raw("")}</div>
@@ -136,27 +136,18 @@
   const refresh = async () => { if (await load()) draw(); };
   const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert("Could not save: " + e.message); } };
   const setStatus = guard(async (v, status) => {
-    await Data.updateSiteVisit(v.id, { status });
+    await Data.updateSiteVisit(v.id, await Data.visitStatusPatch(v.raw, status));
     if (status === "Completed" && EARLY.includes(v.lead.status)) await Data.updateLead(v.lead.dbId, { status: "Visit Done" });
     toast("Visit " + status.toLowerCase()); await refresh();
   });
-  const saveOutcome = guard(async (v, outcome, remarks) => {
-    if (!outcome) throw new Error("Choose an outcome first.");
-    await Data.updateSiteVisit(v.id, { outcome, remarks: remarks.trim() || null, status: "Completed" });
-    const L = v.lead;
-    if (outcome === "Interested") await Data.updateLead(L.dbId, { status: "On Negotiations" });
-    else if (outcome === "Not Interested") await Data.updateLead(L.dbId, { status: "Spam", lostReason: "Not interested" });
-    else if (EARLY.includes(L.status)) await Data.updateLead(L.dbId, { status: "Visit Done" });
-    toast("Outcome saved"); await refresh();
-    if (outcome === "Need More Time") openFollowUp(byId.get(L.dbId), refresh);
-  });
+  const saveOutcome = guard(async (v, outcome, remarks) => applyVisitOutcome(v.raw, byId.get(v.lead.dbId) || v.lead, outcome, remarks, refresh));
 
   function menu(btn, v) {
     document.querySelectorAll(".menu-pop").forEach((m) => m.remove());
     const items = [];
     if (v.status === "Scheduled") items.push(["Confirm visit", "circle-check", () => setStatus(v, "Confirmed")]);
     if (OPEN.includes(v.status)) { items.push(["Mark completed", "check", () => setStatus(v, "Completed")], ["Reschedule", "calendar-clock", () => openEditVisit(v, refresh, true)], ["Cancel visit", "circle-x", () => confirm("Cancel this site visit?") && setStatus(v, "Cancelled")]); }
-    items.push(["Open customer", "user", () => (location.href = "customer.html?id=" + encodeURIComponent(v.lead.id || ""))]);
+    items.push(["Open visit details", "file-text", () => (location.href = "site-visit.html?id=" + v.id)], ["Open customer", "user", () => (location.href = "customer.html?id=" + encodeURIComponent(v.lead.id || ""))]);
     const pop = document.createElement("div"); pop.className = "menu-pop"; pop.setAttribute("role", "menu");
     pop.innerHTML = items.map(([l, ic], i) => `<button role="menuitem" data-i="${i}"><i data-lucide="${ic}"></i>${esc(l)}</button>`).join("");
     document.body.appendChild(pop); lucide.createIcons();
