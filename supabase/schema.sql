@@ -88,3 +88,27 @@ alter table public.site_visits add constraint site_visits_outcome_check
   check (outcome is null or outcome in ('Interested','Not Interested','Need More Time'));
 alter table public.site_visits add constraint site_visits_end_after_start
   check (end_at is null or end_at >= visit_at);
+
+-- Site Visit Details page: workflow timestamps, checklist, feedback, activity log, next action.
+alter table public.site_visits
+  add column if not exists meeting_point text,
+  add column if not exists confirmed_at  timestamptz,
+  add column if not exists visited_at    timestamptz,
+  add column if not exists completed_at  timestamptz,
+  add column if not exists checklist     jsonb not null default '{}'::jsonb,
+  add column if not exists feedback      jsonb not null default '{}'::jsonb,
+  add column if not exists timeline      jsonb not null default '[]'::jsonb,
+  add column if not exists next_action   text,
+  add column if not exists next_due      date;
+alter table public.site_visits drop constraint if exists site_visits_outcome_check;
+alter table public.site_visits add constraint site_visits_outcome_check
+  check (outcome is null or outcome in ('Interested','Not Interested','Need More Time','No Response'));
+
+-- Private bucket for visit documents and photos (PDF / JPG / PNG / WebP, max 10 MB each); signed-in users only.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('visit-files', 'visit-files', false, 10485760, array['application/pdf','image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = false, file_size_limit = 10485760,
+  allowed_mime_types = array['application/pdf','image/jpeg','image/png','image/webp'];
+drop policy if exists "CRM users manage visit files" on storage.objects;
+create policy "CRM users manage visit files" on storage.objects for all to authenticated
+  using (bucket_id = 'visit-files') with check (bucket_id = 'visit-files');

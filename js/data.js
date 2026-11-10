@@ -111,6 +111,47 @@ const Data = {
     const { error } = await this.client.from("site_visits").insert({ ...v, created_by: s ? s.user.email : null });
     if (error) throw error;
   },
+  async userEmail() { const s = await this.session(); return s ? s.user.email : ""; },
+  async getSiteVisit(id) {
+    const { data, error } = await this.client.from("site_visits").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  // Changing a visit's status also stamps the workflow step and adds an entry to the visit's activity log.
+  async visitStatusPatch(v, status) {
+    const t = new Date().toISOString(), by = await this.userEmail(), p = { status };
+    if (status === "Confirmed") p.confirmed_at = v.confirmed_at || t;
+    if (status === "Completed") { p.completed_at = t; p.visited_at = v.visited_at || t; p.confirmed_at = v.confirmed_at || t; }
+    const text = { Confirmed: "Visit confirmed", Completed: "Site visit completed", Cancelled: "Site visit cancelled" }[status];
+    if (text) p.timeline = [...(v.timeline || []), { t, text, kind: status === "Cancelled" ? "cancel" : "done", by }];
+    return p;
+  },
+  async logVisit(v, text, kind = "note") {
+    return { timeline: [...(v.timeline || []), { t: new Date().toISOString(), text, kind, by: await this.userEmail() }] };
+  },
+
+  // ---- visit documents & photos (private storage bucket "visit-files") ----
+  FILE_TYPES: ["application/pdf", "image/jpeg", "image/png", "image/webp"], FILE_MAX: 10 * 1024 * 1024,
+  async listVisitFiles(id) {
+    const { data, error } = await this.client.storage.from("visit-files").list(`visits/${id}`, { limit: 200, sortBy: { column: "created_at", order: "desc" } });
+    if (error) throw error;
+    return (data || []).filter((f) => f.name && f.id !== null).map((f) => ({ path: `visits/${id}/${f.name}`, name: f.name.replace(/^\d+-/, ""), size: (f.metadata && f.metadata.size) || 0, type: (f.metadata && f.metadata.mimetype) || "", at: f.created_at }));
+  },
+  async uploadVisitFile(id, file) {
+    if (!this.FILE_TYPES.includes(file.type)) throw new Error(`"${file.name}" is not allowed. Use PDF, JPG, PNG or WebP.`);
+    if (file.size > this.FILE_MAX) throw new Error(`"${file.name}" is larger than 10 MB.`);
+    const safe = file.name.replace(/[^\w.\- ]+/g, "_").slice(-80), path = `visits/${id}/${Date.now()}-${safe}`;
+    const { error } = await this.client.storage.from("visit-files").upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw error;
+    return path;
+  },
+  async removeVisitFile(path) { const { error } = await this.client.storage.from("visit-files").remove([path]); if (error) throw error; },
+  async signedUrls(paths) {
+    if (!paths.length) return {};
+    const { data, error } = await this.client.storage.from("visit-files").createSignedUrls(paths, 3600);
+    if (error) throw error;
+    return Object.fromEntries(data.filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
+  },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
     if (error) throw error;

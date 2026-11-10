@@ -119,13 +119,28 @@ function openScheduleVisit(leads, defaults, done) {
 function openEditVisit(vm, done, onlyTimes) {
   const v = vm.raw, dt = toLocalInput(v.visit_at), pick = (ts) => (ts ? toLocalInput(ts).slice(11, 16) : "");
   openModal(onlyTimes ? "Reschedule Visit" : "Edit Site Visit", html`<div class="form">
-    ${onlyTimes ? raw("") : html`${field("Project", "project", v.project || "", "text", "", "full")}`}
+    ${onlyTimes ? raw("") : html`${field("Project", "project", v.project || "", "text", "", "full")}${field("Meeting point", "meeting_point", v.meeting_point || "", "text", 'placeholder="e.g. Project site, Undri, Pune"', "full")}`}
     ${timeFields({ date: dt.slice(0, 10), start: dt.slice(11, 16), end: pick(v.end_at), pickup: pick(v.pickup_at) })}
     ${onlyTimes ? raw("") : selectField("Status", "status", VISIT_STATUSES, v.status, "full")}</div>`,
     async (f) => {
       const patch = visitTimes(f);
       if (v.site_end_at && patch.end_at) patch.site_end_at = null;           // plan times are re-derived from the new window
-      if (!onlyTimes) { patch.project = f.project || null; patch.status = f.status; }
+      if (!onlyTimes) { patch.project = f.project || null; patch.meeting_point = f.meeting_point || null; if (f.status !== v.status) Object.assign(patch, await Data.visitStatusPatch(v, f.status)); }
       await Data.updateSiteVisit(v.id, patch); toast(onlyTimes ? "Visit rescheduled" : "Visit updated"); done && done();
     });
+}
+
+// Save the after-visit outcome, complete the visit (unless "No Response") and move the lead accordingly.
+async function applyVisitOutcome(visit, lead, outcome, remarks, done) {
+  if (!outcome) throw new Error("Choose an outcome first.");
+  const EARLY = ["New Leads", "Contacted", "Interested", "Visit Scheduled"];
+  const patch = { outcome, remarks: (remarks || "").trim() || null, ...(await Data.logVisit(visit, "Outcome saved: " + outcome, "note")) };
+  if (outcome !== "No Response") Object.assign(patch, await Data.visitStatusPatch({ ...visit, timeline: patch.timeline }, "Completed"));
+  await Data.updateSiteVisit(visit.id, patch);
+  if (outcome === "Interested") await Data.updateLead(lead.dbId, { status: "On Negotiations" });
+  else if (outcome === "Not Interested") await Data.updateLead(lead.dbId, { status: "Spam", lostReason: "Not interested" });
+  else if (outcome !== "No Response" && EARLY.includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Visit Done" });
+  toast("Outcome saved");
+  done && (await done());
+  if (outcome === "Need More Time" || outcome === "No Response") openFollowUp(lead, done);
 }
