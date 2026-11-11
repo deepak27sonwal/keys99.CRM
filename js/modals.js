@@ -144,3 +144,31 @@ async function applyVisitOutcome(visit, lead, outcome, remarks, done) {
   done && (await done());
   if (outcome === "Need More Time" || outcome === "No Response") openFollowUp(lead, done);
 }
+
+// Small action menu anchored to a button. items = [[label, lucideIcon, handler, danger?]]
+function popMenu(btn, items) {
+  document.querySelectorAll(".menu-pop").forEach((m) => m.remove());
+  const pop = document.createElement("div"); pop.className = "menu-pop"; pop.setAttribute("role", "menu");
+  pop.innerHTML = items.map(([l, ic, , danger], i) => `<button role="menuitem" data-i="${i}" class="${danger ? "danger" : ""}"><i data-lucide="${ic}"></i>${esc(l)}</button>`).join("");
+  document.body.appendChild(pop); if (window.lucide) lucide.createIcons();
+  const r = btn.getBoundingClientRect(), r0 = r, pw = pop.offsetWidth, ph = pop.offsetHeight;
+  pop.style.left = Math.max(8, Math.min(r.right - pw, innerWidth - pw - 8)) + "px"; pop.style.top = (r.bottom + ph + 8 > innerHeight ? r.top - ph - 4 : r.bottom + 4) + "px";
+  const close = () => { pop.remove(); document.removeEventListener("mousedown", away, true); window.removeEventListener("scroll", onScroll, true); document.removeEventListener("keydown", onKey); };
+  const away = (e) => { if (!pop.contains(e.target)) close(); }, onKey = (e) => { if (e.key === "Escape") close(); };
+  const onScroll = () => { if (!btn.isConnected) return close(); const q = btn.getBoundingClientRect(); if (Math.abs(q.top - r0.top) > 2 || Math.abs(q.left - r0.left) > 2) close(); };
+  pop.onclick = (e) => { const b = e.target.closest("button"); if (b) { close(); items[Number(b.dataset.i)][2](); } };
+  document.addEventListener("mousedown", away, true); window.addEventListener("scroll", onScroll, true); document.addEventListener("keydown", onKey);
+  pop.querySelector("button").focus();
+}
+// Plain information / confirmation dialog with custom HTML body.
+function showDialog(title, body, buttons = [["Close", null]], wide = false) {
+  const ov = document.createElement("div"); ov.className = "overlay open";
+  ov.innerHTML = `<div class="modal ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${body.__raw}<div class="actions">${buttons.map(([l, , cls], i) => `<button class="btn ${cls || ""}" data-i="${i}">${esc(l)}</button>`).join("")}</div></div>`;
+  document.body.appendChild(ov); if (window.lucide) lucide.createIcons();
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); }, onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); });
+  ov.querySelectorAll("[data-i]").forEach((b) => (b.onclick = async () => { const h = buttons[Number(b.dataset.i)][1]; if (h) { try { await h(close); } catch (e) { alert(e.message); return; } } else close(); }));
+  ov.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => copyText(ov.querySelector(b.dataset.copy).value, "Copied")));
+  return { el: ov, close };
+}

@@ -6,7 +6,7 @@ const NAV = [
   ["Developers", "#", "building-2"], ["Projects", "#", "landmark"], ["Site Visits", "site-visits.html", "map-pin", "visits"],
   ["Sales Pipeline", "#", "filter"], ["Bookings & Deals", "#", "file-signature"], ["Commissions", "#", "wallet"],
   ["Agents & Teams", "#", "users-round"], ["Marketing & Campaigns", "#", "megaphone"], ["Tasks & Follow-ups", "#", "list-checks"],
-  ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"], ["Settings", "#", "settings"],
+  ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"], ["Integrations", "integrations.html", "plug-zap", "integrations"], ["Settings", "#", "settings"],
 ];
 
 async function mountShell(active) {
