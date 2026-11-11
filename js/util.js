@@ -101,3 +101,18 @@ const fmtTime = (ts) => { const d = new Date(ts); return isNaN(d) ? "—" : d.to
 const fmtLongDay = (d) => { d = new Date(d); return `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`; };
 // "2026-11-18" + "10:30" (local) -> ISO string
 const localISO = (date, time) => new Date(`${date}T${time}`).toISOString();
+
+// ---- secrets & clipboard ----
+async function sha256Hex(str) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(str)));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+// "k99_" + 24 random bytes, base64url. Only its SHA-256 hash is ever stored.
+function randomSecret() {
+  const a = crypto.getRandomValues(new Uint8Array(24));
+  return "k99_" + btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function copyText(text, okMsg = "Copied") {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); }
+  catch { prompt("Copy this value:", text); }
+}

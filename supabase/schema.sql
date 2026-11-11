@@ -112,3 +112,36 @@ on conflict (id) do update set public = false, file_size_limit = 10485760,
 drop policy if exists "CRM users manage visit files" on storage.objects;
 create policy "CRM users manage visit files" on storage.objects for all to authenticated
   using (bucket_id = 'visit-files') with check (bucket_id = 'visit-files');
+
+-- Social media lead integrations (used by js/integrations.js and the capture-lead Edge Function)
+create table if not exists public.integrations (
+  id uuid primary key default gen_random_uuid(),
+  platform text not null unique check (platform in ('meta','google','linkedin','whatsapp','youtube','website')),
+  status text not null default 'pending' check (status in ('pending','connected')),
+  auto_capture boolean not null default true,
+  secret_hash text not null,
+  config jsonb not null default '{}'::jsonb,
+  last_event_at timestamptz,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.integration_events (
+  id bigint generated always as identity primary key,
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  status text not null check (status in ('ok','duplicate','skipped','error','test')),
+  message text, form_name text, form_platform text, lead_id bigint, payload jsonb,
+  received_at timestamptz not null default now()
+);
+create index if not exists integration_events_int_idx on public.integration_events (integration_id, received_at desc);
+create table if not exists public.integration_secrets (
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  name text not null, value text not null, updated_at timestamptz not null default now(),
+  primary key (integration_id, name)
+);
+alter table public.integrations enable row level security;
+alter table public.integration_events enable row level security;
+alter table public.integration_secrets enable row level security;   -- no policies on purpose: only the Edge Function (service role) can read tokens
+drop policy if exists "CRM users manage integrations" on public.integrations;
+create policy "CRM users manage integrations" on public.integrations for all to authenticated using (true) with check (true);
+drop policy if exists "CRM users read integration events" on public.integration_events;
+create policy "CRM users read integration events" on public.integration_events for select to authenticated using (true);

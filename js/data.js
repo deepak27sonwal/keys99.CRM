@@ -152,6 +152,40 @@ const Data = {
     if (error) throw error;
     return Object.fromEntries(data.filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
   },
+  // ---- social media integrations (leads arrive via the capture-lead Edge Function) ----
+  async getIntegrations() {
+    const { data, error } = await this.client.from("integrations").select("*").order("created_at");
+    if (error) throw error;
+    return data;
+  },
+  async getIntegrationEvents(sinceIso) { return this.fetchAll("integration_events", (q) => q.gte("received_at", sinceIso)); },
+  captureUrl(id) { return `${CFG.SUPABASE_URL}/functions/v1/capture-lead?i=${id}`; },
+  // Creates the integration and returns the secret ONCE; only its hash is stored.
+  async createIntegration(platform) {
+    const secret = randomSecret(), by = await this.userEmail();
+    const { data, error } = await this.client.from("integrations").insert({ platform, secret_hash: await sha256Hex(secret), created_by: by }).select().single();
+    if (error) throw error;
+    return { row: data, secret };
+  },
+  async rotateSecret(id) {
+    const secret = randomSecret();
+    const { error } = await this.client.from("integrations").update({ secret_hash: await sha256Hex(secret) }).eq("id", id);
+    if (error) throw error;
+    return secret;
+  },
+  async updateIntegration(id, patch) { const { error } = await this.client.from("integrations").update(patch).eq("id", id); if (error) throw error; },
+  async deleteIntegration(id) { const { error } = await this.client.from("integrations").delete().eq("id", id); if (error) throw error; },
+  // Calls the Edge Function as the signed-in user: dry-run tests and private token management only.
+  async captureCall(id, { test = false, action = "", body = {} } = {}) {
+    const s = await this.session(), u = new URL(this.captureUrl(id));
+    if (test) u.searchParams.set("test", "1");
+    if (action) u.searchParams.set("action", action);
+    try {
+      const res = await fetch(u, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + s.access_token }, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => null);
+      return j || { ok: false, error: `Unexpected response (${res.status})` };
+    } catch { return { ok: false, error: "Could not reach the capture service. Check your connection." }; }
+  },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
     if (error) throw error;
