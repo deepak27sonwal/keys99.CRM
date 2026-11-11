@@ -197,3 +197,12 @@ export function redact(b) {
   if (b && typeof b === "object") { const o = {}; for (const [k, v] of Object.entries(b)) o[k] = SENSITIVE.test(normKey(k)) ? "[redacted]" : v; return o; }
   return b;
 }
+
+// Meta's Lead Ads Testing Tool fills every field with "<test lead: dummy data for ...>". When an integration has
+// config.accept_test_leads on (off by default), such leads are saved with a clearly marked placeholder phone so the flow can be seen end to end.
+export const isMetaTestLead = (flat) => Object.values(flat || {}).some((v) => /<test lead: dummy data/i.test(String(v)));
+export function applyTestLead(mapped) {
+  mapped.phone = "0000000000"; mapped.name = "Test Lead (Meta)"; mapped.email = ""; mapped.project = ""; mapped.developer = ""; mapped.budget = ""; mapped.location = "";
+  mapped.interest = "[Meta test lead - safe to delete]";
+  return mapped;
+}

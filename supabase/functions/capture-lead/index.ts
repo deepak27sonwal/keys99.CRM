@@ -93,7 +93,9 @@ Deno.serve(async (req) => {
       }
       if (extra.is_test) { await log("test", "Google test lead received", extra); results.push({ status: "test", message: "Google test lead received" }); continue; }
 
-      const mapped = L.mapLead(flat, (integ.config || {}).mapping), v = L.validateLead(mapped);
+      const mapped = L.mapLead(flat, (integ.config || {}).mapping);
+      if (!wantsTest && platform === "meta" && (integ.config || {}).accept_test_leads === true && L.isMetaTestLead(flat)) L.applyTestLead(mapped);   // opt-in, off by default
+      const v = L.validateLead(mapped);
       if (v.error) { await log(failStatus, (wantsTest ? "Test: " : "") + v.error, extra, null, flat); results.push({ status: "error", message: v.error }); continue; }
       const row = L.buildEnquiryRow({ platform, mapped, phone: v.phone, name: v.name, extra, defaults: integ.config || {}, raw: L.trimPayload(item.ref ? { ref: item.ref, lead: flat } : safeBody) });
       const preview = { name: row.name, phone: row.phone, email: row.email, interest: row.interest, project: row.project, budget: row.budget, location: row.location, source: row.source, form: L.formInfo(platform, extra).form_name };
