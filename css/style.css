@@ -679,3 +679,23 @@ table{width:100%;border-collapse:collapse}
   .mini-t.cards td.nw{white-space:normal}
   .mini-t.cards .map-in{width:100%}
 }
+
+/* Sidebar groups */
+.nav .ng-h{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:none;color:rgba(232,244,241,.92);font:inherit;text-align:left;cursor:pointer;transition:.15s}
+.nav .ng-h:hover{background:rgba(255,255,255,.1)}.nav .ng-h:focus-visible,.nav a:focus-visible{outline:2px solid var(--gold-400);outline-offset:-2px}
+.nav .ng-h span{flex:1}.nav .ng-h .ng-c{width:16px;height:16px;opacity:.75;transition:transform .2s}.nav .ng.open .ng-c{transform:rotate(180deg)}
+.nav .ng-h.has-active{color:var(--gold-400);font-weight:600}
+.nav .ng-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}.nav .ng.open .ng-b{grid-template-rows:1fr}
+.nav .ng-in{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:2px;margin-left:21px;border-left:1px solid rgba(255,255,255,.14);padding-left:6px}
+.nav .ng:not(.open) .ng-in a{visibility:hidden}.nav .ng-in a{padding:8px 10px;font-size:14px}
+@media(prefers-reduced-motion:reduce){.nav .ng-b,.nav .ng-c{transition:none}}
+/* Sidebar close button (phone / tablet menu) and profile card */
+.sb-close{display:none;position:absolute;top:10px;right:10px;z-index:5;width:36px;height:36px;align-items:center;justify-content:center;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}
+.sb-close:hover{background:rgba(255,255,255,.26)}.sb-close:focus-visible{outline:2px solid var(--gold-400);outline-offset:2px}.sb-close [data-lucide]{width:20px;height:20px}
+@media(max-width:900px){.sb-close{display:flex}}
+.user:focus-visible{outline:2px solid var(--brand-500);outline-offset:3px;border-radius:10px}
+.profile-pop{position:fixed;top:66px;right:16px;z-index:90;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 80px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.22);padding:16px}
+.pp-top{display:flex;gap:14px;align-items:center;margin-bottom:12px}.pp-top div{min-width:0}.pp-top b{display:block;font-size:17px;overflow-wrap:anywhere}.pp-top span{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.pp-d{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:14px}.pp-d dt{color:var(--muted)}.pp-d dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.pp-a{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}.pp-a .btn{justify-content:center}
+@media(max-width:900px){.sidebar{visibility:hidden;transition:transform .2s,visibility 0s .2s}.sidebar.open{visibility:visible;transition:transform .2s}}   /* a shut menu is not reachable with the keyboard */
