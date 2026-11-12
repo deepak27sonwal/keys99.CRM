@@ -679,3 +679,13 @@ table{width:100%;border-collapse:collapse}
   .mini-t.cards td.nw{white-space:normal}
   .mini-t.cards .map-in{width:100%}
 }
+
+/* Sidebar groups */
+.nav .ng-h{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:none;color:rgba(232,244,241,.92);font:inherit;text-align:left;cursor:pointer;transition:.15s}
+.nav .ng-h:hover{background:rgba(255,255,255,.1)}.nav .ng-h:focus-visible,.nav a:focus-visible{outline:2px solid var(--gold-400);outline-offset:-2px}
+.nav .ng-h span{flex:1}.nav .ng-h .ng-c{width:16px;height:16px;opacity:.75;transition:transform .2s}.nav .ng.open .ng-c{transform:rotate(180deg)}
+.nav .ng-h.has-active{color:var(--gold-400);font-weight:600}
+.nav .ng-b{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}.nav .ng.open .ng-b{grid-template-rows:1fr}
+.nav .ng-in{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:2px;margin-left:21px;border-left:1px solid rgba(255,255,255,.14);padding-left:6px}
+.nav .ng:not(.open) .ng-in a{visibility:hidden}.nav .ng-in a{padding:8px 10px;font-size:14px}
+@media(prefers-reduced-motion:reduce){.nav .ng-b,.nav .ng-c{transition:none}}
