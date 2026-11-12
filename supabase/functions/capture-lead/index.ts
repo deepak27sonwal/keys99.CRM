@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       for (const p of pages) { const { error } = await sb.from("integration_secrets").upsert({ integration_id: id, name: "page_token:" + p.id, value: p.token, updated_at: now }); if (error) return json({ ok: false, error: "Could not save" }, 500); }
       const { data: cur } = await sb.from("integrations").select("config").eq("id", id).single(), cfg = (cur && cur.config) || {};
       const byId = new Map((cfg.pages || []).map((p) => [p.id, p])); pages.forEach((p) => byId.set(p.id, { id: p.id, name: p.name }));
-      await sb.from("integrations").update({ config: { ...cfg, pages: [...byId.values()].slice(0, 100) } }).eq("id", id);
+      await sb.from("integrations").update({ config: { ...cfg, pages: [...byId.values()].slice(0, 300) } }).eq("id", id);
       return json({ ok: true, pages: pages.map(({ id, name }) => ({ id, name })) });
     }
     if (action === "clear_secret") {
