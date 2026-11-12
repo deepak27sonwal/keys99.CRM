@@ -72,6 +72,16 @@ Deno.serve(async (req) => {
       await sb.from("integrations").update({ config: { ...cfg, pages: (cfg.pages || []).filter((p) => p.id !== pid) } }).eq("id", id);
       return json({ ok: true });
     }
+    if (action === "subscribe_pages" || action === "page_status") {
+      const only = body.page_id ? String(body.page_id) : "";
+      if (only && !/^\d+$/.test(only)) return json({ ok: false, error: "Invalid page" }, 400);
+      const { data: rows } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).like("name", "page_token:%").limit(300);
+      const list = (rows || []).map((r) => ({ id: r.name.slice("page_token:".length), token: r.value })).filter((r) => !only || r.id === only);
+      if (!list.length) return json({ ok: false, error: "No Pages are connected yet" }, 400);
+      if (action === "subscribe_pages") return json({ ok: true, results: await L.mapLimit(list, 6, (p) => L.subscribePage(p.id, p.token)) });
+      const appId = await L.getAppId(list[0].token);
+      return json({ ok: true, results: await L.mapLimit(list, 6, (p) => L.pageStatus(p.id, p.token, appId)) });
+    }
     return json({ ok: false, error: "Unknown action" }, 400);
   }
 

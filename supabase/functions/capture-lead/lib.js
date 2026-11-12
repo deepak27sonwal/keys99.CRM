@@ -234,3 +234,35 @@ export async function discoverPages(token, fetchFn = fetch) {
   if (me.ok && /^\d+$/.test(String(me.j.id || ""))) return [{ id: String(me.j.id), name: clean(me.j.name, 120) || "Page " + me.j.id, token }];
   throw new Error("Meta Graph API: " + ((me.j.error && me.j.error.message) || (acc.j.error && acc.j.error.message) || "the token was not accepted"));
 }
+
+// ---- Facebook Page subscriptions (a Page must be subscribed to the app's "leadgen" field before Meta sends its leads) ----
+async function graphCall(path, token, method = "GET", fetchFn = fetch) {
+  let res;
+  try { res = await fetchFn(`https://graph.facebook.com/${path}`, { method, headers: { Authorization: `Bearer ${token}` } }); }
+  catch { return { ok: false, j: { error: { message: "could not reach Meta" } } }; }
+  const j = await res.json().catch(() => ({}));
+  return { ok: res.ok && !j.error, j };
+}
+const gErr = (r) => scrub("Meta: " + ((r.j.error && r.j.error.message) || "request failed")).slice(0, 160);
+
+export async function subscribePage(pageId, token, fetchFn = fetch) {
+  const r = await graphCall(`${encodeURIComponent(pageId)}/subscribed_apps?subscribed_fields=leadgen`, token, "POST", fetchFn);
+  const ok = r.ok && r.j.success === true;
+  return { id: String(pageId), ok, error: ok ? null : gErr(r) };
+}
+export async function getAppId(token, fetchFn = fetch) {                      // a Page token knows which app it belongs to
+  const r = await graphCall("app?fields=id", token, "GET", fetchFn);
+  return r.ok && /^\d+$/.test(String(r.j.id || "")) ? String(r.j.id) : null;
+}
+export async function pageStatus(pageId, token, appId, fetchFn = fetch) {
+  const r = await graphCall(`${encodeURIComponent(pageId)}/subscribed_apps`, token, "GET", fetchFn);
+  if (!r.ok) return { id: String(pageId), subscribed: false, error: gErr(r) };
+  const apps = Array.isArray(r.j.data) ? r.j.data : [];
+  const mine = apps.find((a) => (appId ? String(a.id) === String(appId) : true) && (a.subscribed_fields || []).includes("leadgen"));
+  return { id: String(pageId), subscribed: !!mine, error: null };
+}
+export async function mapLimit(items, n, fn) {                                 // run fn over items, at most n at a time, keeping order
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } }));
+  return out;
+}
