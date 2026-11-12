@@ -135,7 +135,7 @@ create table if not exists public.integration_events (
 create index if not exists integration_events_int_idx on public.integration_events (integration_id, received_at desc);
 create table if not exists public.integration_secrets (
   integration_id uuid not null references public.integrations(id) on delete cascade,
-  name text not null, value text not null, updated_at timestamptz not null default now(),
+  name text not null check (name = 'page_access_token' or name ~ '^page_token:[0-9]+$'), value text not null, updated_at timestamptz not null default now(),
   primary key (integration_id, name)
 );
 alter table public.integrations enable row level security;
