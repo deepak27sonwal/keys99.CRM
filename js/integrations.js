@@ -96,8 +96,8 @@
 
   function formsTable(i, limit) {
     const F = forms(i).slice(0, limit || 99), now = Date.now();
-    return F.length ? html`<div class="table-wrap"><table class="mini-t"><thead><tr><th>Lead Form</th><th>Platform</th><th>Status</th><th>Leads</th><th>First lead</th></tr></thead><tbody>${F.map((f) => html`<tr><td><b>${f.name}</b></td><td><span class="row">${mini(f.platform)}${f.platform}</span></td>
-      <td><span class="chip ${now - new Date(f.last) < 30 * DAY ? "c-ok" : "c-none"}">${now - new Date(f.last) < 30 * DAY ? "Active" : "Idle"}</span></td><td>${f.n}</td><td>${fmtDay(f.first)}</td></tr>`)}</tbody></table></div>`
+    return F.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Lead Form</th><th>Platform</th><th>Status</th><th>Leads</th><th>First lead</th></tr></thead><tbody>${F.map((f) => html`<tr><td data-label="Lead Form" data-wide><b>${f.name}</b></td><td data-label="Platform"><span class="row">${mini(f.platform)}${f.platform}</span></td>
+      <td data-label="Status"><span class="chip ${now - new Date(f.last) < 30 * DAY ? "c-ok" : "c-none"}">${now - new Date(f.last) < 30 * DAY ? "Active" : "Idle"}</span></td><td data-label="Leads">${f.n}</td><td data-label="First lead">${fmtDay(f.first)}</td></tr>`)}</tbody></table></div>`
       : html`<div class="empty-sm">No leads have arrived yet. Forms appear here automatically with their lead counts.</div>`;
   }
   function overview(p, i, s, k) {
@@ -114,12 +114,12 @@
     const ev = evOf(i).filter((e) => e.status !== "test").sort((a, b) => new Date(b.received_at) - new Date(a.received_at)).slice(0, 25);
     const chip = { ok: "c-ok", duplicate: "c-pause", skipped: "c-none", error: "c-err" };
     return html`<h3 class="sec">Lead forms (${forms(i).length})</h3>${formsTable(i)}<h3 class="sec">Recent deliveries</h3>
-      ${ev.length ? html`<div class="table-wrap"><table class="mini-t"><thead><tr><th>Time</th><th>Result</th><th>Form</th><th>Details</th></tr></thead><tbody>${ev.map((e) => html`<tr><td class="nw">${fmtDate(e.received_at)}</td><td><span class="chip ${chip[e.status] || "c-none"}">${e.status}</span></td><td>${e.form_name || "—"}</td><td>${e.message || ""}</td></tr>`)}</tbody></table></div>` : html`<div class="empty-sm">Nothing received yet.</div>`}`;
+      ${ev.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Time</th><th>Result</th><th>Form</th><th>Details</th></tr></thead><tbody>${ev.map((e) => html`<tr><td class="nw" data-label="Time">${fmtDate(e.received_at)}</td><td data-label="Result"><span class="chip ${chip[e.status] || "c-none"}">${e.status}</span></td><td data-label="Form" data-wide>${e.form_name || "—"}</td><td data-label="Details" data-wide>${e.message || ""}</td></tr>`)}</tbody></table></div>` : html`<div class="empty-sm">Nothing received yet.</div>`}`;
   }
   function mappingTab(p, i) {
     const m = (i.config || {}).mapping || {};
     return html`<p class="sub" style="margin-bottom:10px">Tell us which field names this platform sends. Your names are tried first, then the built-in ones. Leave blank to use the defaults.</p>
-      <div class="table-wrap"><table class="mini-t map-t"><thead><tr><th>CRM field</th><th>Field name(s) from ${p.name}</th><th>Built-in names</th></tr></thead><tbody>${FIELDS.map(([f, l]) => html`<tr><td><b>${l}</b></td><td><input class="map-in" data-map="${f}" value="${m[f] || ""}" placeholder="e.g. mobile_no, contact" aria-label="${l} source field"></td><td class="muted"><small>${BUILTIN[f]}</small></td></tr>`)}</tbody></table></div>
+      <div class="table-wrap"><table class="mini-t map-t cards"><thead><tr><th>CRM field</th><th>Field name(s) from ${p.name}</th><th>Built-in names</th></tr></thead><tbody>${FIELDS.map(([f, l]) => html`<tr><td data-label="CRM field" data-wide><b>${l}</b></td><td data-label="Field name(s) from ${p.name}" data-wide><input class="map-in" data-map="${f}" value="${m[f] || ""}" placeholder="e.g. mobile_no, contact" aria-label="${l} source field"></td><td class="muted" data-label="Built-in names" data-wide><small>${BUILTIN[f]}</small></td></tr>`)}</tbody></table></div>
       <button class="btn gold" id="saveMap" style="margin-top:10px"><i data-lucide="check"></i>Save mapping</button>
       <h3 class="sec">Try a sample lead</h3><p class="sub" style="margin-bottom:8px">Paste what ${p.name} sends (JSON). Nothing is saved: we only show how it would be mapped.</p>
       <textarea id="sample" rows="8" spellcheck="false" class="code-ta">${JSON.stringify(p.sample, null, 2)}</textarea><button class="btn" id="runSample" style="margin-top:8px"><i data-lucide="play"></i>Test mapping</button><div id="sampleOut" aria-live="polite"></div>`;
@@ -188,6 +188,7 @@
   }
 
   function bind() {
+    const tl = page.querySelector(".tabs-line"), at = tl && tl.querySelector(".active"); if (tl && at) tl.scrollLeft = at.offsetLeft - (tl.clientWidth - at.offsetWidth) / 2;   // keep the chosen tab visible on a phone
     const $ = (s) => page.querySelector(s), $$ = (s) => page.querySelectorAll(s), p = P(state.sel), i = integ(state.sel);
     $("#guide").onclick = guide;
     $$("[data-sel]").forEach((b) => (b.onclick = async () => { state.sel = b.dataset.sel; state.tab = "overview"; await loadSecretStatus(); draw(); if (matchMedia("(max-width:1000px)").matches) page.querySelector(".int-detail").scrollIntoView({ behavior: "smooth", block: "start" }); }));
