@@ -39,16 +39,28 @@ function openAddLead(done) {
     ${selectField("Status", "status", STATUSES)}</div>`,
     async (f) => { await Data.addLead(f); toast("Lead added"); done && done(); });
 }
-function openEditLead(lead, done) {
+async function openEditLead(lead, done) {
+  // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
+  let team = []; try { team = await Data.getTeamCached(); } catch { team = []; }
+  const k = (n) => String(n || "").trim().toLowerCase(), cur = lead.agent || "", match = team.find((m) => k(m.name) === k(cur));
+  const KINDS = { agent: "Agent", rm: "Relationship Manager" };
+  const agentField = team.length
+    ? html`<label>Assigned agent<select name="agent" data-placeholder="— Unassigned —"><option value="">— Unassigned —</option>
+        ${team.filter((m) => m.status === "Active").map((m) => html`<option value="${m.name}" ${match && match.id === m.id ? raw("selected") : raw("")}>${m.name} · ${KINDS[m.kind] || "Agent"}</option>`)}
+        ${cur && (!match || match.status !== "Active") ? html`<option value="${cur}" selected>${cur} (${match ? "inactive" : "not on team"})</option>` : raw("")}</select></label>`
+    : field("Assigned agent", "agent", cur);
   openModal("Edit " + lead.name, html`<div class="form">
     ${selectField("Status", "status", STATUSES, lead.status)}${field("Next follow-up", "follow_up", toLocalInput(lead.followUpTs), "datetime-local")}
-    ${field("Assigned agent", "agent", lead.agent)}${selectField("Priority", "priority", ["", "A (High Priority)", "B (Medium)", "C (Low)"], lead.priority)}
+    ${agentField}${selectField("Priority", "priority", ["", "A (High Priority)", "B (Medium)", "C (Low)"], lead.priority)}
     ${field("Budget", "budget", lead.budget)}${field("Location", "location", lead.location)}
     ${field("Property type", "property_type", lead.propertyType)}${field("BHK", "bhk", lead.bhk)}
     <label class="full">Notes<textarea name="notes" rows="3">${lead.notes}</textarea></label></div>`,
     async (f) => {
-      await Data.updateLead(lead.dbId, { status: f.status, followUp: fromLocalInput(f.follow_up), agent: f.agent, priority: f.priority,
-        budget: f.budget, location: f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes });
+      const changed = k(f.agent) !== k(cur), who = team.find((m) => k(m.name) === k(f.agent));
+      const patch = { status: f.status, followUp: fromLocalInput(f.follow_up), agent: f.agent, priority: f.priority, budget: f.budget, location: f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
+      if (changed && team.length) patch.agentEmail = who ? who.email : null;     // a team member brings their own email; unassigning clears it
+      await Data.updateLead(lead.dbId, patch);
+      if (changed) { try { await Data.addActivity(lead, "Assigned", f.agent ? "Assigned to " + f.agent + (cur ? " (was " + cur + ")" : "") : "Unassigned (was " + cur + ")"); } catch { /* the assignment itself is saved */ } }
       toast("Saved"); done && done();
     });
 }
