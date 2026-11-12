@@ -133,7 +133,9 @@
       <h3 class="sec">Webhook</h3><div class="copyrow"><input id="whUrl" readonly value="${url}" aria-label="Webhook URL"><button class="btn sm" data-copy-id="whUrl"><i data-lucide="copy"></i>Copy URL</button></div>
       <p class="sub" style="margin:8px 0">The secret was shown once when you connected, and only a hash is stored. Lost it? <button class="auth-link" id="rotate">Generate a new secret</button> (the old one stops working).</p>
       ${p.key === "meta" ? html`<h3 class="sec">Facebook Pages</h3><p class="sub" style="margin-bottom:8px">Needed only for Meta's direct webhook (Meta sends just a lead id; a Page token lets us read the lead). Paste a <b>user</b> access token to add <b>all</b> the Pages you granted at once, or a <b>Page</b> token to add one Page. Tokens are stored privately and never shown again.</p>
-        ${(c.pages || []).length ? html`<div class="pages">${(c.pages || []).map((g) => html`<div class="pg"><i data-lucide="check-circle-2"></i><span><b>${g.name}</b><small class="muted"> ID ${g.id}</small></span><button class="btn sm red" data-rmpage="${g.id}">Remove</button></div>`)}</div>` : raw("")}
+        ${(c.pages || []).length ? html`<div class="row-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="subAll"><i data-lucide="radio-tower"></i>Subscribe all Pages</button><button class="btn sm" id="chkSubs"><i data-lucide="refresh-cw"></i>Check status</button></div>
+          <small class="muted" id="subMsg" style="display:block;margin-bottom:8px">Meta only sends leads from Pages that are subscribed to your app.</small>
+          <div class="pages">${(c.pages || []).map((g) => { const st = state.subs && state.subs[g.id]; return html`<div class="pg"><i data-lucide="check-circle-2"></i><span><b>${g.name}</b><small class="muted"> ID ${g.id}</small></span>${st ? html`<span class="chip ${st.ok ? "c-ok" : "c-err"}" title="${st.error || ""}">${st.ok ? "Subscribed" : st.error ? "Failed" : "Not subscribed"}</span>` : raw("")}<button class="btn sm red" data-rmpage="${g.id}">Remove</button></div>`; })}</div>` : raw("")}
         ${state.saved.page_access_token ? html`<div class="pg"><i data-lucide="key-round"></i><span><b>Older single token</b><small class="muted"> used for any Page without its own token</small></span><button class="btn sm red" id="clearTok">Remove</button></div>` : raw("")}
         <div class="copyrow" style="margin-top:8px"><input id="pageTok" type="password" autocomplete="off" placeholder="Paste a user or Page access token" aria-label="Access token"><button class="btn sm" id="saveTok"><i data-lucide="plus"></i>Add Pages</button></div>
         <small class="muted">${(c.pages || []).length ? (c.pages || []).length + " Page" + ((c.pages || []).length === 1 ? "" : "s") + " connected." : "No Pages connected yet."}</small>` : raw("")}
@@ -215,6 +217,16 @@
     $$("[data-copy-id]").forEach((b) => (b.onclick = () => copyText($("#" + b.dataset.copyId).value, "Webhook URL copied")));
     const ro = $("#rotate"); if (ro) ro.onclick = () => rotate(p, i);
     const st = $("#saveTok"); if (st) st.onclick = guard(async () => { const v = $("#pageTok").value.trim(); st.disabled = true; try { const r = await Data.captureCall(i.id, { action: "set_secret", body: { value: v } }); if (!r.ok) throw new Error(r.error || "Could not save the token"); $("#pageTok").value = ""; toast((r.pages || []).length === 1 ? "Connected: " + r.pages[0].name : (r.pages || []).length + " Pages connected"); await refresh(); } finally { st.disabled = false; } });
+    const runSubs = (action) => guard(async () => {
+      const b = $(action === "subscribe_pages" ? "#subAll" : "#chkSubs"), msg = $("#subMsg"); b.disabled = true; msg.textContent = action === "subscribe_pages" ? "Subscribing your Pages…" : "Checking your Pages…";
+      try {
+        const r = await Data.captureCall(i.id, { action, body: {} }); if (!r.ok) throw new Error(r.error || "Could not reach Meta");
+        state.subs = state.subs || {}; (r.results || []).forEach((x) => (state.subs[x.id] = { ok: action === "subscribe_pages" ? x.ok : x.subscribed, error: x.error || "" }));
+        const res = r.results || [], good = res.filter((x) => (action === "subscribe_pages" ? x.ok : x.subscribed)).length, bad = res.filter((x) => x.error).length;
+        draw(); const m2 = $("#subMsg"); if (m2) m2.textContent = (action === "subscribe_pages" ? good + " of " + res.length + " Pages subscribed." : good + " of " + res.length + " Pages are subscribed.") + (bad ? " " + bad + " could not be reached (hover a Failed tag for the reason)." : "");
+      } finally { const bb = $("#subAll"); if (bb) bb.disabled = false; }
+    });
+    const sa = $("#subAll"); if (sa) sa.onclick = runSubs("subscribe_pages"); const cs = $("#chkSubs"); if (cs) cs.onclick = runSubs("page_status");
     document.querySelectorAll("[data-rmpage]").forEach((b) => (b.onclick = guard(async () => { if (!confirm("Remove this Page? Its leads will stop being captured.")) return; await Data.captureCall(i.id, { action: "clear_secret", body: { page_id: b.dataset.rmpage } }); toast("Page removed"); await refresh(); })));
     const ct = $("#clearTok"); if (ct) ct.onclick = guard(async () => { if (!confirm("Remove the saved page access token?")) return; await Data.captureCall(i.id, { action: "clear_secret" }); toast("Token removed"); await refresh(); });
     const dl = $("#del"); if (dl) dl.onclick = () => remove(p, i);
