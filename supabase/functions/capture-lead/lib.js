@@ -206,3 +206,24 @@ export function applyTestLead(mapped) {
   mapped.interest = "[Meta test lead - safe to delete]";
   return mapped;
 }
+
+// Find which Facebook Page(s) a pasted token belongs to. A (long-lived) USER token imports every Page the user granted, each with its own
+// Page token; a PAGE token registers just that one Page. Tokens are sent in a header and never returned or logged.
+export async function discoverPages(token, fetchFn = fetch) {
+  const get = async (path) => {
+    let res;
+    try { res = await fetchFn(`https://graph.facebook.com/${path}`, { headers: { Authorization: `Bearer ${token}` } }); }
+    catch { throw new Error("Meta Graph API: could not reach Meta"); }
+    const j = await res.json().catch(() => ({}));
+    return { ok: res.ok && !j.error, j };
+  };
+  const acc = await get("me/accounts?fields=id,name,access_token&limit=100");
+  if (acc.ok && Array.isArray(acc.j.data)) {                                       // a user token
+    const pages = acc.j.data.filter((p) => p && /^\d+$/.test(String(p.id)) && p.access_token).slice(0, 50).map((p) => ({ id: String(p.id), name: clean(p.name, 120) || "Page " + p.id, token: p.access_token }));
+    if (!pages.length) throw new Error("This token has no Pages. Grant pages_show_list and tick your Pages when Meta asks which to allow.");
+    return pages;
+  }
+  const me = await get("me?fields=id,name");                                       // a Page token (/me/accounts is not available on a Page)
+  if (me.ok && /^\d+$/.test(String(me.j.id || ""))) return [{ id: String(me.j.id), name: clean(me.j.name, 120) || "Page " + me.j.id, token }];
+  throw new Error("Meta Graph API: " + ((me.j.error && me.j.error.message) || (acc.j.error && acc.j.error.message) || "the token was not accepted"));
+}

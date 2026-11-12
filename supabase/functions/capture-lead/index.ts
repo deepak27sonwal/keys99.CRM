@@ -53,11 +53,25 @@ Deno.serve(async (req) => {
     if (!viaUser) return json({ ok: false, error: "Sign in to the CRM to do this" }, 403);
     if (action === "secret_status") { const { data } = await sb.from("integration_secrets").select("name").eq("integration_id", id); return json({ ok: true, saved: (data || []).map((r) => r.name) }); }
     if (action === "set_secret") {
-      if (body.name !== "page_access_token" || typeof body.value !== "string" || body.value.length < 20 || body.value.length > 1000) return json({ ok: false, error: "Invalid token" }, 400);
-      const { error } = await sb.from("integration_secrets").upsert({ integration_id: id, name: body.name, value: body.value.trim(), updated_at: new Date().toISOString() });
-      return error ? json({ ok: false, error: "Could not save" }, 500) : json({ ok: true });
+      const val = body.value;
+      if (typeof val !== "string" || val.length < 20 || val.length > 1000) return json({ ok: false, error: "Invalid token" }, 400);
+      let pages; try { pages = await L.discoverPages(val.trim()); } catch (e) { return json({ ok: false, error: L.scrub((e && e.message) || "Could not verify the token with Meta") }, 400); }
+      const now = new Date().toISOString();
+      for (const p of pages) { const { error } = await sb.from("integration_secrets").upsert({ integration_id: id, name: "page_token:" + p.id, value: p.token, updated_at: now }); if (error) return json({ ok: false, error: "Could not save" }, 500); }
+      const { data: cur } = await sb.from("integrations").select("config").eq("id", id).single(), cfg = (cur && cur.config) || {};
+      const byId = new Map((cfg.pages || []).map((p) => [p.id, p])); pages.forEach((p) => byId.set(p.id, { id: p.id, name: p.name }));
+      await sb.from("integrations").update({ config: { ...cfg, pages: [...byId.values()].slice(0, 100) } }).eq("id", id);
+      return json({ ok: true, pages: pages.map(({ id, name }) => ({ id, name })) });
     }
-    if (action === "clear_secret") { await sb.from("integration_secrets").delete().eq("integration_id", id).eq("name", "page_access_token"); return json({ ok: true }); }
+    if (action === "clear_secret") {
+      const pid = String(body.page_id || "");
+      if (!pid) { await sb.from("integration_secrets").delete().eq("integration_id", id).eq("name", "page_access_token"); return json({ ok: true }); }
+      if (!/^\d+$/.test(pid)) return json({ ok: false, error: "Invalid page" }, 400);
+      await sb.from("integration_secrets").delete().eq("integration_id", id).eq("name", "page_token:" + pid);
+      const { data: cur } = await sb.from("integrations").select("config").eq("id", id).single(), cfg = (cur && cur.config) || {};
+      await sb.from("integrations").update({ config: { ...cfg, pages: (cfg.pages || []).filter((p) => p.id !== pid) } }).eq("id", id);
+      return json({ ok: true });
+    }
     return json({ ok: false, error: "Unknown action" }, 400);
   }
 
@@ -87,8 +101,9 @@ Deno.serve(async (req) => {
       let flat = item.flat, extra = item.extra || {};
       if (item.ref) {                                                               // Meta notification: fetch the lead from the Graph API
         if (wantsTest) { const m = `Meta lead notification recognised (lead ${item.ref.leadgen_id}). Details are fetched from Meta for real leads only.`; await log("test", m, { platform: "fb" }); results.push({ status: "test", message: m }); continue; }
-        const { data: tok } = await sb.from("integration_secrets").select("value").eq("integration_id", id).eq("name", "page_access_token").maybeSingle();
-        if (!tok) { const m = "Page access token is not set (Integrations → Sync Settings)."; await log("error", m, {}, null, item.ref); results.push({ status: "error", message: m }); continue; }
+        const pid = String(item.ref.page_id || ""), names = [...(/^\d+$/.test(pid) ? ["page_token:" + pid] : []), "page_access_token"];   // this Page's own token, else the older single token
+        const { data: toks } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).in("name", names), tok = names.map((n) => (toks || []).find((t) => t.name === n)).find(Boolean);
+        if (!tok) { const m = `No access token for Facebook Page ${pid || "(unknown)"}. Add it in Integrations \u2192 Sync Settings.`; await log("error", m, {}, null, item.ref); results.push({ status: "error", message: m }); continue; }
         const got = await L.fetchMetaLead(item.ref, tok.value); flat = got.flat; extra = got.extra;
       }
       if (extra.is_test) { await log("test", "Google test lead received", extra); results.push({ status: "test", message: "Google test lead received" }); continue; }
