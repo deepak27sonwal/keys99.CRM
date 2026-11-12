@@ -41,6 +41,7 @@ python3 -m http.server 8000
 The CRM runs on the **Housing mantra enquiries** project (URL and publishable key are in `js/config.js`).
 - Leads are the rows of the existing `enquiries` table (the landing-page form keeps writing there).
 - `team_members` holds agents and relationship managers; a lead belongs to a person when its `manager_name` equals their name.
+- **Auto-assign:** give each team member their projects (Agents & Teams -> Edit details), then switch on *Auto-assign new leads*. A database trigger (`enquiries_auto_assign`) picks the person for every new lead, whatever its source: people with that project take turns (longest-waiting first); if nobody has it, active relationship managers take turns. The existing lead email then goes to that person. Off by default.
 - `site_visits` and `bookings` hold visits, deals and brokerage commission.
 - `supabase/schema.sql` has every change (CRM columns, the two tables, Row Level Security: signed-in users only).
 - **Lead capture:** the Edge Function `supabase/functions/capture-lead` (public webhook, one URL + secret per integration) turns incoming leads into `enquiries` rows (source Meta Ads / Google Ads / LinkedIn / WhatsApp / YouTube / Website), skips duplicates, and logs every delivery in `integration_events`. Secrets are stored only as a SHA-256 hash and shown once; the optional Meta Page tokens (one per Facebook Page; paste one user token to add all your Pages) live in `integration_secrets` (no policies, service role only). Deploy with `supabase functions deploy capture-lead --no-verify-jwt`.

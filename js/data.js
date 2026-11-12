@@ -191,7 +191,8 @@ const Data = {
   teamRow(f) {
     return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
       designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, location: String(f.location || "").trim() || null,
-      monthly_target: Math.max(0, Number(f.monthly_target) || 0), joined_on: f.joined_on || null, status: f.status === "Inactive" ? "Inactive" : "Active" };
+      monthly_target: Math.max(0, Number(f.monthly_target) || 0), joined_on: f.joined_on || null,
+      projects: [...new Set((Array.isArray(f.projects) ? f.projects : []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 40), status: f.status === "Inactive" ? "Inactive" : "Active" };
   },
   async saveMember(id, f) {
     const row = this.teamRow(f), s = await this.session();
@@ -199,6 +200,10 @@ const Data = {
     const { error } = await q;
     if (error) throw new Error(error.code === "23505" ? "A team member with this name already exists" : error.message);
   },
+  // ---- automatic lead assignment (switch lives in app_settings; the rule runs in the database when a lead is saved)
+  async getAutoAssign() { const { data, error } = await this.client.from("app_settings").select("value").eq("key", "auto_assign").maybeSingle(); if (error) throw error; return !!(data && data.value === true); },
+  async setAutoAssign(on) { const { error } = await this.client.from("app_settings").update({ value: !!on, updated_at: new Date().toISOString() }).eq("key", "auto_assign"); if (error) throw error; },
+  async whoGetsNext(project) { const { data, error } = await this.client.rpc("assignee_for", { p_project: project || "" }); if (error) throw error; return (data && data[0]) || null; },
   async setMemberStatus(id, status) { const { error } = await this.client.from("team_members").update({ status }).eq("id", id); if (error) throw error; },
   async deleteMember(id) { const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {

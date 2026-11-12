@@ -653,3 +653,12 @@ table{width:100%;border-collapse:collapse}
 .drawer .tiles4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.drawer .tiles4>div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border:1px solid var(--line);border-radius:10px;text-align:center}
 .drawer .tiles4 b{font-size:17px}.drawer .tiles4 small{font-size:11px;color:var(--muted)}
 .topbars li{grid-template-columns:minmax(90px,1.2fr) 1.6fr auto}.g-team .chart-box{height:220px}
+
+/* auto-assign */
+.aa-card{margin-bottom:14px}.aa-t{display:flex;gap:16px;align-items:center;justify-content:space-between}.aa-t h3{display:flex;align-items:center;gap:8px;margin:0 0 4px}.aa-t .sub{margin:0 0 6px}
+.pj{display:inline-block;background:#eef6f4;color:#0f5f54;border-radius:999px;padding:2px 9px;font-size:12px;margin:2px 4px 2px 0;white-space:nowrap}.pj.more{background:#f1f5f9;color:#475569}.pj.off{opacity:.5}.pj.warn{background:#fef3c7;color:#92400e}
+.pj button{border:0;background:none;color:inherit;font-size:14px;line-height:1;margin-left:4px;padding:0 2px;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:2px;margin:4px 0 8px;min-height:28px}.proj-picker label{display:block;font-size:13px;margin-bottom:2px}
+.pjs{max-width:190px;white-space:normal}.tm-info .pj-li{align-items:flex-start}.tm-info .pj-li>span:last-child{flex:1}
+.route-t{width:100%;border-collapse:collapse}.route-t th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap}.route-t td{padding:10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+@media(max-width:900px){.aa-t{align-items:flex-start}.pjs{max-width:none}.team-t td[data-label="Projects"]{grid-column:1/-1}}

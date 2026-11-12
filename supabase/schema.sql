@@ -167,3 +167,72 @@ create policy "CRM users manage team members" on public.team_members for all to 
 -- insert into public.team_members (kind, name, email, designation, joined_on)
 --   select 'rm', trim(both '"' from manager_name::text), max(trim(both '"' from manager_email::text)), 'Relationship Manager', min(created_at)::date
 --   from public.enquiries where manager_name is not null group by manager_name::text on conflict do nothing;
+
+-- Automatic lead assignment by project (Agents & Teams -> Auto-assign new leads)
+alter table public.team_members
+  add column if not exists projects text[] not null default '{}',
+  add column if not exists last_assigned_at timestamptz;
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null default 'null'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_settings enable row level security;
+drop policy if exists "CRM users manage settings" on public.app_settings;
+create policy "CRM users manage settings" on public.app_settings for all to authenticated using (true) with check (true);
+insert into public.app_settings (key, value) values ('auto_assign', 'false'::jsonb) on conflict (key) do nothing;
+
+create or replace function public.norm_project(t text) returns text
+language sql immutable set search_path = '' as $$ select regexp_replace(lower(coalesce(t, '')), '[^a-z0-9]+', '', 'g') $$;
+
+-- Who should get a lead for this project? No side effects. Active members whose projects match (longest-waiting first),
+-- otherwise active relationship managers (longest-waiting first), otherwise nobody.
+create or replace function public.assignee_for(p_project text)
+returns table (id bigint, name text, email text, matched boolean)
+language plpgsql stable security definer set search_path = '' as $$
+declare n text := public.norm_project(p_project); r record;
+begin
+  if length(n) >= 3 then
+    select m.id, m.name, m.email into r
+    from public.team_members m
+    where m.status = 'Active'
+      and exists (select 1 from unnest(m.projects) pr
+                  where length(public.norm_project(pr)) >= 3
+                    and (n like public.norm_project(pr) || '%' or public.norm_project(pr) like n || '%'))
+    order by m.last_assigned_at nulls first, m.id limit 1;
+    if found then return query select r.id, r.name, r.email, true; return; end if;
+  end if;
+  select m.id, m.name, m.email into r
+  from public.team_members m where m.status = 'Active' and m.kind = 'rm'
+  order by m.last_assigned_at nulls first, m.id limit 1;
+  if found then return query select r.id, r.name, r.email, false; end if;
+end $$;
+revoke all on function public.assignee_for(text) from public, anon;
+grant execute on function public.assignee_for(text) to authenticated;
+
+-- Runs before every new lead is saved (landing pages, capture-lead, manual add), only while app_settings.auto_assign is true.
+create or replace function public.auto_assign_enquiry() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare on_ boolean; a record; has_mgr boolean;
+begin
+  select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
+  if not coalesce(on_, false) then return new; end if;
+  perform pg_advisory_xact_lock(727001);
+  select * into a from public.assignee_for(new.project);
+  if a.id is null then return new; end if;
+  has_mgr := new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb);
+  if not a.matched and has_mgr then return new; end if;
+  new.manager_name := to_jsonb(a.name);
+  new.manager_email := case when a.email is null then null else to_jsonb(a.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
+    'description', 'Assigned to ' || a.name || case when a.matched then ' (project: ' || coalesce(new.project, '') || ')' else ' (no project rule, shared round-robin)' end));
+  update public.team_members set last_assigned_at = now() where team_members.id = a.id;
+  return new;
+exception when others then
+  raise warning 'auto_assign_enquiry failed: %', sqlerrm;
+  return new;
+end $$;
+revoke all on function public.auto_assign_enquiry() from public, anon, authenticated;
+drop trigger if exists enquiries_auto_assign on public.enquiries;
+create trigger enquiries_auto_assign before insert on public.enquiries for each row execute function public.auto_assign_enquiry();
