@@ -13,7 +13,11 @@ const Data = {
     const { data } = await this.client.auth.getSession();
     return data.session;
   },
-  async signOut() { if (this.client) await this.client.auth.signOut(); location.replace("login.html"); },
+  async signOut() {
+    try { if (this.client) await this.client.auth.signOut(); }
+    catch { try { Object.keys(localStorage).filter((k) => /^sb-.*-auth-token/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ } }   // even if the server cannot be reached, leave this device signed out
+    location.replace("login.html");
+  },
 
   // PostgREST returns at most 1000 rows per request, so page through.
   async fetchAll(table, build) {
