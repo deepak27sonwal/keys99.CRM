@@ -5,7 +5,7 @@ const NAV = [
   ["Customers", "customer.html", "users", "customer"],
   ["Developers", "#", "building-2"], ["Projects", "#", "landmark"], ["Site Visits", "site-visits.html", "map-pin", "visits"],
   ["Sales Pipeline", "#", "filter"], ["Bookings & Deals", "#", "file-signature"], ["Commissions", "#", "wallet"],
-  ["Agents & Teams", "#", "users-round"], ["Marketing & Campaigns", "#", "megaphone"], ["Tasks & Follow-ups", "#", "list-checks"],
+  ["Agents & Teams", "agents.html", "users-round", "agents"], ["Marketing & Campaigns", "#", "megaphone"], ["Tasks & Follow-ups", "#", "list-checks"],
   ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"], ["Integrations", "integrations.html", "plug-zap", "integrations"], ["Settings", "#", "settings"],
 ];
 

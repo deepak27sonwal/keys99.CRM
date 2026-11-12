@@ -623,3 +623,33 @@ table{width:100%;border-collapse:collapse}
 
 .pages{display:grid;gap:6px}.pg{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:#fff}
 .pg>span{flex:1;min-width:0;overflow-wrap:anywhere}.pg i,.pg svg{width:16px;height:16px;color:#15803d;flex:none}.pg small{display:block}
+
+/* Agents & Teams */
+.g-team{grid-template-columns:repeat(4,1fr);margin-top:16px}.g-team .ch h3{display:flex;align-items:center;gap:6px;font-size:14px}.g-team .ch [data-lucide]{width:16px;height:16px;color:var(--brand-600)}
+.g-team .donut{width:150px;height:150px}.g-team .donut-wrap{flex-direction:column;align-items:center}.g-team .donut .mid b{font-size:16px}
+.legend-l{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:4px;font-size:13px;width:100%}.legend-l li{display:flex;align-items:center;gap:8px}.legend-l i{width:10px;height:10px;border-radius:50%}.legend-l b{margin-left:auto}
+.topbars{list-style:none;padding:0;margin:0;display:grid;gap:10px}.topbars li{display:grid;grid-template-columns:minmax(70px,1fr) 2fr auto;gap:8px;align-items:center;font-size:13px}
+.topbars .bar{height:8px;background:#eef2f1;border-radius:99px;overflow:hidden}.topbars .bar i{display:block;height:100%;background:#16a34a;border-radius:99px}
+.g-team .chart-box{height:190px;position:relative}.g-team .quick{display:grid;gap:8px;align-content:start}.g-team .quick .btn{justify-content:flex-start}
+.team-t{width:100%;min-width:0}.team-t th{text-align:left;padding:12px 8px;white-space:nowrap;border-bottom:1px solid var(--line);font-weight:600}
+.team-t td{padding:10px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}.team-t small{display:block;color:var(--muted);font-size:12px}
+.team-t tr.tm-row{cursor:pointer}.team-t tr.tm-row:hover,.team-t tr.tm-row.sel{background:rgba(232,244,241,.6)}.team-t .row{display:flex;align-items:center;gap:10px}
+.team-q{min-width:220px;flex:1}
+.tm-head{display:flex;gap:14px;align-items:center;margin-bottom:12px}.tm-head h3{margin:0 0 2px}.tm-head p{margin:0 0 6px;color:var(--muted)}
+.tm-info{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:8px;font-size:14px}.tm-info li{display:flex;align-items:center;gap:10px;overflow-wrap:anywhere}.tm-info [data-lucide]{width:16px;height:16px;color:var(--brand-600);flex:none}.tm-info .k{color:var(--muted);min-width:86px}
+.tm-target{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;background:#fff8e6;border:1px solid #f3e1ad;border-radius:10px;margin-bottom:14px}.tm-target small{display:block;color:var(--muted);font-size:12px}.tm-target b{font-size:15px}
+.tm-h{margin:0 0 8px;font-size:14px}
+@media(max-width:1500px){.g-team{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){
+  .g-team{grid-template-columns:1fr}
+  .team-t,.team-t tbody{display:block}.team-t thead{display:none}
+  .team-t tr.tm-row{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .team-t tr.tm-row.sel{border-color:var(--brand-500)}
+  .team-t td{display:block;border:0;padding:0;font-size:13px}.team-t td::before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
+  .team-t td[data-label="Member"]{grid-column:1/-1;padding-right:96px;min-height:40px}.team-t td[data-label="Member"]::before,.team-t td[data-label="Actions"]::before,.team-t td[data-label="Status"]::before{display:none}
+  .team-t td[data-label="Status"]{position:absolute;top:12px;right:52px}.team-t td[data-label="Actions"]{position:absolute;top:8px;right:8px}
+  .team-t tr:not(.tm-row) td{grid-column:1/-1}.team-q{min-width:0;width:100%}
+}
+.drawer .tiles4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.drawer .tiles4>div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border:1px solid var(--line);border-radius:10px;text-align:center}
+.drawer .tiles4 b{font-size:17px}.drawer .tiles4 small{font-size:11px;color:var(--muted)}
+.topbars li{grid-template-columns:minmax(90px,1.2fr) 1.6fr auto}.g-team .chart-box{height:220px}
