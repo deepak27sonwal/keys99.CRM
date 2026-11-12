@@ -72,6 +72,7 @@ const Data = {
       bhk: "bhk", priority: "priority", notes: "notes", lostReason: "lost_reason", agent: "manager_name" };
     const row = {};
     for (const [k, col] of Object.entries(m)) if (k in p) row[col] = p[k] === "" ? null : p[k];
+    if ("agentEmail" in p) row.manager_email = p.agentEmail || null;          // keep the lead's email alert address in step with the person
     const { error } = await this.client.from("enquiries").update(row).eq("id", dbId);
     if (error) throw error;
   },
@@ -92,6 +93,12 @@ const Data = {
     if (a) return { label: a.title === "Follow-up scheduled" ? "Follow-up note" : a.title === "Note" ? "Last note" : "Last activity", text: a.description, at: a.at, by: a.by || "", icon: a.title === "Follow-up scheduled" ? "phone-call" : "message-square-text" };
     if (l.notes) return { label: "Note", text: l.notes, at: l.createdAt, by: "", icon: "message-square-text" };
     return { label: "Enquiry received", text: "From " + l.source + (l.project ? " for " + l.project : ""), at: l.createdAt, by: "", icon: "inbox" };
+  },
+  async addActivity(lead, title, description) {
+    const s = await this.session();
+    const acts = [...lead.acts, { type: "doc", title, description, at: new Date().toISOString(), by: s ? s.user.email : "" }];
+    const { error } = await this.client.from("enquiries").update({ activities: acts }).eq("id", lead.dbId);
+    if (error) throw error;
   },
   async addNote(lead, text) {
     const s = await this.session();
@@ -188,6 +195,7 @@ const Data = {
   },
   // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
   async getTeam() { return this.fetchAll("team_members"); },
+  async getTeamCached() { if (!this._team) this._team = await this.getTeam(); return this._team; },
   teamRow(f) {
     return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
       designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, location: String(f.location || "").trim() || null,
@@ -197,6 +205,7 @@ const Data = {
   async saveMember(id, f) {
     const row = this.teamRow(f), s = await this.session();
     const q = id ? this.client.from("team_members").update(row).eq("id", id) : this.client.from("team_members").insert({ ...row, created_by: s ? s.user.id : null });
+    this._team = null;
     const { error } = await q;
     if (error) throw new Error(error.code === "23505" ? "A team member with this name already exists" : error.message);
   },
@@ -204,8 +213,8 @@ const Data = {
   async getAutoAssign() { const { data, error } = await this.client.from("app_settings").select("value").eq("key", "auto_assign").maybeSingle(); if (error) throw error; return !!(data && data.value === true); },
   async setAutoAssign(on) { const { error } = await this.client.from("app_settings").update({ value: !!on, updated_at: new Date().toISOString() }).eq("key", "auto_assign"); if (error) throw error; },
   async whoGetsNext(project) { const { data, error } = await this.client.rpc("assignee_for", { p_project: project || "" }); if (error) throw error; return (data && data[0]) || null; },
-  async setMemberStatus(id, status) { const { error } = await this.client.from("team_members").update({ status }).eq("id", id); if (error) throw error; },
-  async deleteMember(id) { const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
+  async setMemberStatus(id, status) { this._team = null; const { error } = await this.client.from("team_members").update({ status }).eq("id", id); if (error) throw error; },
+  async deleteMember(id) { this._team = null; const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
     if (error) throw error;
