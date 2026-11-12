@@ -10,6 +10,7 @@ Channel Partner CRM for real estate: leads, customers, bookings and commissions.
 - `customer.html?id=L-5` Customer profile: details, repeat enquiries, timeline, site visits, bookings, lead outcome
 - `site-visits.html` Site Visit Management: calendar (month/week/day), day list, visit details + plan + outcome, list and team views, insights, CSV and calendar (.ics) export
 - `site-visit.html?id=7` Site Visit Details: customer, project, workflow (confirm / visited / completed), outcome, documents and photos (private storage), agent checklist, ratings and feedback, remarks + next action (creates a follow-up), activity timeline
+- `agents.html` Agents & Team Management: tabs for all members, Agents and Relationship Managers; add / edit / deactivate / delete, team + location filters, search, per-person leads / visits / bookings / deal value / commission / conversion, monthly targets, details panel, charts, CSV export
 - `integrations.html` Social Media Integrations: connect Facebook & Instagram, Google Ads, LinkedIn, WhatsApp Business, YouTube or any website/webhook; KPIs, lead forms, field mapping, sync settings, test connection, auto lead capture
 - `login.html` Sign-in (show/hide password, forgot password, returns you to the page you were on); `reset.html` sets a new password from the emailed link
 
@@ -39,6 +40,7 @@ python3 -m http.server 8000
 ## Supabase
 The CRM runs on the **Housing mantra enquiries** project (URL and publishable key are in `js/config.js`).
 - Leads are the rows of the existing `enquiries` table (the landing-page form keeps writing there).
+- `team_members` holds agents and relationship managers; a lead belongs to a person when its `manager_name` equals their name.
 - `site_visits` and `bookings` hold visits, deals and brokerage commission.
 - `supabase/schema.sql` has every change (CRM columns, the two tables, Row Level Security: signed-in users only).
 - **Lead capture:** the Edge Function `supabase/functions/capture-lead` (public webhook, one URL + secret per integration) turns incoming leads into `enquiries` rows (source Meta Ads / Google Ads / LinkedIn / WhatsApp / YouTube / Website), skips duplicates, and logs every delivery in `integration_events`. Secrets are stored only as a SHA-256 hash and shown once; the optional Meta Page tokens (one per Facebook Page; paste one user token to add all your Pages) live in `integration_secrets` (no policies, service role only). Deploy with `supabase functions deploy capture-lead --no-verify-jwt`.

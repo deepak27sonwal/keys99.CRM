@@ -145,3 +145,25 @@ drop policy if exists "CRM users manage integrations" on public.integrations;
 create policy "CRM users manage integrations" on public.integrations for all to authenticated using (true) with check (true);
 drop policy if exists "CRM users read integration events" on public.integration_events;
 create policy "CRM users read integration events" on public.integration_events for select to authenticated using (true);
+
+-- Agents & Teams (agents.html): sales agents and relationship managers.
+-- Leads belong to a person when enquiries.manager_name matches their name.
+create table if not exists public.team_members (
+  id bigint generated always as identity primary key,
+  kind text not null default 'agent' check (kind in ('agent','rm')),
+  name text not null check (length(trim(name)) > 0),
+  phone text, email text, designation text, team text, location text,
+  monthly_target numeric not null default 0 check (monthly_target >= 0),
+  joined_on date,
+  status text not null default 'Active' check (status in ('Active','Inactive')),
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists team_members_name_uniq on public.team_members (lower(trim(name)));
+alter table public.team_members enable row level security;
+drop policy if exists "CRM users manage team members" on public.team_members;
+create policy "CRM users manage team members" on public.team_members for all to authenticated using (true) with check (true);
+-- One-off seed used when this was set up: the people already assigned to leads became relationship managers.
+-- insert into public.team_members (kind, name, email, designation, joined_on)
+--   select 'rm', trim(both '"' from manager_name::text), max(trim(both '"' from manager_email::text)), 'Relationship Manager', min(created_at)::date
+--   from public.enquiries where manager_name is not null group by manager_name::text on conflict do nothing;

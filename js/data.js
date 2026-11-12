@@ -186,6 +186,21 @@ const Data = {
       return j || { ok: false, error: `Unexpected response (${res.status})` };
     } catch { return { ok: false, error: "Could not reach the capture service. Check your connection." }; }
   },
+  // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
+  async getTeam() { return this.fetchAll("team_members"); },
+  teamRow(f) {
+    return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
+      designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, location: String(f.location || "").trim() || null,
+      monthly_target: Math.max(0, Number(f.monthly_target) || 0), joined_on: f.joined_on || null, status: f.status === "Inactive" ? "Inactive" : "Active" };
+  },
+  async saveMember(id, f) {
+    const row = this.teamRow(f), s = await this.session();
+    const q = id ? this.client.from("team_members").update(row).eq("id", id) : this.client.from("team_members").insert({ ...row, created_by: s ? s.user.id : null });
+    const { error } = await q;
+    if (error) throw new Error(error.code === "23505" ? "A team member with this name already exists" : error.message);
+  },
+  async setMemberStatus(id, status) { const { error } = await this.client.from("team_members").update({ status }).eq("id", id); if (error) throw error; },
+  async deleteMember(id) { const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
     if (error) throw error;
