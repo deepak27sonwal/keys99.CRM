@@ -42,6 +42,8 @@ const Data = {
       location: r.location || "", agent, status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
       source: r.source || "Website", propertyType: r.property_type || "", bhk: r.bhk || "", priority: r.priority || "",
       notes: r.notes || "", lostReason: r.lost_reason || "", createdAt: r.created_at, acts: Array.isArray(r.activities) ? r.activities : [],
+      src: { platform: r.meta_platform || "", page: r.meta_page_name || "", form: r.meta_form_name || "", campaign: r.meta_campaign_name || "", adset: r.meta_adset_name || "", ad: r.meta_ad_name || "",
+        answers: r.meta_raw_data && Array.isArray(r.meta_raw_data.answers) ? r.meta_raw_data.answers.filter((x) => x && x.q && x.a) : [] },
     };
   },
   async getLeads() { return (await this.fetchAll("enquiries")).map((r) => this.fromRow(r)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); },

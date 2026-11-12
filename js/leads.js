@@ -43,6 +43,7 @@
         <div class="row" style="margin-top:4px"><i data-lucide="phone" class="brand-t" style="width:14px;height:14px"></i>${l.mobile}<a href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
         ${l.email ? html`<div class="row" style="margin-top:2px"><i data-lucide="mail" class="brand-t" style="width:14px;height:14px"></i>${l.email}</div>` : raw("")}</div></div>
         <dl class="kv">${rows.map(([ic, k, v]) => html`<div class="r"><i data-lucide="${ic}"></i><dt>${k}</dt><dd>${v || "—"}</dd></div>`)}</dl>
+        ${enquiryDetails(l)}
         <div class="box-b"><h4>Lead Progress</h4>${stepper(l.status)}</div>
         <div class="box-b"><h4>Notes</h4><div class="note"><i data-lucide="sticky-note" class="gold-t"></i><div>${lastNote ? lastNote.description : l.notes || "No notes yet."}${lastNote ? html`<div class="muted" style="font-size:12px;margin-top:4px">${fmtDate(lastNote.at)}${lastNote.by ? " • " + lastNote.by : ""}</div>` : raw("")}</div></div></div>
         <a class="btn brand" style="width:100%;justify-content:center" href="customer.html?id=${encodeURIComponent(l.id)}"><i data-lucide="user"></i>View Full Profile</a></div>

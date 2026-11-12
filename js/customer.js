@@ -23,7 +23,8 @@
     const t = [];
     cust.related.forEach((r, i) => {
       r.acts.forEach((a) => t.push({ type: a.type || "doc", title: a.title || "Activity", description: a.description || "", ts: a.at, by: a.by ? "by " + a.by : "" }));
-      t.push({ type: "new", title: i === 0 ? "Lead Created" : "Enquired Again", description: "Enquiry from " + r.source + (r.project ? " for " + r.project : "") + ".", ts: r.createdAt, by: "" });
+      const more = [...sourceRows(r).filter(([k]) => ["Page", "Form", "Campaign", "Ad"].includes(k)).map(([k, v]) => k + ": " + v), ...((r.src && r.src.answers) || []).map((x) => x.q + ": " + x.a)];
+      t.push({ type: "new", title: i === 0 ? "Lead Created" : "Enquired Again", description: "Enquiry from " + r.source + (r.project ? " for " + r.project : "") + "." + (more.length ? "\n" + more.join("\n") : ""), ts: r.createdAt, by: "", multi: more.length > 0 });
     });
     cust.visits.forEach((v) => t.push({ type: "visit", title: "Site Visit " + v.status, description: v.project || "", ts: v.visit_at, by: v.created_by ? "by " + v.created_by : "" }));
     cust.bookings.forEach((b) => t.push({ type: "deal", title: "Booking Recorded", description: (b.project || "") + " · " + fmtMoney(b.booking_value), ts: b.booking_date + "T00:00:00", by: b.created_by ? "by " + b.created_by : "" }));
@@ -44,7 +45,7 @@
     const stats = [[tl.length, "Total Interactions", "users"], [cust.visits.length, "Site Visits", "calendar-check"], [cust.bookings.length, "Deal / Booking", "handshake"], [fmtMoney(expected), "Expected Commission", "coins"]];
     const tabs = [["Overview", "Overview"], ["Interactions", "Interactions (" + tl.length + ")"], ["Site Visits", "Site Visits (" + cust.visits.length + ")"], ["Deals", "Deals & Bookings (" + cust.bookings.length + ")"], ["Documents", "Documents"], ["Notes", "Notes"]];
 
-    const timelineList = (items) => items.length ? html`<ul class="tl">${items.map((x) => { const [bg, ic] = IC[x.type] || IC.new; return html`<li><span class="ic" style="background:${bg}"><i data-lucide="${ic}"></i></span><div class="bd"><div class="t"><b>${x.title}</b><small>${fmtDate(x.ts)}</small></div><div class="t"><small>${x.description}</small><small>${x.by}</small></div></div></li>`; })}</ul>` : html`<div class="empty-sm">Nothing here yet.</div>`;
+    const timelineList = (items) => items.length ? html`<ul class="tl">${items.map((x) => { const [bg, ic] = IC[x.type] || IC.new; return html`<li><span class="ic" style="background:${bg}"><i data-lucide="${ic}"></i></span><div class="bd"><div class="t"><b>${x.title}</b><small>${fmtDate(x.ts)}</small></div><div class="t"><small class="${x.multi ? "ml" : ""}">${x.description}</small><small>${x.by}</small></div></div></li>`; })}</ul>` : html`<div class="empty-sm">Nothing here yet.</div>`;
     const dealCard = html`${title("handshake", "Deal / Booking Summary")}${deal ? kv([["Project", deal.project], ["Booking Date", fmtDate(deal.booking_date + "T00:00:00").split(",")[0] + ", " + deal.booking_date.slice(0, 4)], ["Booking Value", fmtMoney(deal.booking_value)],
       ["Agreement Rate", deal.agreement_rate + "%"], ["Commission", fmtMoney(deal.commission_amount)], ["Commission Status", raw(`<span class="badge b-${esc(deal.commission_status)}">${esc(deal.commission_status)}</span>`)]]) : html`<div class="empty-sm">No booking yet. Use “Convert to Deal” when this lead books.</div>`}`;
 
@@ -52,6 +53,7 @@
       <div class="col">
         <section class="card p">${title("user", "Customer Details")}${kv([["Customer ID", lead.id], ["Name", lead.name], ["Mobile", lead.mobile], ["Email", lead.email], ["Location", lead.location],
           ["Assigned Agent", lead.agent], ["Created On", fmtDate(lead.createdAt)], ["Lead Source", lead.source], ["Enquiries", cust.related.length]])}</section>
+        ${(sourceRows(lead).length || (lead.src && lead.src.answers.length)) ? html`<section class="card p">${title("clipboard-list", "Enquiry Details")}${enquiryDetails(lead, "ed-flat")}</section>` : raw("")}
         <section class="card p">${title("building-2", "Interested Projects (" + projs.length + ")")}
           ${projs.length ? projs.map(([n, dev, st]) => html`<div class="proj"><div class="thumb">${buildingSvg()}</div><div class="t"><b>${n}</b>${dev ? "By " + dev : ""}</div><span class="chip c-${slug(st)}">${st}</span></div>`) : html`<div class="empty-sm">No project recorded.</div>`}</section>
       </div>

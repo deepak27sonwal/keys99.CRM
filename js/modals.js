@@ -184,3 +184,15 @@ function showDialog(title, body, buttons = [["Close", null]], wide = false) {
   ov.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => copyText(ov.querySelector(b.dataset.copy).value, "Copied")));
   return { el: ov, close };
 }
+
+// Where a lead came from and what it answered on the form (Facebook / Google / website forms). Empty for leads without such details.
+function sourceRows(l) {
+  const s = l.src || {}, plat = { fb: "Facebook", ig: "Instagram", google: "Google Ads", whatsapp: "WhatsApp" }[s.platform] || s.platform;
+  return [["Platform", plat], ["Page", s.page], ["Form", s.form], ["Campaign", s.campaign], ["Ad set", s.adset], ["Ad", s.ad]].filter((r) => r[1]);
+}
+function enquiryDetails(l, cls = "box-b") {
+  const rows = sourceRows(l), ans = (l.src && l.src.answers) || [];
+  if (!rows.length && !ans.length) return raw("");
+  return html`<div class="${cls} ed"><h4>Enquiry details</h4>${rows.length ? html`<dl class="ed-r">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl>` : raw("")}
+    ${ans.length ? html`<h5>Form answers</h5><ul class="ed-q">${ans.map((x) => html`<li><span>${x.q}</span><b>${x.a}</b></li>`)}</ul>` : raw("")}</div>`;
+}
