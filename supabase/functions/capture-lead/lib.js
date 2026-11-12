@@ -217,11 +217,18 @@ export async function discoverPages(token, fetchFn = fetch) {
     const j = await res.json().catch(() => ({}));
     return { ok: res.ok && !j.error, j };
   };
-  const acc = await get("me/accounts?fields=id,name,access_token&limit=100");
+  const acc = await get("me/accounts?fields=id,name,access_token&limit=25");
   if (acc.ok && Array.isArray(acc.j.data)) {                                       // a user token
-    const pages = acc.j.data.filter((p) => p && /^\d+$/.test(String(p.id)) && p.access_token).slice(0, 50).map((p) => ({ id: String(p.id), name: clean(p.name, 120) || "Page " + p.id, token: p.access_token }));
+    let rows = [...acc.j.data], cur = acc.j.paging && acc.j.paging.cursors && acc.j.paging.cursors.after, more = acc.j.paging && acc.j.paging.next;
+    for (let n = 0; more && cur && n < 20; n++) {                                  // Meta returns Pages in batches: keep asking until there are no more
+      const nx = await get(`me/accounts?fields=id,name,access_token&limit=25&after=${encodeURIComponent(cur)}`);
+      if (!nx.ok || !Array.isArray(nx.j.data)) break;
+      rows = rows.concat(nx.j.data); cur = nx.j.paging && nx.j.paging.cursors && nx.j.paging.cursors.after; more = nx.j.paging && nx.j.paging.next;
+    }
+    const seen = new Set(), pages = [];
+    for (const p of rows) if (p && /^\d+$/.test(String(p.id)) && p.access_token && !seen.has(String(p.id))) { seen.add(String(p.id)); pages.push({ id: String(p.id), name: clean(p.name, 120) || "Page " + p.id, token: p.access_token }); }
     if (!pages.length) throw new Error("This token has no Pages. Grant pages_show_list and tick your Pages when Meta asks which to allow.");
-    return pages;
+    return pages.slice(0, 200);
   }
   const me = await get("me?fields=id,name");                                       // a Page token (/me/accounts is not available on a Page)
   if (me.ok && /^\d+$/.test(String(me.j.id || ""))) return [{ id: String(me.j.id), name: clean(me.j.name, 120) || "Page " + me.j.id, token }];
