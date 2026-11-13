@@ -171,6 +171,12 @@ const Data = {
     if (error) throw error;
     return data;
   },
+  // ---- notifications (bell): recent leads, per-person read state, browser push subscriptions
+  async getRecentLeads(n = 30) { const { data, error } = await this.client.from("enquiries").select("id,name,project,source,manager_name,meta_platform,created_at").order("created_at", { ascending: false }).limit(n); if (error) throw error; return data || []; },
+  async getPrefs() { const { data, error } = await this.client.from("user_prefs").select("*").limit(1).maybeSingle(); if (error) throw error; return data; },
+  async savePrefs(p) { const s = await this.session(); if (!s) return; const { error } = await this.client.from("user_prefs").upsert({ ...p, user_id: s.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" }); if (error) throw error; },
+  async savePushSub(sub) { const s = await this.session(); const { error } = await this.client.from("push_subscriptions").upsert({ ...sub, user_id: s.user.id }, { onConflict: "endpoint" }); if (error) throw error; },
+  async deletePushSub(endpoint) { const { error } = await this.client.from("push_subscriptions").delete().eq("endpoint", endpoint); if (error) throw error; },
   async getMetaForms() { try { return await this.fetchAll("meta_forms"); } catch { return []; } },
   async getIntegrationEvents(sinceIso) { return this.fetchAll("integration_events", (q) => q.gte("received_at", sinceIso)); },
   captureUrl(id) { return `${CFG.SUPABASE_URL}/functions/v1/capture-lead?i=${id}`; },
