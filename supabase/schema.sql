@@ -253,3 +253,52 @@ create index if not exists meta_forms_page_idx on public.meta_forms (page_id);
 alter table public.meta_forms enable row level security;
 drop policy if exists "CRM users manage meta forms" on public.meta_forms;
 create policy "CRM users manage meta forms" on public.meta_forms for all to authenticated using (true) with check (true);
+
+-- Notification bell + browser push (js/notify.js, sw.js, supabase/functions/send-push)
+alter publication supabase_realtime add table public.enquiries;       -- live new-lead events for signed-in tabs
+create table if not exists public.user_prefs (
+  user_id uuid primary key default auth.uid(),
+  notif_read_before timestamptz,
+  notif_read_ids bigint[] not null default '{}',
+  sound_on boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+alter table public.user_prefs enable row level security;
+drop policy if exists "own prefs" on public.user_prefs;
+create policy "own prefs" on public.user_prefs for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create table if not exists public.push_subscriptions (
+  id bigint generated always as identity primary key,
+  user_id uuid not null default auth.uid(),
+  endpoint text not null unique,
+  p256dh text not null, auth text not null, user_agent text,
+  created_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "own subscriptions" on public.push_subscriptions;
+create policy "own subscriptions" on public.push_subscriptions for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Web Push key pair, created by the send-push function on first use. No policies on purpose: only the function (service role) can read it.
+create table if not exists public.push_keys (
+  id smallint primary key default 1 check (id = 1),
+  public_key text not null, private_key text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.push_keys enable row level security;
+revoke all on public.push_keys from anon, authenticated;
+create or replace function public.notify_lead_push() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform net.http_post(
+    url := 'https://rgzpytocxhjzxsopkrmu.supabase.co/functions/v1/send-push',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-enquiry-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'enquiry_email_secret' limit 1)),
+    body := jsonb_build_object('id', new.id),
+    timeout_milliseconds := 10000);
+  return new;
+exception when others then
+  raise warning 'notify_lead_push failed for enquiry %: %', new.id, sqlerrm;
+  return new;
+end $$;
+revoke all on function public.notify_lead_push() from public, anon, authenticated;
+drop trigger if exists enquiries_send_push on public.enquiries;
+create trigger enquiries_send_push after insert on public.enquiries for each row execute function public.notify_lead_push();

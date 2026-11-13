@@ -27,7 +27,8 @@ jobs:
           mkdir _site
           # publish every page, so new pages are never forgotten
           cp ./*.html _site/
-          cp -r css js _site/
+          cp -r css js icons _site/
+          cp sw.js manifest.webmanifest _site/
           # fail the build if any page referenced from the app is missing
           missing=0
           for ref in $(grep -rhoE "[a-z0-9-]+\.html" ./*.html js | sort -u); do

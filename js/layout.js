@@ -44,7 +44,7 @@ async function mountShell(active) {
           <button class="menu-btn" id="menuBtn" aria-label="Menu"><i data-lucide="menu"></i></button>
           <div class="search"><i data-lucide="search"></i><input id="globalSearch" placeholder="Search leads, customers, projects, developers..."></div>
           <div class="top-actions">
-            <span class="bell"><i data-lucide="bell"></i></span>
+            <div class="bell-wrap"><button type="button" class="bell" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button></div>
             <i data-lucide="message-circle" class="wa"></i>
             <i data-lucide="calendar-days" class="cal"></i>
             <button class="user" id="userBtn" title="Your profile" aria-haspopup="dialog" aria-expanded="false">
@@ -69,6 +69,8 @@ async function mountShell(active) {
   document.getElementById("userBtn").onclick = (e) => { e.stopPropagation(); openProfile(e.currentTarget, sess); };
   const gs = document.getElementById("globalSearch");
   if (active !== "leads") gs.onkeydown = (e) => { if (e.key === "Enter" && gs.value.trim()) location.href = "leads.html?q=" + encodeURIComponent(gs.value.trim()); };
+  // the bell: loaded after the page shell so it never delays the page
+  const ns = document.createElement("script"); ns.src = "js/notify.js"; ns.onload = () => window.Notify && Notify.init(sess); document.head.appendChild(ns);
   return document.getElementById("page");
 }
 

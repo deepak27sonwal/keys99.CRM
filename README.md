@@ -12,6 +12,7 @@ Channel Partner CRM for real estate: leads, customers, bookings and commissions.
 - `site-visit.html?id=7` Site Visit Details: customer, project, workflow (confirm / visited / completed), outcome, documents and photos (private storage), agent checklist, ratings and feedback, remarks + next action (creates a follow-up), activity timeline
 - `agents.html` Agents & Team Management: tabs for all members, Agents and Relationship Managers; add / edit / deactivate / delete, team + location filters, search, per-person leads / visits / bookings / deal value / commission / conversion, monthly targets, details panel, charts, CSV export
 - `integrations.html` Social Media Integrations: connect Facebook & Instagram, Google Ads, LinkedIn, WhatsApp Business, YouTube or any website/webhook; KPIs, lead forms, field mapping, sync settings, test connection, auto lead capture
+- **Notification bell** (every page): every new lead from every source appears in the bell with an unread count; a live chime and toast while the CRM is open; and real browser notifications that also arrive when the CRM is closed. Press **Turn on notifications** in the bell once per device (iPhone: add the CRM to the Home Screen first). Read / unread and the sound setting are saved per person. Files: `js/notify.js`, `sw.js`, `manifest.webmanifest`, `supabase/functions/send-push`.
 - `login.html` Sign-in (show/hide password, forgot password, returns you to the page you were on); `reset.html` sets a new password from the emailed link
 
 ## Reusable dropdown (`js/dropdown.js`)
