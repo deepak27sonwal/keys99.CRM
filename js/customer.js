@@ -52,7 +52,7 @@
     const overview = html`<div class="cols">
       <div class="col">
         <section class="card p">${title("user", "Customer Details")}${kv([["Customer ID", lead.id], ["Name", lead.name], ["Mobile", lead.mobile], ["Email", lead.email], ["Location", lead.location],
-          ["Assigned Agent", lead.agent], ["Created On", fmtDate(lead.createdAt)], ["Lead Source", lead.source], ["Enquiries", cust.related.length]])}</section>
+          ["Assigned Agent", lead.agent], ["Created On", fmtDate(lead.createdAt)], ["Lead Source", sourceChip(lead)], ["Enquiries", cust.related.length]])}</section>
         ${(sourceRows(lead).length || (lead.src && lead.src.answers.length)) ? html`<section class="card p">${title("clipboard-list", "Enquiry Details")}${enquiryDetails(lead, "ed-flat")}</section>` : raw("")}
         <section class="card p">${title("building-2", "Interested Projects (" + projs.length + ")")}
           ${projs.length ? projs.map(([n, dev, st]) => html`<div class="proj"><div class="thumb">${buildingSvg()}</div><div class="t"><b>${n}</b>${dev ? "By " + dev : ""}</div><span class="chip c-${slug(st)}">${st}</span></div>`) : html`<div class="empty-sm">No project recorded.</div>`}</section>

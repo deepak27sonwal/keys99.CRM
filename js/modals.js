@@ -196,3 +196,19 @@ function enquiryDetails(l, cls = "box-b") {
   return html`<div class="${cls} ed"><h4>Enquiry details</h4>${rows.length ? html`<dl class="ed-r">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl>` : raw("")}
     ${ans.length ? html`<h5>Form answers</h5><ul class="ed-q">${ans.map((x) => html`<li><span>${x.q}</span><b>${x.a}</b></li>`)}</ul>` : raw("")}</div>`;
 }
+
+// Where a lead came from, as a small coloured chip (Facebook, Instagram, Google Ads, Website...). The raw source stays in the tooltip.
+function sourceInfo(l) {
+  const raw = String(l.source || "").trim(), plat = (l.src && l.src.platform) || "";
+  if (plat === "ig" || /instagram/i.test(raw)) return ["ig", "Instagram"];
+  if (plat === "fb" || /facebook|meta/i.test(raw)) return ["fb", plat === "fb" || /facebook/i.test(raw) ? "Facebook" : "Meta Ads"];
+  if (/google\s*ads|adwords/i.test(raw)) return ["gads", "Google Ads"];
+  if (/google/i.test(raw)) return ["google", "Google"];
+  if (/whatsapp/i.test(raw)) return ["wa", "WhatsApp"];
+  if (/linkedin/i.test(raw)) return ["li", "LinkedIn"];
+  if (/youtube/i.test(raw)) return ["yt", "YouTube"];
+  if (/direct/i.test(raw)) return ["direct", "Direct"];
+  if (!raw || /website/i.test(raw) || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw.replace(/^[a-z]+:\/\//i, "").replace(/[\/?#].*$/, ""))) return ["web", "Website"];
+  return ["other", raw.length > 18 ? raw.slice(0, 17) + "…" : raw];
+}
+function sourceChip(l) { const [k, label] = sourceInfo(l); return html`<span class="src src-${k}" title="${l.source || "Website"}"><i></i>${label}</span>`; }
