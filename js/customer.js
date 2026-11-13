@@ -52,7 +52,7 @@
     const overview = html`<div class="cols">
       <div class="col">
         <section class="card p">${title("user", "Customer Details")}${kv([["Customer ID", lead.id], ["Name", lead.name], ["Mobile", lead.mobile], ["Email", lead.email], ["Location", lead.location],
-          ["Assigned Agent", lead.agent], ["Created On", fmtDate(lead.createdAt)], ["Lead Source", sourceChip(lead)], ["Enquiries", cust.related.length]])}</section>
+          ["Assigned Agent", lead.agent], ["Created On", fmtDay(lead.createdAt) + " · " + fmtTime(lead.createdAt)], ["Lead Source", sourceChip(lead)], ["Enquiries", cust.related.length]])}</section>
         ${(sourceRows(lead).length || (lead.src && lead.src.answers.length)) ? html`<section class="card p">${title("clipboard-list", "Enquiry Details")}${enquiryDetails(lead, "ed-flat")}</section>` : raw("")}
         <section class="card p">${title("building-2", "Interested Projects (" + projs.length + ")")}
           ${projs.length ? projs.map(([n, dev, st]) => html`<div class="proj"><div class="thumb">${buildingSvg()}</div><div class="t"><b>${n}</b>${dev ? "By " + dev : ""}</div><span class="chip c-${slug(st)}">${st}</span></div>`) : html`<div class="empty-sm">No project recorded.</div>`}</section>
@@ -86,7 +86,7 @@
           <div class="row"><i data-lucide="phone" class="brand-t" style="width:15px"></i><a href="${telHref(lead.mobile)}">${lead.mobile}</a><a href="${waHref(lead.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
           ${lead.email ? html`<div class="row"><i data-lucide="mail" class="brand-t" style="width:15px"></i>${lead.email}</div>` : raw("")}
           ${lead.location ? html`<div class="row"><i data-lucide="map-pin" class="brand-t" style="width:15px"></i>${lead.location}</div>` : raw("")}
-          ${lead.priority ? html`<span class="prio"><i data-lucide="star"></i>${lead.priority}</span>` : raw("")}</div></section>
+          ${priorityChip(lead)}</div></section>
         <section class="card p"><div class="stats">${stats.map(([v, l, ic]) => html`<div class="stat"><i data-lucide="${ic}"></i><div><b>${v}</b><span>${l}</span></div></div>`)}</div>
           <div class="stepper">${ORDER.map((s, i) => html`<div class="s ${i < cur ? "done" : i === cur ? "cur" : ""}"><div class="c">${i <= cur ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div></section>
       </div>

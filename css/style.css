@@ -740,3 +740,12 @@ table{width:100%;border-collapse:collapse}
 .src-direct{background:#f1f5f9;color:#475569}.src-direct i{background:#94a3b8}
 .leads-t td[data-label="Source"]{white-space:nowrap}
 @media(max-width:900px){.leads-t td[data-label="Source"]{order:7;grid-column:1/-1}}   /* phone cards: its own row, so Created and Next Follow-up stay side by side */
+
+/* Priority stars, form name, lead time */
+.prio-c{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.3;white-space:nowrap}
+.prio-c .stars{display:inline-flex;gap:1px}.prio-c svg{fill:currentColor}.prio-c svg.off{fill:none;stroke:currentColor;stroke-width:1.6;opacity:.45}
+.prio-c.p3{background:#fee8e8;color:#b91c1c}.prio-c.p2{background:#fff4d6;color:#8a5a00}.prio-c.p1{background:#e6f1f8;color:#476a85}
+.leads-t td[data-label="Priority"]{white-space:nowrap}
+.leads-t .src-form{display:block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.leads-t .cr-t{display:block;font-size:12px;color:var(--muted,#64748b)}
+@media(max-width:900px){.leads-t td[data-label="Priority"]{order:7;grid-column:1/-1}.leads-t .src-form{max-width:none}}

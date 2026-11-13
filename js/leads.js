@@ -4,7 +4,7 @@
   const TABS = ["All Leads", ...STATUSES];
   const PAGE = 25;
   const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
-  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "" }, range: "all", page: 1, sig: "", checked: new Set() };
+  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "", priority: "" }, range: "all", page: 1, sig: "", checked: new Set() };
 
   async function load() {
     try { state.leads = await Data.getLeads(); }
@@ -25,7 +25,7 @@
   const base = () => state.leads.filter((l) => inRange(l) &&
     (!state.q || [l.name, l.mobile, l.email, l.project, l.developer, l.source, l.id, l.location, l.agent].join(" ").toLowerCase().includes(state.q.toLowerCase())) &&
     (!state.f.project || l.project === state.f.project) && (!state.f.developer || l.developer === state.f.developer) &&
-    (!state.f.source || l.source === state.f.source) && (!state.f.agent || l.agent === state.f.agent));
+    (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || l.agent === state.f.agent));
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
   function stepper(status) {
@@ -34,9 +34,9 @@
   }
   function drawer(l) {
     if (!l) return raw("");
-    const rows = [["hash", "Lead ID", l.id], ["share-2", "Source", sourceChip(l)], ["target", "Requirement", l.requirement], ["home", "Property type", l.propertyType],
+    const rows = [["hash", "Lead ID", l.id], ["share-2", "Source", sourceChip(l)], ["file-text", "Form", l.src && l.src.form], ["star", "Priority", prioLevel(l) ? priorityChip(l) : ""], ["target", "Requirement", l.requirement], ["home", "Property type", l.propertyType],
       ["indian-rupee", "Budget", l.budget], ["layers", "BHK", l.bhk], ["building-2", "Project", l.project], ["briefcase", "Developer", l.developer],
-      ["map-pin", "Location", l.location], ["user", "Assigned Agent", l.agent], ["calendar-plus", "Created", fmtDate(l.createdAt)], ["calendar", "Next Follow-up", l.followUpTs ? l.followUp : ""]];
+      ["map-pin", "Location", l.location], ["user", "Assigned Agent", l.agent], ["calendar-plus", "Created", fmtDay(l.createdAt) + " · " + fmtTime(l.createdAt)], ["calendar", "Next Follow-up", l.followUpTs ? l.followUp : ""]];
     const lastNote = [...l.acts].filter((a) => ["Note", "Follow-up scheduled"].includes(a.title)).sort((a, b) => new Date(a.at) - new Date(b.at)).pop();
     return html`<aside class="card drawer"><div class="drawer-h"><h2>Lead Details</h2><button id="closeDrawer" aria-label="Close"><i data-lucide="x"></i></button></div>
       <div class="drawer-b"><div class="prof">${avatar(l.name, 64)}<div style="flex:1;min-width:0"><div class="row" style="flex-wrap:wrap"><h3>${l.name}</h3>${badge(l.status)}</div>
@@ -83,21 +83,22 @@
           <div class="btns"><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
         <div class="kpis k6">${kpis.map(kpiCard)}</div>
         <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === "All Leads" ? "" : "has-stage s-" + slug(t)} ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
-        <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("agent", "Agent")}
+        <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
-          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Agent", "Status", "Created", "Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
+          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Priority", "Agent", "Status", "Created", "Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
-            <td data-label="Source">${sourceChip(l)}</td>
+            <td data-label="Source">${sourceChip(l)}${l.src && l.src.form ? html`<small class="src-form" title="${l.src.form}">${l.src.form}</small>` : raw("")}</td>
+            <td data-label="Priority">${prioLevel(l) ? priorityChip(l) : "—"}</td>
             <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status">${badge(l.status)}</td>
-            <td data-label="Created" class="created"><span class="cr-d"><span class="cr-m">${fmtDay(l.createdAt).slice(0, 6)}</span><span class="cr-y">${fmtDay(l.createdAt).slice(6)}</span></span><small class="cr-a">${relTime(l.createdAt)}</small></td>
+            <td data-label="Created" class="created"><span class="cr-d"><span class="cr-m">${fmtDay(l.createdAt).slice(0, 6)}</span><span class="cr-y">${fmtDay(l.createdAt).slice(6)}</span></span><span class="cr-t">${fmtTime(l.createdAt)}</span><small class="cr-a">${relTime(l.createdAt)}</small></td>
             <td data-label="Next Follow-up" class="fu-cell"><span class="fu ${fu.cls}">${fu.out}</span></td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
             <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button></div></td></tr>`; })
-            : html`<tr><td colspan="11" class="empty">No leads found.</td></tr>`}</tbody></table></div>
+            : html`<tr><td colspan="12" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing ${filtered.length ? (state.page - 1) * PAGE + 1 : 0} – ${(state.page - 1) * PAGE + rows.length} of ${filtered.length.toLocaleString("en-IN")} leads</span>
           <div class="pager"><button data-page="${state.page - 1}" ${state.page <= 1 ? raw("disabled") : raw("")} aria-label="Previous"><i data-lucide="chevron-left"></i></button>
             ${pageButtons(state.page, pages).map((p) => (p === "…" ? html`<button disabled>…</button>` : html`<button data-page="${p}" class="${p === state.page ? "active" : ""}">${p}</button>`))}
@@ -130,8 +131,8 @@
     page.querySelector("#addLead").onclick = () => openAddLead(refresh);
     page.querySelector("#export").onclick = () => {
       const pick = state.checked.size ? filtered.filter((l) => state.checked.has(l.dbId)) : filtered;
-      downloadCsv("keys99-leads.csv", ["Lead ID", "Name", "Mobile", "Email", "Requirement", "Budget", "Project", "Developer", "Location", "Agent", "Status", "Source", "Next follow-up", "Created"],
-        pick.map((l) => [l.id, l.name, l.mobile, l.email, l.requirement, l.budget, l.project, l.developer, l.location, l.agent, l.status, l.source, l.followUpTs || "", l.createdAt]));
+      downloadCsv("keys99-leads.csv", ["Lead ID", "Name", "Mobile", "Email", "Requirement", "Budget", "Project", "Developer", "Location", "Agent", "Status", "Source", "Form", "Priority", "Next follow-up", "Created"],
+        pick.map((l) => [l.id, l.name, l.mobile, l.email, l.requirement, l.budget, l.project, l.developer, l.location, l.agent, l.status, l.source, (l.src && l.src.form) || "", l.priority, l.followUpTs || "", l.createdAt]));
     };
   }
 
