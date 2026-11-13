@@ -171,6 +171,7 @@ const Data = {
     if (error) throw error;
     return data;
   },
+  async getMetaForms() { try { return await this.fetchAll("meta_forms"); } catch { return []; } },
   async getIntegrationEvents(sinceIso) { return this.fetchAll("integration_events", (q) => q.gte("received_at", sinceIso)); },
   captureUrl(id) { return `${CFG.SUPABASE_URL}/functions/v1/capture-lead?i=${id}`; },
   // Creates the integration and returns the secret ONCE; only its hash is stored.

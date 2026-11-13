@@ -2,7 +2,7 @@
   const page = await mountShell("integrations");
   if (!page) return;
   const DAY = 86400000;
-  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {} };
+  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {}, metaForms: [], perm: null, syncMsg: "" };
 
   // ---------- platform catalogue ----------
   const sampleWA = { object: "whatsapp_business_account", entry: [{ id: "W1", changes: [{ field: "messages", value: { contacts: [{ profile: { name: "Test Lead" }, wa_id: "919876543210" }], messages: [{ from: "919876543210", id: "wamid.TEST", type: "text", text: { body: "Hi, I want to know about 2 BHK options" } }] } }] }] };
@@ -47,7 +47,7 @@
   async function load() {
     try {
       state.integrations = await Data.getIntegrations();
-      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString());
+      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString()); state.metaForms = await Data.getMetaForms();
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load integrations: ' + esc(e.message) + "</div>"; return false; }
     return true;
   }
@@ -110,10 +110,34 @@
       <div class="ban auto"><i data-lucide="info"></i><div><b>Auto Lead Capture</b><small>Leads from this integration are created automatically in Keys99 CRM with source, campaign and form details.</small></div>
         <label class="switch"><input type="checkbox" id="auto" ${i.auto_capture ? raw("checked") : raw("")} aria-label="Auto Lead Capture"><span></span></label></div>`;
   }
+  // Forms read from Facebook itself (name, status, questions). Filled by "Sync forms" and by each new lead.
+  function fbForms(i) {
+    const F = state.metaForms.filter((f) => f.integration_id === i.id).sort((a, b) => String(a.name || "~").localeCompare(String(b.name || "~"))), pages = new Map(((i.config || {}).pages || []).map((g) => [g.id, g.name]));
+    const canSync = ((i.config || {}).pages || []).length > 0;
+    return html`<h3 class="sec">Forms on Facebook (${F.length})</h3>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="syncForms" ${canSync ? raw("") : raw("disabled")}><i data-lucide="refresh-cw"></i>Sync forms</button><small class="muted" id="syncMsg">${state.syncMsg || (canSync ? "Reads every lead form on your connected Pages." : "Add your Pages first (Sync Settings).")}</small></div>
+      ${F.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Form</th><th>Page</th><th>Status</th><th>Questions</th><th></th></tr></thead><tbody>${F.map((f) => html`<tr><td data-label="Form" data-wide><b>${f.name || "Form " + f.form_id}</b>${f.name ? "" : html` <small class="muted">(name not available)</small>`}</td>
+        <td data-label="Page">${pages.get(f.page_id) || f.page_id || "—"}</td><td data-label="Status">${f.status ? html`<span class="chip ${f.status === "ACTIVE" ? "c-ok" : "c-none"}">${f.status.toLowerCase()}</span>` : "—"}</td>
+        <td data-label="Questions">${(f.questions || []).length || "—"}</td><td>${(f.questions || []).length ? html`<button class="btn sm" data-fq="${f.form_id}">View questions</button>` : raw("")}</td></tr>`)}</tbody></table></div>`
+        : html`<div class="empty-sm">No forms read yet. Press Sync forms. If Meta refuses, use Check permissions in Sync Settings to see why.</div>`}`;
+  }
+  function permPanel() {
+    const R = state.perm; if (!R) return raw("");
+    if (R.error) return html`<div class="ban pend"><i data-lucide="alert-triangle"></i><div><b>Could not check</b>${R.error}</div></div>`;
+    const n = R.results.length, has = (k) => R.results.filter((r) => (r.permissions.find((p) => p.key === k) || {}).has).length, labels = R.results[0] ? R.results[0].permissions : [];
+    const probeErr = new Map(); R.results.forEach((r) => r.probes.filter((p) => !p.ok).forEach((p) => { const k = p.name + " — " + p.error; probeErr.set(k, (probeErr.get(k) || 0) + 1); }));
+    const missingAds = labels.some((p) => p.key === "pages_manage_ads") && has("pages_manage_ads") < n, expired = R.results.filter((r) => r.expires_at && r.expires_at * 1000 < Date.now() + 3 * 86400000).length, unreadable = R.results.filter((r) => !r.readable).length;
+    return html`<div class="perm"><h4>Permission check — ${n} Page${n === 1 ? "" : "s"}</h4>
+      <ul class="perm-l">${labels.map((p) => html`<li class="${has(p.key) === n ? "ok" : "bad"}"><i data-lucide="${has(p.key) === n ? "check-circle-2" : "x-circle"}"></i><span><b>${p.key}</b> <small class="muted">${p.label}</small></span><em>${has(p.key)} of ${n}</em></li>`)}</ul>
+      ${unreadable ? html`<p class="sub">Meta would not describe ${unreadable} token${unreadable === 1 ? "" : "s"} (they may have expired). Add the Pages again with a fresh token.</p>` : raw("")}
+      ${expired ? html`<p class="sub">${expired} token${expired === 1 ? "" : "s"} expire${expired === 1 ? "s" : ""} within 3 days. Use an extended user token when adding Pages.</p>` : raw("")}
+      ${probeErr.size ? html`<p class="sub" style="margin-bottom:4px">What Meta answered when we tried:</p><ul class="perm-e">${[...probeErr].map(([k, c]) => html`<li>${k} <small class="muted">(${c} Page${c === 1 ? "" : "s"})</small></li>`)}</ul>` : html`<p class="sub">Reading forms works for all checked Pages.</p>`}
+      ${missingAds ? html`<div class="ban pend"><i data-lucide="key-round"></i><div><b>How to fix</b>In the Graph API Explorer add <code>pages_manage_ads</code> (and <code>ads_read</code> for campaign and ad names), generate a user token with all your Pages ticked, press Extend Access Token in the Access Token Debugger, then paste it into “Add Pages” here.</div></div>` : raw("")}</div>`;
+  }
   function formsTab(p, i) {
     const ev = evOf(i).filter((e) => e.status !== "test").sort((a, b) => new Date(b.received_at) - new Date(a.received_at)).slice(0, 25);
     const chip = { ok: "c-ok", duplicate: "c-pause", skipped: "c-none", error: "c-err" };
-    return html`<h3 class="sec">Lead forms (${forms(i).length})</h3>${formsTable(i)}<h3 class="sec">Recent deliveries</h3>
+    return html`${p.key === "meta" ? fbForms(i) : raw("")}<h3 class="sec">Lead forms (${forms(i).length})</h3>${formsTable(i)}<h3 class="sec">Recent deliveries</h3>
       ${ev.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Time</th><th>Result</th><th>Form</th><th>Details</th></tr></thead><tbody>${ev.map((e) => html`<tr><td class="nw" data-label="Time">${fmtDate(e.received_at)}</td><td data-label="Result"><span class="chip ${chip[e.status] || "c-none"}">${e.status}</span></td><td data-label="Form" data-wide>${e.form_name || "—"}</td><td data-label="Details" data-wide>${e.message || ""}</td></tr>`)}</tbody></table></div>` : html`<div class="empty-sm">Nothing received yet.</div>`}`;
   }
   function mappingTab(p, i) {
@@ -133,8 +157,9 @@
       <h3 class="sec">Webhook</h3><div class="copyrow"><input id="whUrl" readonly value="${url}" aria-label="Webhook URL"><button class="btn sm" data-copy-id="whUrl"><i data-lucide="copy"></i>Copy URL</button></div>
       <p class="sub" style="margin:8px 0">The secret was shown once when you connected, and only a hash is stored. Lost it? <button class="auth-link" id="rotate">Generate a new secret</button> (the old one stops working).</p>
       ${p.key === "meta" ? html`<h3 class="sec">Facebook Pages</h3><p class="sub" style="margin-bottom:8px">Needed only for Meta's direct webhook (Meta sends just a lead id; a Page token lets us read the lead). Paste a <b>user</b> access token to add <b>all</b> the Pages you granted at once, or a <b>Page</b> token to add one Page. Tokens are stored privately and never shown again.</p>
-        ${(c.pages || []).length ? html`<div class="row-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="subAll"><i data-lucide="radio-tower"></i>Subscribe all Pages</button><button class="btn sm" id="chkSubs"><i data-lucide="refresh-cw"></i>Check status</button></div>
+        ${(c.pages || []).length ? html`<div class="row-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="subAll"><i data-lucide="radio-tower"></i>Subscribe all Pages</button><button class="btn sm" id="chkSubs"><i data-lucide="refresh-cw"></i>Check status</button><button class="btn sm" id="chkPerm"><i data-lucide="shield-check"></i>Check permissions</button></div>
           <small class="muted" id="subMsg" style="display:block;margin-bottom:8px">Meta only sends leads from Pages that are subscribed to your app.</small>
+          ${permPanel()}
           <div class="pages">${(c.pages || []).map((g) => { const st = state.subs && state.subs[g.id]; return html`<div class="pg"><i data-lucide="check-circle-2"></i><span><b>${g.name}</b><small class="muted"> ID ${g.id}</small></span>${st ? html`<span class="chip ${st.ok ? "c-ok" : "c-err"}" title="${st.error || ""}">${st.ok ? "Subscribed" : st.error ? "Failed" : "Not subscribed"}</span>` : raw("")}<button class="btn sm red" data-rmpage="${g.id}">Remove</button></div>`; })}</div>` : raw("")}
         ${state.saved.page_access_token ? html`<div class="pg"><i data-lucide="key-round"></i><span><b>Older single token</b><small class="muted"> used for any Page without its own token</small></span><button class="btn sm red" id="clearTok">Remove</button></div>` : raw("")}
         <div class="copyrow" style="margin-top:8px"><input id="pageTok" type="password" autocomplete="off" placeholder="Paste a user or Page access token" aria-label="Access token"><button class="btn sm" id="saveTok"><i data-lucide="plus"></i>Add Pages</button></div>
@@ -227,6 +252,9 @@
         draw(); const m2 = $("#subMsg"); if (m2) m2.textContent = (action === "subscribe_pages" ? good + " of " + res.length + " Pages subscribed." : good + " of " + res.length + " Pages are subscribed.") + (bad ? " " + bad + " could not be reached (hover a Failed tag for the reason)." : "");
       } finally { const bb = $("#subAll"); if (bb) bb.disabled = false; }
     });
+    const cp = $("#chkPerm"); if (cp) cp.onclick = guard(async () => { cp.disabled = true; const m = $("#subMsg"); if (m) m.textContent = "Checking each Page's token with Meta…"; try { const r = await Data.captureCall(i.id, { action: "token_check", body: {} }); state.perm = r.ok ? { results: r.results || [] } : { error: r.error || "Could not reach Meta" }; } finally { draw(); } });
+    const sf = $("#syncForms"); if (sf) sf.onclick = guard(async () => { sf.disabled = true; const m = $("#syncMsg"); if (m) m.textContent = "Reading forms from Facebook… this can take a minute."; try { const r = await Data.captureCall(i.id, { action: "sync_forms", body: {} }); if (!r.ok) throw new Error(r.error || "Could not reach Meta"); state.syncMsg = r.forms + " form" + (r.forms === 1 ? "" : "s") + " read from " + r.pages + " Page" + (r.pages === 1 ? "" : "s") + (r.with_questions ? " (" + r.with_questions + " with questions)" : "") + "." + ((r.errors || []).length ? " Meta refused: " + r.errors[0].error + (r.errors.length > 1 ? " (+" + (r.errors.length - 1) + " more)" : "") : ""); state.metaForms = await Data.getMetaForms(); } finally { draw(); } });
+    document.querySelectorAll("[data-fq]").forEach((b) => (b.onclick = () => { const f = state.metaForms.find((x) => x.form_id === b.dataset.fq); if (f) showDialog(f.name || "Form " + f.form_id, html`<p class="sub">${f.status ? "Status: " + f.status.toLowerCase() + " · " : ""}${f.locale ? f.locale + " · " : ""}${f.leads_count != null ? f.leads_count + " leads" : ""}</p><ol class="fq">${(f.questions || []).map((q) => html`<li><b>${q.label || q.key}</b><small class="muted"> ${q.type || ""}</small></li>`)}</ol>`); }));
     const sa = $("#subAll"); if (sa) sa.onclick = runSubs("subscribe_pages"); const cs = $("#chkSubs"); if (cs) cs.onclick = runSubs("page_status");
     document.querySelectorAll("[data-rmpage]").forEach((b) => (b.onclick = guard(async () => { if (!confirm("Remove this Page? Its leads will stop being captured.")) return; await Data.captureCall(i.id, { action: "clear_secret", body: { page_id: b.dataset.rmpage } }); toast("Page removed"); await refresh(); })));
     const ct = $("#clearTok"); if (ct) ct.onclick = guard(async () => { if (!confirm("Remove the saved page access token?")) return; await Data.captureCall(i.id, { action: "clear_secret" }); toast("Token removed"); await refresh(); });

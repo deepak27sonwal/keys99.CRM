@@ -236,3 +236,20 @@ end $$;
 revoke all on function public.auto_assign_enquiry() from public, anon, authenticated;
 drop trigger if exists enquiries_auto_assign on public.enquiries;
 create trigger enquiries_auto_assign before insert on public.enquiries for each row execute function public.auto_assign_enquiry();
+
+-- Facebook lead forms read from Meta (Integrations -> Lead Forms -> Sync forms; also filled by each new lead)
+create table if not exists public.meta_forms (
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  form_id text not null,
+  page_id text,
+  name text, status text, locale text,
+  leads_count integer,
+  questions jsonb not null default '[]'::jsonb,
+  created_time text, follow_up_url text,
+  fetched_at timestamptz not null default now(),
+  primary key (integration_id, form_id)
+);
+create index if not exists meta_forms_page_idx on public.meta_forms (page_id);
+alter table public.meta_forms enable row level security;
+drop policy if exists "CRM users manage meta forms" on public.meta_forms;
+create policy "CRM users manage meta forms" on public.meta_forms for all to authenticated using (true) with check (true);

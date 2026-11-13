@@ -198,7 +198,7 @@ export function ctEqual(a, b) {                      // constant-time string com
 export const trimPayload = (o, n = 3500) => { try { const s = JSON.stringify(o); return s.length <= n ? o : { truncated: true, preview: s.slice(0, n) }; } catch { return null; } };
 
 // Remove anything that looks like a token from text that may be shown to users.
-export const scrub = (m) => String(m ?? "").replace(/(access_token=|Bearer\s+)[^&\s)"']+/gi, "$1***").slice(0, 300);
+export const scrub = (m) => String(m ?? "").replace(/(access_token=|input_token=|Bearer\s+)[^&\s)"']+/gi, "$1***").slice(0, 300);
 
 // Never log or store credentials that arrive inside a payload (e.g. Google Ads sends the shared key as "google_key").
 const SENSITIVE = /^(google_key|secret|webhook_secret|x_webhook_secret|access_token|token|password|api_key)$/;
@@ -303,4 +303,51 @@ export function answersFromFlat(flat) {
     if (out.length >= 40) break;
   }
   return out;
+}
+
+// ---- Facebook lead forms: details and permission check (every call sends the token in a header; results never contain a token) ----
+const FORM_FIELDS = "id,name,status,locale,created_time,leads_count,follow_up_action_url,questions";
+export const normForm = (f, pageId) => f && f.id ? ({
+  form_id: String(f.id), page_id: String(pageId || ""), name: clean(f.name, 200), status: clean(f.status, 40), locale: clean(f.locale, 20), created_time: clean(f.created_time, 40),
+  leads_count: Number.isFinite(Number(f.leads_count)) ? Number(f.leads_count) : null, follow_up_url: clean(f.follow_up_action_url, 300),
+  questions: (Array.isArray(f.questions) ? f.questions : []).slice(0, 60).map((q) => ({ key: clean(q && q.key, 80), label: clean(q && (q.label || q.key), 200), type: clean(q && q.type, 40) })).filter((q) => q.key || q.label),
+}) : null;
+async function graphGet(path, token, fetchFn) {
+  let res; try { res = await fetchFn(`https://graph.facebook.com/${path}`, { headers: { Authorization: `Bearer ${token}` } }); } catch { return { ok: false, j: {}, err: "could not reach Meta" }; }
+  const j = await res.json().catch(() => ({}));
+  return { ok: res.ok && !j.error, j, err: res.ok && !j.error ? "" : scrub((j.error && j.error.message) || "request failed").slice(0, 220) };
+}
+// One form: the form itself (with questions), then without questions, then the Page's list of forms. Keeps whatever works and the reasons for what did not.
+export async function fetchFormDetails(formId, pageId, token, fetchFn = fetch) {
+  const notes = []; let form = null;
+  const a = await graphGet(`${encodeURIComponent(formId)}?fields=${FORM_FIELDS}`, token, fetchFn);
+  if (a.ok) form = normForm(a.j, pageId); else notes.push(a.err);
+  if (!form) { const b = await graphGet(`${encodeURIComponent(formId)}?fields=id,name,status`, token, fetchFn); if (b.ok) form = normForm(b.j, pageId); }
+  if (!form && pageId) { const forms = await listPageForms(pageId, token, fetchFn); if (forms.ok) form = forms.forms.find((x) => x.form_id === String(formId)) || null; else notes.push(forms.err); }
+  return { form, notes: [...new Set(notes.filter(Boolean))].slice(0, 3) };
+}
+// Every form on a Page (name, status, questions where Meta allows).
+export async function listPageForms(pageId, token, fetchFn = fetch) {
+  const out = []; let after = "", err = "";
+  for (let n = 0; n < 10; n++) {
+    let r = await graphGet(`${encodeURIComponent(pageId)}/leadgen_forms?fields=${FORM_FIELDS}&limit=50${after ? "&after=" + encodeURIComponent(after) : ""}`, token, fetchFn);
+    if (!r.ok && !n) r = await graphGet(`${encodeURIComponent(pageId)}/leadgen_forms?fields=id,name,status&limit=50`, token, fetchFn);   // some tokens may not read questions
+    if (!r.ok) { err = r.err; break; }
+    for (const f of r.j.data || []) { const nf = normForm(f, pageId); if (nf) out.push(nf); }
+    after = r.j.paging && r.j.paging.cursors && r.j.paging.next ? r.j.paging.cursors.after : ""; if (!after) break;
+  }
+  return { ok: !err, forms: out, err };
+}
+// What can this Page token do? Reads its permissions (Meta's debug_token) and tries the reads we rely on, so the user can see exactly what is missing.
+export const WANTED_PERMS = [["leads_retrieval", "Read leads"], ["pages_show_list", "List Pages"], ["pages_read_engagement", "Read Page details"], ["pages_manage_metadata", "Webhook subscription"], ["pages_manage_ads", "Read lead forms and ads"], ["ads_read", "Campaign and ad names"]];
+export async function checkToken(token, pageId, formId, fetchFn = fetch) {
+  const dbg = await graphGet(`debug_token?input_token=${encodeURIComponent(token)}`, token, fetchFn);
+  const d = (dbg.ok && dbg.j.data) || {}, scopes = new Set([...(d.scopes || []), ...((d.granular_scopes || []).map((g) => g && g.scope))].filter(Boolean));
+  const probes = [];
+  if (formId) { const f = await graphGet(`${encodeURIComponent(formId)}?fields=id,name,status`, token, fetchFn); probes.push({ name: "Read the lead form", ok: f.ok, error: f.err }); }
+  if (pageId) { const l = await graphGet(`${encodeURIComponent(pageId)}/leadgen_forms?fields=id,name&limit=1`, token, fetchFn); probes.push({ name: "List the Page's lead forms", ok: l.ok, error: l.err }); }
+  return {
+    page_id: String(pageId || ""), valid: !!d.is_valid, expires_at: d.expires_at ? Number(d.expires_at) : 0, readable: dbg.ok, note: dbg.ok ? "" : dbg.err,
+    permissions: WANTED_PERMS.map(([key, label]) => ({ key, label, has: scopes.has(key) })), probes,
+  };
 }

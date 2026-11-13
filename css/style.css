@@ -706,3 +706,9 @@ table{width:100%;border-collapse:collapse}
 .ed-q{list-style:none;margin:0;padding:0;display:grid;gap:8px}.ed-q li{display:flex;flex-direction:column;gap:1px;font-size:13.5px;padding-bottom:8px;border-bottom:1px solid #f1f5f9}.ed-q li:last-child{border:0;padding-bottom:0}
 .ed-q span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}.ed-q b{font-weight:600;overflow-wrap:anywhere}
 .tl small.ml{white-space:pre-line;overflow-wrap:anywhere}
+
+/* Facebook forms + permission check */
+.perm{margin:10px 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}.perm h4{margin:0 0 8px;font-size:14px}
+.perm-l{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px}.perm-l li{display:flex;align-items:center;gap:8px;font-size:13.5px}.perm-l li span{flex:1;min-width:0;overflow-wrap:anywhere}.perm-l em{font-style:normal;color:var(--muted);font-size:12.5px;white-space:nowrap}
+.perm-l .ok [data-lucide],.perm-l .ok svg{color:#15803d}.perm-l .bad [data-lucide],.perm-l .bad svg{color:#b91c1c}.perm-l [data-lucide]{width:16px;height:16px;flex:none}
+.perm-e{margin:0 0 8px 18px;padding:0;font-size:13px;overflow-wrap:anywhere}.fq{margin:8px 0 0 18px;display:grid;gap:6px}
