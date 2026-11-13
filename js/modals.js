@@ -208,7 +208,7 @@ function sourceInfo(l) {
   if (/linkedin/i.test(raw)) return ["li", "LinkedIn"];
   if (/youtube/i.test(raw)) return ["yt", "YouTube"];
   if (/direct/i.test(raw)) return ["direct", "Direct"];
-  if (!raw || /website/i.test(raw) || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw)) return ["web", "Website"];
+  if (!raw || /website/i.test(raw) || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw.replace(/^[a-z]+:\/\//i, "").replace(/[\/?#].*$/, ""))) return ["web", "Website"];
   return ["other", raw.length > 18 ? raw.slice(0, 17) + "…" : raw];
 }
 function sourceChip(l) { const [k, label] = sourceInfo(l); return html`<span class="src src-${k}" title="${l.source || "Website"}"><i></i>${label}</span>`; }
