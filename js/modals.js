@@ -211,4 +211,11 @@ function sourceInfo(l) {
   if (!raw || /website/i.test(raw) || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw.replace(/^[a-z]+:\/\//i, "").replace(/[\/?#].*$/, ""))) return ["web", "Website"];
   return ["other", raw.length > 18 ? raw.slice(0, 17) + "…" : raw];
 }
+// Priority as stars: A = 3 stars (high), B = 2 (medium), C = 1 (low). Nothing when the lead has no priority.
+function prioLevel(l) { const p = String((l && l.priority) || "").trim(); if (!p) return 0; if (/^a\b|high/i.test(p)) return 3; if (/^b\b|medium/i.test(p)) return 2; if (/^c\b|low/i.test(p)) return 1; return 0; }
+function priorityChip(l) {
+  const n = prioLevel(l); if (!n) return raw("");
+  const name = ["", "Low", "Medium", "High"][n], star = (on) => `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" class="${on ? "on" : "off"}"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>`;
+  return html`<span class="prio-c p${n}" title="${l.priority}" aria-label="${name} priority, ${n} of 3 stars"><span class="stars">${raw(star(true) + star(n > 1) + star(n > 2))}</span>${name}</span>`;
+}
 function sourceChip(l) { const [k, label] = sourceInfo(l); return html`<span class="src src-${k}" title="${l.source || "Website"}"><i></i>${label}</span>`; }
