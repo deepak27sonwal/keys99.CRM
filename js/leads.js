@@ -86,7 +86,7 @@
         <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
-          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Priority", "Agent", "Status", "Created", "Follow-up", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
+          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Priority", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
@@ -98,7 +98,7 @@
             <td data-label="Next Follow-up" class="fu-cell"><span class="fu ${fu.cls}">${fu.out}</span></td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
             <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button></div></td></tr>`; })
-            : html`<tr><td colspan="12" class="empty">No leads found.</td></tr>`}</tbody></table></div>
+            : html`<tr><td colspan="13" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing ${filtered.length ? (state.page - 1) * PAGE + 1 : 0} – ${(state.page - 1) * PAGE + rows.length} of ${filtered.length.toLocaleString("en-IN")} leads</span>
           <div class="pager"><button data-page="${state.page - 1}" ${state.page <= 1 ? raw("disabled") : raw("")} aria-label="Previous"><i data-lucide="chevron-left"></i></button>
             ${pageButtons(state.page, pages).map((p) => (p === "…" ? html`<button disabled>…</button>` : html`<button data-page="${p}" class="${p === state.page ? "active" : ""}">${p}</button>`))}

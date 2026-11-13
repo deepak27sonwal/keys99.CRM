@@ -338,7 +338,6 @@ table{width:100%;border-collapse:collapse}
   .stats{gap:8px}.stat{padding:10px}
   .modal{padding:16px}
 }
-@media(min-width:901px) and (max-width:1800px){.leads-t td[data-label="Agent"] .avatar{display:none}}
 /* desktop: keep the action buttons visible at the right edge of the table */
 @media(min-width:901px){
   .leads-t th:last-child,.leads-t td[data-label="Actions"]{position:sticky;right:0;background:#fff;box-shadow:-8px 0 8px -8px rgba(15,23,42,.18)}
@@ -383,10 +382,11 @@ table{width:100%;border-collapse:collapse}
 .last-act{display:none}
 .fu-d::after{content:", "}
 @media(min-width:901px){
-  .fu .fu-w,.fu [data-lucide]{display:none}.fu{white-space:nowrap;line-height:1.3}
-  .fu-d,.fu-t{display:block}.fu-d::after{content:none}
-  .fu-over .fu-t,.fu-today .fu-t{display:block}
-  .leads-t td.created{white-space:nowrap;font-size:12px}.leads-t td.created .cr-a,.leads-t td.created .cr-y{display:none}
+  .fu{white-space:nowrap;line-height:1.3}.fu .fu-w{font-weight:700;margin-right:4px}
+  .fu-d,.fu-t{display:inline}.fu-d::after{content:none}.fu-t{margin-left:4px}
+  .fu-when{display:block;margin-top:1px;font-weight:400}.fu-over .fu-when,.fu-today .fu-when{color:inherit}
+  .leads-t td.created{white-space:nowrap;font-size:12px}.leads-t td.created .cr-a{display:block;color:var(--muted);margin-top:1px}
+  .leads-t td.last-act{display:table-cell;min-width:190px;max-width:260px}.leads-t td.last-act>[data-lucide]{width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:var(--accent)}.leads-t td.last-act>div{display:inline}.leads-t td.last-act .la-label{font-weight:600}.leads-t td.last-act p{margin:2px 0;font-size:12px;overflow-wrap:anywhere}.leads-t td.last-act small{display:block;color:var(--muted)}
   .leads-t{font-size:13px}
   .leads-t td[data-label="Customer"] .avatar{width:28px!important;height:28px!important;font-size:11px!important}
   .leads-t .badge{padding:3px 9px;font-size:11.5px}
