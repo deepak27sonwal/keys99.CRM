@@ -60,7 +60,7 @@
     return { reached, here, spam: L.length - live.length, total: live.length };
   }
   function funnelView(f) {
-    if (!f.total) return html`<div class="empty-sm">No leads in this period.</div>`;
+    if (!f.total) return html`<div class="empty-sm">${f.spam ? "No leads in the pipeline for this period. " + f.spam + " marked Spam." : "No leads in this period."}</div>`;
     const W = 320, H = 34, GAP = 4, MIN = 0.5, n = PIPELINE.length;
     const wd = f.reached.map((c) => W * (MIN + (1 - MIN) * (c / f.total)));
     const seg = (st, i) => {

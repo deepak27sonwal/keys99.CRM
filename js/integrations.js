@@ -2,7 +2,7 @@
   const page = await mountShell("integrations");
   if (!page) return;
   const DAY = 86400000;
-  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {}, metaForms: [], perm: null, syncMsg: "" };
+  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {}, metaForms: [], perm: null, syncMsg: "", formsErr: "" };
 
   // ---------- platform catalogue ----------
   const sampleWA = { object: "whatsapp_business_account", entry: [{ id: "W1", changes: [{ field: "messages", value: { contacts: [{ profile: { name: "Test Lead" }, wa_id: "919876543210" }], messages: [{ from: "919876543210", id: "wamid.TEST", type: "text", text: { body: "Hi, I want to know about 2 BHK options" } }] } }] }] };
@@ -47,7 +47,7 @@
   async function load() {
     try {
       state.integrations = await Data.getIntegrations();
-      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString()); state.metaForms = await Data.getMetaForms();
+      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString()); try { state.metaForms = await Data.getMetaForms(); state.formsErr = ""; } catch (e) { state.metaForms = []; state.formsErr = e.message || "unknown error"; }
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load integrations: ' + esc(e.message) + "</div>"; return false; }
     return true;
   }
@@ -116,6 +116,7 @@
     const canSync = ((i.config || {}).pages || []).length > 0;
     return html`<h3 class="sec">Forms on Facebook (${F.length})</h3>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="syncForms" ${canSync ? raw("") : raw("disabled")}><i data-lucide="refresh-cw"></i>Sync forms</button><small class="muted" id="syncMsg">${state.syncMsg || (canSync ? "Reads every lead form on your connected Pages." : "Add your Pages first (Sync Settings).")}</small></div>
+      ${state.formsErr ? html`<div class="ban pend"><i data-lucide="alert-triangle"></i><div><b>Could not load the saved forms</b>${state.formsErr}</div></div>` : raw("")}
       ${F.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Form</th><th>Page</th><th>Status</th><th>Questions</th><th></th></tr></thead><tbody>${F.map((f) => html`<tr><td data-label="Form" data-wide><b>${f.name || "Form " + f.form_id}</b>${f.name ? "" : html` <small class="muted">(name not available)</small>`}</td>
         <td data-label="Page">${pages.get(f.page_id) || f.page_id || "—"}</td><td data-label="Status">${f.status ? html`<span class="chip ${f.status === "ACTIVE" ? "c-ok" : "c-none"}">${f.status.toLowerCase()}</span>` : "—"}</td>
         <td data-label="Questions">${(f.questions || []).length || "—"}</td><td>${(f.questions || []).length ? html`<button class="btn sm" data-fq="${f.form_id}">View questions</button>` : raw("")}</td></tr>`)}</tbody></table></div>`
@@ -124,11 +125,12 @@
   function permPanel() {
     const R = state.perm; if (!R) return raw("");
     if (R.error) return html`<div class="ban pend"><i data-lucide="alert-triangle"></i><div><b>Could not check</b>${R.error}</div></div>`;
-    const n = R.results.length, has = (k) => R.results.filter((r) => (r.permissions.find((p) => p.key === k) || {}).has).length, labels = R.results[0] ? R.results[0].permissions : [];
+    const n = R.results.length, val = (r, k) => (r.permissions.find((p) => p.key === k) || {}).has, has = (k) => R.results.filter((r) => val(r, k) === true).length, unk = (k) => R.results.filter((r) => val(r, k) === null || val(r, k) === undefined).length, labels = R.results[0] ? R.results[0].permissions : [];
     const probeErr = new Map(); R.results.forEach((r) => r.probes.filter((p) => !p.ok).forEach((p) => { const k = p.name + " — " + p.error; probeErr.set(k, (probeErr.get(k) || 0) + 1); }));
-    const missingAds = labels.some((p) => p.key === "pages_manage_ads") && has("pages_manage_ads") < n, expired = R.results.filter((r) => r.expires_at && r.expires_at * 1000 < Date.now() + 3 * 86400000).length, unreadable = R.results.filter((r) => !r.readable).length;
+    const missingAds = (labels.some((p) => p.key === "pages_manage_ads") && has("pages_manage_ads") + unk("pages_manage_ads") < n) || (unk("pages_manage_ads") > 0 && R.results.some((r) => r.probes.some((x) => !x.ok))), expired = R.results.filter((r) => r.expires_at && r.expires_at * 1000 < Date.now() + 3 * 86400000).length, unreadable = R.results.filter((r) => !r.readable).length;
     return html`<div class="perm"><h4>Permission check — ${n} Page${n === 1 ? "" : "s"}</h4>
-      <ul class="perm-l">${labels.map((p) => html`<li class="${has(p.key) === n ? "ok" : "bad"}"><i data-lucide="${has(p.key) === n ? "check-circle-2" : "x-circle"}"></i><span><b>${p.key}</b> <small class="muted">${p.label}</small></span><em>${has(p.key)} of ${n}</em></li>`)}</ul>
+      <ul class="perm-l">${labels.map((p) => { const cls = unk(p.key) === n ? "unk" : has(p.key) === n ? "ok" : "bad"; return html`<li class="${cls}"><i data-lucide="${cls === "ok" ? "check-circle-2" : cls === "unk" ? "help-circle" : "x-circle"}"></i><span><b>${p.key}</b> <small class="muted">${p.label}</small></span><em>${cls === "unk" ? "can't tell" : has(p.key) + " of " + n}</em></li>`; })}</ul>
+      ${labels.length && labels.every((p) => unk(p.key) === n) ? html`<p class="sub">Meta only lets an app developer's login inspect a token's permission list, so it cannot be shown here. What follows is what actually works.</p>` : raw("")}
       ${unreadable ? html`<p class="sub">Meta would not describe ${unreadable} token${unreadable === 1 ? "" : "s"} (they may have expired). Add the Pages again with a fresh token.</p>` : raw("")}
       ${expired ? html`<p class="sub">${expired} token${expired === 1 ? "" : "s"} expire${expired === 1 ? "s" : ""} within 3 days. Use an extended user token when adding Pages.</p>` : raw("")}
       ${probeErr.size ? html`<p class="sub" style="margin-bottom:4px">What Meta answered when we tried:</p><ul class="perm-e">${[...probeErr].map(([k, c]) => html`<li>${k} <small class="muted">(${c} Page${c === 1 ? "" : "s"})</small></li>`)}</ul>` : html`<p class="sub">Reading forms works for all checked Pages.</p>`}
@@ -164,6 +166,7 @@
         ${state.saved.page_access_token ? html`<div class="pg"><i data-lucide="key-round"></i><span><b>Older single token</b><small class="muted"> used for any Page without its own token</small></span><button class="btn sm red" id="clearTok">Remove</button></div>` : raw("")}
         <div class="copyrow" style="margin-top:8px"><input id="pageTok" type="password" autocomplete="off" placeholder="Paste a user or Page access token" aria-label="Access token"><button class="btn sm" id="saveTok"><i data-lucide="plus"></i>Add Pages</button></div>
         <small class="muted">${(c.pages || []).length ? (c.pages || []).length + " Page" + ((c.pages || []).length === 1 ? "" : "s") + " connected." : "No Pages connected yet."}</small>` : raw("")}
+      ${p.key === "meta" ? html`<h3 class="sec">Testing</h3><label class="aa-t" style="align-items:center;gap:12px"><span><b>Accept Meta's test leads</b><small class="muted" style="display:block">Meta's Lead Ads Testing Tool sends dummy data. When this is on, such a lead is saved as "Test Lead (Meta)" with phone 0000000000 so you can see it arrive. Leave it off for real use.</small></span><span class="switch"><input type="checkbox" id="acceptTest" ${c.accept_test_leads ? raw("checked") : raw("")} aria-label="Accept Meta test leads"><span></span></span></label>` : raw("")}
       <h3 class="sec">Danger zone</h3><button class="btn red" id="del"><i data-lucide="trash-2"></i>Delete this integration</button>`;
   }
 
@@ -174,10 +177,10 @@
     const curl = `curl -X POST '${url}' \\\n  -H 'x-webhook-secret: ${secret}' -H 'content-type: application/json' \\\n  -d '{"name":"Test Lead","mobile":"9876543210","message":"2 BHK"}'`;
     const body = {
       meta: html`<ol class="how"><li><b>Easiest: Zapier / Make / Pabbly.</b> Trigger “New Lead (Facebook Lead Ads)”, action “Webhook → POST”. Use the webhook URL below and add the header <code>x-webhook-secret</code> with the secret. Send the lead's fields as JSON.</li>
-        <li><b>Direct from Meta (developer app):</b> in your Meta app → Webhooks → Page → <i>leadgen</i>, set the Callback URL to <code>${url}&amp;s=SECRET</code> and the Verify token to the secret. Then add your Page access token in <b>Sync Settings</b>.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Secret / verify token", secret, "dlgSec")}`,
+        <li><b>Direct from Meta (developer app):</b> in your Meta app → Webhooks → Page → <i>leadgen</i>, set the Callback URL to the <b>Callback URL with secret</b> below and the Verify token to the secret. Then add your Page access token in <b>Sync Settings</b>.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Callback URL with secret (for Meta's webhook box)", url + "&s=" + secret, "dlgCb")}${field("Secret / verify token", secret, "dlgSec")}`,
       google: html`<ol class="how"><li>In Google Ads open your lead form asset → <b>Lead delivery option</b> → <b>Webhook integration</b>.</li><li>Paste the <b>Webhook URL</b> and the <b>Key</b> below, then press <b>Send test data</b>.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Key", secret, "dlgSec")}`,
       linkedin: html`<ol class="how"><li>LinkedIn can't call a webhook directly. In Zapier or Make use the trigger “New Lead Gen Form Response”.</li><li>Add a “Webhook → POST (JSON)” action with the URL below and the header <code>x-webhook-secret</code> set to the secret.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Secret", secret, "dlgSec")}`,
-      whatsapp: html`<ol class="how"><li>Meta app → <b>WhatsApp → Configuration → Webhook</b>.</li><li>Callback URL = the webhook URL below. Verify token = the secret. Subscribe to <b>messages</b>.</li><li>The first message from a new number becomes a lead (the same number is not added again for 7 days).</li></ol>${field("Callback URL", url, "dlgUrl")}${field("Verify token", secret, "dlgSec")}`,
+      whatsapp: html`<ol class="how"><li>Meta app → <b>WhatsApp → Configuration → Webhook</b>.</li><li>Callback URL = the <b>Callback URL with secret</b> below (Meta's message deliveries cannot send a header, so the secret travels in the address). Verify token = the secret. Subscribe to <b>messages</b>.</li><li>The first message from a new number becomes a lead (the same number is not added again for 7 days).</li></ol>${field("Callback URL (with secret)", url + "&s=" + secret, "dlgUrl")}${field("Verify token", secret, "dlgSec")}`,
       youtube: html`<ol class="how"><li>YouTube has no lead API. Send leads from your landing page or form tool to the webhook below; they are tagged <b>YouTube</b>.</li><li>Use the header <code>x-webhook-secret</code> with the secret.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Secret", secret, "dlgSec")}`,
       website: html`<ol class="how"><li>Send an HTTPS POST (JSON or form data) from your server or form handler with the header <code>x-webhook-secret</code>.</li><li>Don't put the secret in public browser code: anyone could read it and send fake leads. Use a server, a form service, or Zapier/Make.</li></ol>${field("Webhook URL", url, "dlgUrl")}${field("Secret", secret, "dlgSec")}<label class="rem">Example<textarea class="code-ta" rows="4" readonly>${curl}</textarea></label>`,
     }[p.key];
@@ -239,6 +242,7 @@
       const r = await Data.captureCall(i.id, { test: true, body }), res = (r.results || [])[0] || {};
       render(out, html`<div class="ban ${res.status === "test" || res.status === "skipped" ? "ok" : "pend"}" style="margin-top:10px"><i data-lucide="${res.status === "test" ? "circle-check" : "circle-alert"}"></i><div><b>${res.message || r.error || "No result"}</b></div></div>${res.preview ? html`<dl class="kv2" style="margin-top:10px">${Object.entries(res.preview).filter(([, v]) => v).map(([k, v]) => html`<dt>${k}</dt><dd>${v}</dd>`)}</dl>` : raw("")}`);
     });
+    const accEl = $("#acceptTest"); if (accEl) accEl.onchange = guard(async () => { try { await Data.updateIntegration(i.id, { config: { ...(integ(state.sel).config || {}), accept_test_leads: accEl.checked } }); toast(accEl.checked ? "Meta test leads will be accepted" : "Meta test leads are off"); await refresh(); } catch (e) { accEl.checked = !accEl.checked; throw e; } });
     const sc = $("#saveCfg"); if (sc) sc.onclick = guard(async () => { await Data.updateIntegration(i.id, { config: { ...(i.config || {}), account: $("#cfgAccount").value.trim(), page: $("#cfgPage").value.trim(), default_project: $("#cfgProject").value.trim() } }); toast("Settings saved"); await refresh(); });
     $$("[data-copy-id]").forEach((b) => (b.onclick = () => copyText($("#" + b.dataset.copyId).value, "Webhook URL copied")));
     const ro = $("#rotate"); if (ro) ro.onclick = () => rotate(p, i);

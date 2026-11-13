@@ -232,13 +232,15 @@ export async function discoverPages(token, fetchFn = fetch) {
     let rows = [...acc.j.data], cur = acc.j.paging && acc.j.paging.cursors && acc.j.paging.cursors.after, more = acc.j.paging && acc.j.paging.next;
     for (let n = 0; more && cur && n < 20; n++) {                                  // Meta returns Pages in batches: keep asking until there are no more
       const nx = await get(`me/accounts?fields=id,name,access_token&limit=25&after=${encodeURIComponent(cur)}`);
-      if (!nx.ok || !Array.isArray(nx.j.data)) break;
+      if (!nx.ok || !Array.isArray(nx.j.data)) throw new Error(`Meta stopped answering after ${rows.length} Pages (${scrub((nx.j.error && nx.j.error.message) || "no reason given")}). Nothing was saved. Please try again.`);
       rows = rows.concat(nx.j.data); cur = nx.j.paging && nx.j.paging.cursors && nx.j.paging.cursors.after; more = nx.j.paging && nx.j.paging.next;
     }
+    if (more) throw new Error(`This account has too many Pages to import in one go (more than ${rows.length}). Nothing was saved.`);
     const seen = new Set(), pages = [];
     for (const p of rows) if (p && /^\d+$/.test(String(p.id)) && p.access_token && !seen.has(String(p.id))) { seen.add(String(p.id)); pages.push({ id: String(p.id), name: clean(p.name, 120) || "Page " + p.id, token: p.access_token }); }
     if (!pages.length) throw new Error("This token has no Pages. Grant pages_show_list and tick your Pages when Meta asks which to allow.");
-    return pages.slice(0, 200);
+    if (pages.length > 300) throw new Error(`This account has ${pages.length} Pages; the CRM can hold up to 300. Nothing was saved.`);
+    return pages;
   }
   const me = await get("me?fields=id,name");                                       // a Page token (/me/accounts is not available on a Page)
   if (me.ok && /^\d+$/.test(String(me.j.id || ""))) return [{ id: String(me.j.id), name: clean(me.j.name, 120) || "Page " + me.j.id, token }];
@@ -267,8 +269,9 @@ export async function getAppId(token, fetchFn = fetch) {                      //
 export async function pageStatus(pageId, token, appId, fetchFn = fetch) {
   const r = await graphCall(`${encodeURIComponent(pageId)}/subscribed_apps`, token, "GET", fetchFn);
   if (!r.ok) return { id: String(pageId), subscribed: false, error: gErr(r) };
+  if (!appId) return { id: String(pageId), subscribed: false, error: "Could not tell which Meta app this token belongs to, so the subscription cannot be confirmed" };
   const apps = Array.isArray(r.j.data) ? r.j.data : [];
-  const mine = apps.find((a) => (appId ? String(a.id) === String(appId) : true) && (a.subscribed_fields || []).includes("leadgen"));
+  const mine = apps.find((a) => String(a.id) === String(appId) && (a.subscribed_fields || []).includes("leadgen"));
   return { id: String(pageId), subscribed: !!mine, error: null };
 }
 export async function mapLimit(items, n, fn) {                                 // run fn over items, at most n at a time, keeping order
@@ -279,7 +282,7 @@ export async function mapLimit(items, n, fn) {                                 /
 
 // ---- full form details: every question and answer a lead sent, kept in readable form for the lead page ----
 const STD_KEYS = new Set([...ALIASES.name, ...ALIASES.phone, ...ALIASES.email, "first_name", "last_name"].map(normKey));
-const SYSTEM_KEY = /(^|_)ids?$|^(campaign|adset|ad|form|page|platform|utm|created|is|lead|google)_|^(created_time|_test)$/;
+const SYSTEM_KEY = /(^|_)ids?$|^(campaign|adset|ad|form|page|platform|utm|created|lead|google)_|^(is_test|is_organic|created_time|_test)$/;
 export const prettyLabel = (k) => { const t = String(k ?? "").replace(/[_\s]+/g, " ").replace(/\?+\s*$/, "").trim(); return t ? t[0].toUpperCase() + t.slice(1) : ""; };
 const prettyAnswer = (v) => clean(String(v ?? "").replace(/_/g, " "), 300);
 // Meta Graph "field_data": [{ name: "plots_size_required?", values: ["1750_sq.ft"] }, ...]
@@ -346,8 +349,10 @@ export async function checkToken(token, pageId, formId, fetchFn = fetch) {
   const probes = [];
   if (formId) { const f = await graphGet(`${encodeURIComponent(formId)}?fields=id,name,status`, token, fetchFn); probes.push({ name: "Read the lead form", ok: f.ok, error: f.err }); }
   if (pageId) { const l = await graphGet(`${encodeURIComponent(pageId)}/leadgen_forms?fields=id,name&limit=1`, token, fetchFn); probes.push({ name: "List the Page's lead forms", ok: l.ok, error: l.err }); }
+  if (formId) { const r = await graphGet(`${encodeURIComponent(formId)}/leads?fields=id&limit=1`, token, fetchFn); probes.push({ name: "Read leads from the form", ok: r.ok, error: r.err }); }
+  // has: true / false when Meta lists the token's permissions, null ("can't tell") when it refuses to (the probes above then show what really works)
   return {
-    page_id: String(pageId || ""), valid: !!d.is_valid, expires_at: d.expires_at ? Number(d.expires_at) : 0, readable: dbg.ok, note: dbg.ok ? "" : dbg.err,
-    permissions: WANTED_PERMS.map(([key, label]) => ({ key, label, has: scopes.has(key) })), probes,
+    page_id: String(pageId || ""), valid: dbg.ok ? !!d.is_valid : null, expires_at: d.expires_at ? Number(d.expires_at) : 0, readable: dbg.ok, note: dbg.ok ? "" : dbg.err,
+    permissions: WANTED_PERMS.map(([key, label]) => ({ key, label, has: dbg.ok ? scopes.has(key) : null })), probes,
   };
 }

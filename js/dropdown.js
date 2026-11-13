@@ -72,10 +72,10 @@ const Dropdown = (() => {
       pop.style.left = "0px"; pop.style.top = "0px"; pop.style.maxHeight = "";
       const ph = pop.offsetHeight, pw = pop.offsetWidth, below = innerHeight - r.bottom - 12, above = r.top - 12;
       const flip = ph > below && above > below;
-      const maxH = Math.max(160, Math.min(320, flip ? above : below));
+      const maxH = Math.max(96, Math.min(320, flip ? above : below));
       pop.style.maxHeight = maxH + "px";
       const h = Math.min(ph, maxH);
-      pop.style.top = (flip ? r.top - h - 4 : r.bottom + 4) + "px";
+      pop.style.top = Math.max(8, Math.min(flip ? r.top - h - 4 : r.bottom + 4, innerHeight - h - 8)) + "px";
       pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pw - 8)) + "px";
     }
 
@@ -122,7 +122,7 @@ const Dropdown = (() => {
       else if (k === "End") { e.preventDefault(); let n = inst.items.length - 1; while (n > 0 && inst.items[n].disabled) n--; setActive(n); }
       else if (k === "Enter") { e.preventDefault(); choose(inst.active); }
       else if (k === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
-      else if (k === "Tab") close(false);
+      else if (k === "Tab") close(true);                  // focus returns to the field first, then the browser moves on from there
       else if (k.length === 1 && !inst.pop.querySelector(".dd-search")) { // type-to-jump on short lists
         clearTimeout(inst.bufferTimer); inst.buffer += k.toLowerCase(); inst.bufferTimer = setTimeout(() => (inst.buffer = ""), 600);
         const n = inst.items.findIndex((o) => !o.disabled && o.label.toLowerCase().startsWith(inst.buffer)); if (n >= 0) setActive(n);

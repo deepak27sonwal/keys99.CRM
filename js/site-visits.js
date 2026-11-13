@@ -164,7 +164,7 @@
   }
 
   function ics() {
-    const e = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+    const e = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
     const z = (d) => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
     const ev = V.filter((v) => v.status !== "Cancelled").map((v) => ["BEGIN:VEVENT", `UID:site-visit-${v.id}@keys99.crm`, `DTSTAMP:${z(new Date())}`, `DTSTART:${z(v.start)}`, `DTEND:${z(v.end)}`,
       `SUMMARY:${e("Site visit: " + v.name + " – " + v.project)}`, `LOCATION:${e(place(v))}`, `DESCRIPTION:${e("Customer: " + v.name + " " + v.mobile + "\\nStatus: " + v.status)}`, `STATUS:${v.status === "Confirmed" || v.status === "Completed" ? "CONFIRMED" : "TENTATIVE"}`, "END:VEVENT"].join("\r\n"));

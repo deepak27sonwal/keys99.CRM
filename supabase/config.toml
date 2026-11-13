@@ -1,0 +1,7 @@
+# Edge Functions that check their own credentials. The gateway's JWT check is switched off for them, because their callers
+# (database trigger, Meta, Google, signed-in browsers calling with a Bearer token) either send no Supabase JWT or are verified inside the function.
+[functions.capture-lead]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false

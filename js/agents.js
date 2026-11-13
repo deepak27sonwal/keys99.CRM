@@ -37,13 +37,15 @@
     const byName = new Map(), leadOwner = new Map();
     state.members.forEach((m) => byName.set(key(m.name), m));
     state.leads.forEach((l) => { const m = byName.get(key(l.agent)); if (m) leadOwner.set(l.dbId, m.id); });
-    stats = new Map(state.members.map((m) => [m.id, { leads: 0, visits: 0, bookings: 0, value: 0, commission: 0, leadsM: 0, visitsM: 0, bookingsM: 0, achieved: 0, commissionM: 0 }]));
+    stats = new Map(state.members.map((m) => [m.id, { leads: 0, booked: 0, bookedM: 0, visits: 0, bookings: 0, value: 0, commission: 0, leadsM: 0, visitsM: 0, bookingsM: 0, achieved: 0, commissionM: 0 }]));
     state.leads.forEach((l) => { const s = stats.get(leadOwner.get(l.dbId)); if (!s) return; s.leads++; if (inMonth(l.createdAt)) s.leadsM++; });
     state.visits.forEach((v) => { const s = stats.get(leadOwner.get(v.enquiry_id)); if (!s) return; s.visits++; if (inMonth(v.visit_at || v.created_at)) s.visitsM++; });
+    const bookedSeen = new Set(), bookedSeenM = new Set();
     state.bookings.forEach((b) => {
       const s = stats.get(leadOwner.get(b.enquiry_id)); if (!s) return;
+      if (!bookedSeen.has(b.enquiry_id)) { bookedSeen.add(b.enquiry_id); s.booked++; }       // a lead counts as converted once, however many bookings it has
       s.bookings++; s.value += Number(b.booking_value) || 0; s.commission += Number(b.commission_amount) || 0;
-      if (inMonth(b.booking_date)) { s.bookingsM++; s.achieved += Number(b.booking_value) || 0; s.commissionM += Number(b.commission_amount) || 0; }
+      if (inMonth(b.booking_date)) { s.bookingsM++; if (!bookedSeenM.has(b.enquiry_id)) { bookedSeenM.add(b.enquiry_id); s.bookedM++; } s.achieved += Number(b.booking_value) || 0; s.commissionM += Number(b.commission_amount) || 0; }
     });
     state.owner = leadOwner;
   }
@@ -62,7 +64,7 @@
     const rows = list.slice((state.page - 1) * PAGE, state.page * PAGE), sel = all.find((m) => m.id === state.selId) || null;
     const S = (m) => stats.get(m.id), sumOf = (arr, f) => arr.reduce((t, m) => t + f(S(m)), 0);
     const target = active.reduce((t, m) => t + Number(m.monthly_target || 0), 0), achieved = sumOf(all, (s) => s.achieved);
-    const leadsAll = sumOf(all, (s) => s.leads), bookAll = sumOf(all, (s) => s.bookings);
+    const leadsAll = sumOf(all, (s) => s.leads), bookAll = sumOf(all, (s) => s.booked);
     const kpis = [["Members", all.length, "", "users-round", 1], ["Active", active.length, "", "check-circle-2", 0, 1], ["Inactive", all.length - active.length, "", "user-x"],
       ["Month Target", target ? fmtMoney(target) : "—", "", "target"], ["Achieved", fmtMoney(achieved), "", "bar-chart-3"],
       ["Conversion", leadsAll ? fmtPct(pct(bookAll, leadsAll)) : "0%", "", "trophy"], ["Commission", fmtMoney(sumOf(all, (s) => s.commissionM)), "", "coins"]];
@@ -86,7 +88,7 @@
             <td data-label="Member"><div class="row">${avatar(m.name, 34)}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small></div></div></td>
             <td data-label="Team">${m.team || "—"}</td><td data-label="Projects" class="pjs">${pj(m.projects)}</td><td data-label="Role">${m.designation || KIND[m.kind]}${m.designation && m.designation !== KIND[m.kind] ? html`<small>${KIND[m.kind]}</small>` : raw("")}</td>
             <td data-label="Leads">${s.leads}</td><td data-label="Site Visits">${s.visits}</td><td data-label="Bookings">${s.bookings}</td>
-            <td data-label="Deal Value">${s.value ? fmtMoney(s.value) : "—"}</td><td data-label="Commission">${s.commission ? fmtMoney(s.commission) : "—"}</td><td data-label="Conversion">${s.leads ? fmtPct(pct(s.bookings, s.leads)) : "—"}</td>
+            <td data-label="Deal Value">${s.value ? fmtMoney(s.value) : "—"}</td><td data-label="Commission">${s.commission ? fmtMoney(s.commission) : "—"}</td><td data-label="Conversion">${s.leads ? fmtPct(pct(s.booked, s.leads)) : "—"}</td>
             <td data-label="Status"><span class="chip ${m.status === "Active" ? "c-ok" : "c-none"}">${m.status}</span></td>
             <td data-label="Actions"><button class="icon-btn" data-menu="${m.id}" aria-label="Actions for ${m.name}"><i data-lucide="more-horizontal"></i></button></td></tr>`; })
             : html`<tr><td colspan="12" class="empty">${all.length ? "No one matches these filters." : "No team members yet. Use Add Agent or Add Relationship Manager."}</td></tr>`}</tbody></table></div>
@@ -146,7 +148,7 @@
           <li><i data-lucide="calendar"></i><span class="k">Joined On</span>${m.joined_on ? new Date(m.joined_on + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</li><li><i data-lucide="id-card"></i><span class="k">Employee ID</span>${empId(m)}</li></ul>
         <div class="tm-target"><div><small>Monthly Target</small><b>${tgt ? fmtMoney(tgt) : "Not set"}</b></div><div><small>Achieved</small><b>${fmtMoney(s.achieved)}${tgt ? " (" + fmtPct(pct(s.achieved, tgt)) + ")" : ""}</b></div></div>
         <h4 class="tm-h">Performance (This Month)</h4>
-        <div class="tiles4"><div><b>${s.leadsM}</b><small>Leads</small></div><div><b>${s.visitsM}</b><small>Site Visits</small></div><div><b>${s.bookingsM}</b><small>Bookings</small></div><div><b>${s.leadsM ? fmtPct(pct(s.bookingsM, s.leadsM)) : "—"}</b><small>Conversion</small></div></div>
+        <div class="tiles4"><div><b>${s.leadsM}</b><small>Leads</small></div><div><b>${s.visitsM}</b><small>Site Visits</small></div><div><b>${s.bookingsM}</b><small>Bookings</small></div><div><b>${s.leadsM ? fmtPct(pct(s.bookedM, s.leadsM)) : "—"}</b><small>Conversion</small></div></div>
         <p class="sub" style="margin-top:10px">All time: ${s.leads} leads · ${s.bookings} bookings · ${s.value ? fmtMoney(s.value) : "no deal value"}. <a href="leads.html?q=${encodeURIComponent(m.name)}">View their leads</a></p>
       </div>
       <div class="drawer-f"><button class="btn outline" id="dEdit"><i data-lucide="pencil"></i>Update Details</button><button class="btn outline" id="dToggle"><i data-lucide="${m.status === "Active" ? "user-x" : "user-check"}"></i>${m.status === "Active" ? "Deactivate" : "Activate"}</button></div></aside>`;
@@ -158,10 +160,10 @@
     if (pc && window.Chart) charts.push(new Chart(pc, { type: "doughnut", data: { labels: ["Achieved", "Remaining"], datasets: [{ data: [Math.min(achieved, target), Math.max(0, target - achieved)], backgroundColor: ["#0f7a6b", "#e8a91f"], borderWidth: 0 }] }, options: { cutout: "72%", plugins: { legend: { display: false } }, maintainAspectRatio: false } }));
     const cv = document.getElementById("conv"); if (!cv || !window.Chart) return;
     const now = new Date(), months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)), mk = (d) => d.getFullYear() * 12 + d.getMonth();
-    const lm = new Map(), bm = new Map();
+    const lm = new Map(), bm = new Map(), cm = new Map(), seenCm = new Set();
     state.leads.forEach((l) => { if (state.owner.has(l.dbId)) { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); } });
-    state.bookings.forEach((b) => { if (state.owner.has(b.enquiry_id)) { const k = mk(new Date(b.booking_date)); bm.set(k, (bm.get(k) || 0) + 1); } });
-    const bk = months.map((d) => bm.get(mk(d)) || 0), rate = months.map((d) => Math.round(pct(bm.get(mk(d)) || 0, lm.get(mk(d)) || 0) * 10) / 10);
+    state.bookings.forEach((b) => { if (state.owner.has(b.enquiry_id)) { const k = mk(new Date(b.booking_date)); bm.set(k, (bm.get(k) || 0) + 1); if (!seenCm.has(b.enquiry_id + "|" + k)) { seenCm.add(b.enquiry_id + "|" + k); cm.set(k, (cm.get(k) || 0) + 1); } } });
+    const bk = months.map((d) => bm.get(mk(d)) || 0), rate = months.map((d) => Math.round(pct(cm.get(mk(d)) || 0, lm.get(mk(d)) || 0) * 10) / 10);
     charts.push(new Chart(cv, { data: { labels: months.map((d) => d.toLocaleString("en-US", { month: "short" })), datasets: [
       { type: "bar", label: "Bookings", data: bk, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" }, { type: "line", label: "Conversion Rate (%)", data: rate, borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false }, ticks }, y: { beginAtZero: true, grid, ticks: { ...ticks, precision: 0 } }, y1: { position: "right", beginAtZero: true, grid: { display: false }, ticks } } } }));
@@ -196,7 +198,7 @@
 
   function exportCsv() {
     downloadCsv("keys99-team.csv", ["Employee ID", "Name", "Type", "Designation", "Mobile", "Email", "Team", "Location", "Status", "Joined", "Monthly target", "Leads", "Site visits", "Bookings", "Deal value", "Commission", "Conversion %"],
-      visible().map((m) => { const s = stats.get(m.id); return [empId(m), m.name, KIND[m.kind], m.designation, m.phone, m.email, m.team, m.location, m.status, m.joined_on, m.monthly_target, s.leads, s.visits, s.bookings, s.value, s.commission, s.leads ? Math.round(pct(s.bookings, s.leads) * 10) / 10 : ""]; }));
+      visible().map((m) => { const s = stats.get(m.id); return [empId(m), m.name, KIND[m.kind], m.designation, m.phone, m.email, m.team, m.location, m.status, m.joined_on, m.monthly_target, s.leads, s.visits, s.bookings, s.value, s.commission, s.leads ? Math.round(pct(s.booked, s.leads) * 10) / 10 : ""]; }));
   }
 
   function bind(list) {
