@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
         const pid = String(item.ref.page_id || ""), names = [...(/^\d+$/.test(pid) ? ["page_token:" + pid] : []), "page_access_token"];   // this Page's own token, else the older single token
         const { data: toks } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).in("name", names), tok = names.map((n) => (toks || []).find((t) => t.name === n)).find(Boolean);
         if (!tok) { const m = `No access token for Facebook Page ${pid || "(unknown)"}. Add it in Integrations \u2192 Sync Settings.`; await log("error", m, {}, null, item.ref); results.push({ status: "error", message: m }); continue; }
-        const got = await L.fetchMetaLead(item.ref, tok.value); flat = got.flat; extra = got.extra; answers = got.answers;
+        const known = ((integ.config || {}).pages || []).find((g) => String(g.id) === pid), got = await L.fetchMetaLead(item.ref, tok.value, fetch, { pageName: known && known.name }); flat = got.flat; extra = got.extra; answers = got.answers;
       }
       if (extra.is_test) { await log("test", "Google test lead received", extra); results.push({ status: "test", message: "Google test lead received" }); continue; }
 
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
 
       const { data: ins, error } = await sb.from("enquiries").insert(row).select("id").single();
       if (error) { await log("error", "Could not save the lead: " + error.message, extra, null, flat); results.push({ status: "error", message: "Could not save the lead" }); continue; }
-      await log("ok", "Lead captured", extra, ins.id, flat);
+      await log("ok", extra.form_note ? `Lead captured (form name not available: ${extra.form_note})`.slice(0, 300) : "Lead captured", extra, ins.id, flat);
       await sb.from("integrations").update({ last_event_at: new Date().toISOString(), ...(integ.status === "pending" ? { status: "connected" } : {}) }).eq("id", id);
       results.push({ status: "ok", lead_id: ins.id });
     } catch (e) {
