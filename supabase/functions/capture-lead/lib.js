@@ -146,19 +146,29 @@ export function parsePayload(platform, body) {
 }
 
 // Meta only sends ids. Fetch the real lead from the Graph API with the page access token (never logged or returned).
-export async function fetchMetaLead(ref, token, fetchFn = fetch) {
-  const get = async (id, fields) => {
+export async function fetchMetaLead(ref, token, fetchFn = fetch, known = {}) {
+  const get = async (id, fields, sub = "") => {
     let res;                                                    // token goes in a header (never in the URL), and network errors are sanitised
-    try { res = await fetchFn(`https://graph.facebook.com/${encodeURIComponent(id)}?fields=${fields}`, { headers: { Authorization: `Bearer ${token}` } }); }
+    try { res = await fetchFn(`https://graph.facebook.com/${encodeURIComponent(id)}${sub ? "/" + sub : ""}?fields=${fields}`, { headers: { Authorization: `Bearer ${token}` } }); }
     catch { throw new Error("Meta Graph API: could not reach Meta"); }
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.error) throw new Error("Meta Graph API: " + ((j.error && j.error.message) || res.status));
     return j;
   };
   const lead = await get(ref.leadgen_id, "created_time,id,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data,platform,is_organic");
-  let form = null; try { if (lead.form_id) form = await get(lead.form_id, "name"); } catch { /* form name is optional */ }
+  // form name: ask for the form itself, then the Page's list of forms; if neither works keep "Form <id>" and say why
+  let formName = "", formNote = "";
+  if (lead.form_id) {
+    try { const f = await get(lead.form_id, "name"); formName = clean(f && f.name); }
+    catch (e1) {
+      formNote = scrub((e1 && e1.message) || "").replace(/^Meta Graph API:\s*/, "");
+      if (ref.page_id) { try { const l = await get(ref.page_id, "id,name&limit=100", "leadgen_forms"); const hit = ((l && l.data) || []).find((x) => String(x.id) === String(lead.form_id)); if (hit && hit.name) { formName = clean(hit.name); formNote = ""; } } catch { /* keep the first reason */ } }
+    }
+  }
+  let pageName = clean(known.pageName);
+  if (!pageName && ref.page_id) { try { const pg = await get(ref.page_id, "name"); pageName = clean(pg && pg.name); } catch { /* the Page name is optional */ } }
   const flat = flatten(lead.field_data || []);
-  return { flat, extra: { ...metaExtra(lead, flat), page_id: ref.page_id || "", form_name: form && form.name ? clean(form.name) : "" } };
+  return { flat, answers: answersFromFieldData(lead.field_data), extra: { ...metaExtra(lead, flat), page_id: ref.page_id || "", page_name: pageName, form_name: formName || (lead.form_id ? `Form ${lead.form_id}` : ""), form_note: formName ? "" : formNote } };
 }
 
 // ---------------- helpers for the server ----------------
@@ -264,5 +274,33 @@ export async function pageStatus(pageId, token, appId, fetchFn = fetch) {
 export async function mapLimit(items, n, fn) {                                 // run fn over items, at most n at a time, keeping order
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } }));
+  return out;
+}
+
+// ---- full form details: every question and answer a lead sent, kept in readable form for the lead page ----
+const STD_KEYS = new Set([...ALIASES.name, ...ALIASES.phone, ...ALIASES.email, "first_name", "last_name"].map(normKey));
+const SYSTEM_KEY = /(^|_)ids?$|^(campaign|adset|ad|form|page|platform|utm|created|is|lead|google)_|^(created_time|_test)$/;
+export const prettyLabel = (k) => { const t = String(k ?? "").replace(/[_\s]+/g, " ").replace(/\?+\s*$/, "").trim(); return t ? t[0].toUpperCase() + t.slice(1) : ""; };
+const prettyAnswer = (v) => clean(String(v ?? "").replace(/_/g, " "), 300);
+// Meta Graph "field_data": [{ name: "plots_size_required?", values: ["1750_sq.ft"] }, ...]
+export function answersFromFieldData(fd) {
+  const out = [];
+  for (const f of Array.isArray(fd) ? fd : []) {
+    if (!f || STD_KEYS.has(normKey(f.name))) continue;
+    const q = prettyLabel(f.name), a = prettyAnswer(Array.isArray(f.values) ? f.values.join(", ") : f.value);
+    if (q && a) out.push({ q, a });
+    if (out.length >= 40) break;
+  }
+  return out;
+}
+// Any other payload (Zapier / Make / website / Google): every field that is not a name, phone, email or a technical id.
+export function answersFromFlat(flat) {
+  const out = [];
+  for (const [k, v] of Object.entries(flat || {})) {
+    if (STD_KEYS.has(k) || SYSTEM_KEY.test(k) || /^\d+(_|$)/.test(k)) continue;
+    const a = prettyAnswer(v), q = prettyLabel(k);
+    if (q && a) out.push({ q, a });
+    if (out.length >= 40) break;
+  }
   return out;
 }

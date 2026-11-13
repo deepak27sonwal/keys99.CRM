@@ -108,13 +108,13 @@ Deno.serve(async (req) => {
     try {
       if (item.skip) { await log("skipped", item.skip); results.push({ status: "skipped", message: item.skip }); continue; }
 
-      let flat = item.flat, extra = item.extra || {};
+      let flat = item.flat, extra = item.extra || {}, answers = null;
       if (item.ref) {                                                               // Meta notification: fetch the lead from the Graph API
         if (wantsTest) { const m = `Meta lead notification recognised (lead ${item.ref.leadgen_id}). Details are fetched from Meta for real leads only.`; await log("test", m, { platform: "fb" }); results.push({ status: "test", message: m }); continue; }
         const pid = String(item.ref.page_id || ""), names = [...(/^\d+$/.test(pid) ? ["page_token:" + pid] : []), "page_access_token"];   // this Page's own token, else the older single token
         const { data: toks } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).in("name", names), tok = names.map((n) => (toks || []).find((t) => t.name === n)).find(Boolean);
         if (!tok) { const m = `No access token for Facebook Page ${pid || "(unknown)"}. Add it in Integrations \u2192 Sync Settings.`; await log("error", m, {}, null, item.ref); results.push({ status: "error", message: m }); continue; }
-        const got = await L.fetchMetaLead(item.ref, tok.value); flat = got.flat; extra = got.extra;
+        const known = ((integ.config || {}).pages || []).find((g) => String(g.id) === pid), got = await L.fetchMetaLead(item.ref, tok.value, fetch, { pageName: known && known.name }); flat = got.flat; extra = got.extra; answers = got.answers;
       }
       if (extra.is_test) { await log("test", "Google test lead received", extra); results.push({ status: "test", message: "Google test lead received" }); continue; }
 
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       if (!wantsTest && platform === "meta" && (integ.config || {}).accept_test_leads === true && L.isMetaTestLead(flat)) L.applyTestLead(mapped);   // opt-in, off by default
       const v = L.validateLead(mapped);
       if (v.error) { await log(failStatus, (wantsTest ? "Test: " : "") + v.error, extra, null, flat); results.push({ status: "error", message: v.error }); continue; }
-      const row = L.buildEnquiryRow({ platform, mapped, phone: v.phone, name: v.name, extra, defaults: integ.config || {}, raw: L.trimPayload(item.ref ? { ref: item.ref, lead: flat } : safeBody) });
+      const row = L.buildEnquiryRow({ platform, mapped, phone: v.phone, name: v.name, extra, defaults: integ.config || {}, raw: { answers: answers && answers.length ? answers : L.answersFromFlat(flat), data: L.trimPayload(item.ref ? { ref: item.ref, lead: flat } : safeBody) } });
       const preview = { name: row.name, phone: row.phone, email: row.email, interest: row.interest, project: row.project, budget: row.budget, location: row.location, source: row.source, form: L.formInfo(platform, extra).form_name };
 
       if (wantsTest) { await log("test", "Test OK: lead would be created", extra, null, flat); results.push({ status: "test", message: "Test OK: this lead would be created", preview }); continue; }
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
 
       const { data: ins, error } = await sb.from("enquiries").insert(row).select("id").single();
       if (error) { await log("error", "Could not save the lead: " + error.message, extra, null, flat); results.push({ status: "error", message: "Could not save the lead" }); continue; }
-      await log("ok", "Lead captured", extra, ins.id, flat);
+      await log("ok", extra.form_note ? `Lead captured (form name not available: ${extra.form_note})`.slice(0, 300) : "Lead captured", extra, ins.id, flat);
       await sb.from("integrations").update({ last_event_at: new Date().toISOString(), ...(integ.status === "pending" ? { status: "connected" } : {}) }).eq("id", id);
       results.push({ status: "ok", lead_id: ins.id });
     } catch (e) {
