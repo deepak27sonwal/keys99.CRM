@@ -82,6 +82,26 @@ Deno.serve(async (req) => {
       const appId = await L.getAppId(list[0].token);
       return json({ ok: true, results: await L.mapLimit(list, 6, (p) => L.pageStatus(p.id, p.token, appId)) });
     }
+    if (action === "token_check" || action === "sync_forms") {
+      const { data: rows } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).like("name", "page_token:%").limit(300);
+      const list = (rows || []).map((r) => ({ id: r.name.slice("page_token:".length), token: r.value }));
+      if (!list.length) return json({ ok: false, error: "No Pages are connected yet" }, 400);
+      if (action === "token_check") {
+        const results = await L.mapLimit(list, 6, async (p) => {
+          const { data: last } = await sb.from("enquiries").select("meta_form_id").eq("meta_page_id", p.id).not("meta_form_id", "is", null).order("id", { ascending: false }).limit(1);
+          return L.checkToken(p.token, p.id, last && last[0] && last[0].meta_form_id);
+        });
+        return json({ ok: true, results });
+      }
+      // sync_forms: every form on every connected Page, plus the forms our leads came from, saved to meta_forms
+      const now = new Date().toISOString(), seen = new Set(), errors = []; let withQuestions = 0;
+      const save = async (f) => { seen.add(f.form_id); if (f.questions.length) withQuestions++; await sb.from("meta_forms").upsert({ integration_id: id, form_id: f.form_id, page_id: f.page_id, name: f.name || null, status: f.status || null, locale: f.locale || null, leads_count: f.leads_count, questions: f.questions, created_time: f.created_time || null, follow_up_url: f.follow_up_url || null, fetched_at: now }); if (f.name) await sb.from("enquiries").update({ meta_form_name: f.name }).eq("meta_form_id", f.form_id).or(`meta_form_name.is.null,meta_form_name.eq.Form ${f.form_id}`); };
+      await L.mapLimit(list, 4, async (p) => { const r = await L.listPageForms(p.id, p.token); if (!r.ok) errors.push({ page_id: p.id, error: r.err }); for (const f of r.forms) await save(f); });
+      const { data: used } = await sb.from("enquiries").select("meta_form_id,meta_page_id").eq("source", "Meta Ads").not("meta_form_id", "is", null).limit(1000);
+      const todo = [...new Map((used || []).filter((u) => !seen.has(u.meta_form_id)).map((u) => [u.meta_form_id, u])).values()].slice(0, 50), tokOf = new Map(list.map((p) => [p.id, p.token]));
+      await L.mapLimit(todo, 4, async (u) => { const t = tokOf.get(String(u.meta_page_id)); if (!t) return; const r = await L.fetchFormDetails(u.meta_form_id, u.meta_page_id, t); if (r.form) await save(r.form); else if (r.notes[0] && !errors.some((e) => e.error === r.notes[0])) errors.push({ page_id: String(u.meta_page_id), error: r.notes[0] }); });
+      return json({ ok: true, pages: list.length, forms: seen.size, with_questions: withQuestions, errors: errors.slice(0, 10) });
+    }
     return json({ ok: false, error: "Unknown action" }, 400);
   }
 
@@ -115,6 +135,11 @@ Deno.serve(async (req) => {
         const { data: toks } = await sb.from("integration_secrets").select("name,value").eq("integration_id", id).in("name", names), tok = names.map((n) => (toks || []).find((t) => t.name === n)).find(Boolean);
         if (!tok) { const m = `No access token for Facebook Page ${pid || "(unknown)"}. Add it in Integrations \u2192 Sync Settings.`; await log("error", m, {}, null, item.ref); results.push({ status: "error", message: m }); continue; }
         const known = ((integ.config || {}).pages || []).find((g) => String(g.id) === pid), got = await L.fetchMetaLead(item.ref, tok.value, fetch, { pageName: known && known.name }); flat = got.flat; extra = got.extra; answers = got.answers;
+        if (extra.form_id) {                                                        // remember each form's real name; reuse it when Meta refuses the lookup for this lead
+          const { data: cf } = await sb.from("meta_forms").select("name").eq("integration_id", id).eq("form_id", extra.form_id).maybeSingle();
+          if (extra.form_note && cf && cf.name) { extra.form_name = cf.name; extra.form_note = ""; }
+          else if (!extra.form_note && extra.form_name) await sb.from("meta_forms").upsert({ integration_id: id, form_id: extra.form_id, page_id: pid || null, name: extra.form_name, fetched_at: new Date().toISOString() });
+        }
       }
       if (extra.is_test) { await log("test", "Google test lead received", extra); results.push({ status: "test", message: "Google test lead received" }); continue; }
 
