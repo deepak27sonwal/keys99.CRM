@@ -14,8 +14,9 @@ const Data = {
     return data.session;
   },
   async signOut() {
-    try { if (this.client) await this.client.auth.signOut(); }
-    catch { try { Object.keys(localStorage).filter((k) => /^sb-.*-auth-token/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ } }   // even if the server cannot be reached, leave this device signed out
+    let failed = false;
+    try { if (this.client) { const { error } = await this.client.auth.signOut(); failed = !!error; } } catch { failed = true; }
+    if (failed) { try { Object.keys(localStorage).filter((k) => /^sb-.*-auth-token/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ } }   // even if the server cannot be reached or refuses, leave this device signed out
     location.replace("login.html");
   },
 
@@ -84,14 +85,12 @@ const Data = {
   },
   // Schedule (or clear) the next follow-up; an optional note is saved as an activity so it shows on the card.
   async scheduleFollowUp(lead, followUp, note) {
-    const row = { follow_up: followUp };
-    if (note) {
-      const s = await this.session();
-      row.activities = [...lead.acts, { type: "call", title: "Follow-up scheduled", description: note, at: new Date().toISOString(), by: s ? s.user.email : "", due: followUp }];
-    }
-    const { error } = await this.client.from("enquiries").update(row).eq("id", lead.dbId);
+    const { error } = await this.client.from("enquiries").update({ follow_up: followUp }).eq("id", lead.dbId);
     if (error) throw error;
+    if (note) { const s = await this.session(); await this.appendActivity(lead.dbId, { type: "call", title: "Follow-up scheduled", description: note, at: new Date().toISOString(), by: s ? s.user.email : "", due: followUp }); }
   },
+  // Adds ONE entry to a lead's timeline inside the database, so a newer note from someone else is never overwritten by this page's older copy.
+  async appendActivity(dbId, act) { const { error } = await this.client.rpc("append_activity", { p_id: dbId, p_act: act }); if (error) throw error; },
   // Most recent thing that happened on a lead: a note, a follow-up note or, failing that, the enquiry itself.
   lastActivity(l) {
     const acts = l.acts.filter((a) => a && a.at && a.description).sort((a, b) => new Date(b.at) - new Date(a.at));
@@ -102,15 +101,11 @@ const Data = {
   },
   async addActivity(lead, title, description) {
     const s = await this.session();
-    const acts = [...lead.acts, { type: "doc", title, description, at: new Date().toISOString(), by: s ? s.user.email : "" }];
-    const { error } = await this.client.from("enquiries").update({ activities: acts }).eq("id", lead.dbId);
-    if (error) throw error;
+    await this.appendActivity(lead.dbId, { type: "doc", title, description, at: new Date().toISOString(), by: s ? s.user.email : "" });
   },
   async addNote(lead, text) {
     const s = await this.session();
-    const acts = [...lead.acts, { type: "doc", title: "Note", description: text, at: new Date().toISOString(), by: s ? s.user.email : "" }];
-    const { error } = await this.client.from("enquiries").update({ activities: acts }).eq("id", lead.dbId);
-    if (error) throw error;
+    await this.appendActivity(lead.dbId, { type: "doc", title: "Note", description: text, at: new Date().toISOString(), by: s ? s.user.email : "" });
   },
   async addLead(f) {
     const { error } = await this.client.from("enquiries").insert({
@@ -177,7 +172,7 @@ const Data = {
   async savePrefs(p) { const s = await this.session(); if (!s) return; const { error } = await this.client.from("user_prefs").upsert({ ...p, user_id: s.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" }); if (error) throw error; },
   async savePushSub(sub) { const s = await this.session(); const { error } = await this.client.from("push_subscriptions").upsert({ ...sub, user_id: s.user.id }, { onConflict: "endpoint" }); if (error) throw error; },
   async deletePushSub(endpoint) { const { error } = await this.client.from("push_subscriptions").delete().eq("endpoint", endpoint); if (error) throw error; },
-  async getMetaForms() { try { return await this.fetchAll("meta_forms"); } catch { return []; } },
+  async getMetaForms() { const { data, error } = await this.client.from("meta_forms").select("*").order("form_id").limit(1000); if (error) throw error; return data || []; },   // no "id" column here, so not fetchAll
   async getIntegrationEvents(sinceIso) { return this.fetchAll("integration_events", (q) => q.gte("received_at", sinceIso)); },
   captureUrl(id) { return `${CFG.SUPABASE_URL}/functions/v1/capture-lead?i=${id}`; },
   // Creates the integration and returns the secret ONCE; only its hash is stored.

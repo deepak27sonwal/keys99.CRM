@@ -10,7 +10,9 @@ self.addEventListener("push", (e) => {
   e.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     // The CRM is open and in front: that tab already shows the lead live (bell, toast and chime), so do not show it twice. A test is always shown.
-    if (d.tag !== "k99-test" && wins.some((w) => w.visibilityState === "visible" && w.focused)) { wins.forEach((w) => w.postMessage({ type: "lead", id: d.id })); return; }
+    // (login / reset pages do not show live alerts, so they do not count as "the CRM is open")
+    const live = wins.filter((w) => w.visibilityState === "visible" && w.focused && !/\/(login|reset)\.html(\?|#|$)/.test(w.url));
+    if (d.tag !== "k99-test" && live.length) { live.forEach((w) => w.postMessage({ type: "lead", id: d.id })); return; }
     await self.registration.showNotification(d.title || "Keys99 CRM", {
       body: d.body || "", icon: ICON, badge: BADGE, tag: d.tag || "k99", renotify: true, silent: false, vibrate: [200, 100, 200],
       data: { url: d.url || "leads.html" },

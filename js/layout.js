@@ -58,11 +58,12 @@ async function mountShell(active) {
   const sb = document.getElementById("sidebar"), bd = document.getElementById("backdrop");
   const toggle = (open) => { sb.classList.toggle("open", open); bd.classList.toggle("open", open); };
   document.getElementById("menuBtn").onclick = () => toggle(!sb.classList.contains("open"));
-  bd.onclick = () => toggle(false);
+  bd.onclick = () => { toggle(false); document.getElementById("menuBtn").focus(); };      // same as Escape and the X: focus goes back to the opener
   document.getElementById("sbClose").onclick = () => { toggle(false); document.getElementById("menuBtn").focus(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sb.classList.contains("open")) { toggle(false); document.getElementById("menuBtn").focus(); } });
   sb.querySelectorAll("a").forEach((a) => (a.onclick = () => toggle(false)));
   sb.querySelectorAll(".ng-h").forEach((h) => (h.onclick = () => {
+    if (h.classList.contains("has-active")) return;                                  // the group holding the current page stays open
     const g = h.closest(".ng"), open = !g.classList.contains("open"); g.classList.toggle("open", open); h.setAttribute("aria-expanded", String(open));
     try { const st = JSON.parse(localStorage.getItem("k99.nav") || "{}"); st[g.dataset.g] = open; localStorage.setItem("k99.nav", JSON.stringify(st)); } catch { /* remembering is optional */ }
   }));

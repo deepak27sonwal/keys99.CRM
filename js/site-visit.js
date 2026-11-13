@@ -62,10 +62,13 @@
 
   function workflowCard() {
     const cancelled = v.status === "Cancelled";
-    const steps = [["Scheduled", v.created_at], ["Confirmed", v.confirmed_at], ["Visited", v.visited_at], ["Completed", v.completed_at]];
+    // visits saved before the workflow timestamps existed (or created directly as Confirmed / Completed) get them from their status
+    const stamp = (ts, ok) => ts || (ok ? v.visit_at || v.created_at : null), isDone = v.status === "Completed", isConf = v.status === "Confirmed" || isDone;
+    const confirmedAt = stamp(v.confirmed_at, isConf), visitedAt = stamp(v.visited_at, isDone), completedAt = stamp(v.completed_at, isDone);
+    const steps = [["Scheduled", v.created_at], ["Confirmed", confirmedAt], ["Visited", visitedAt], ["Completed", completedAt]];
     const doneN = steps.filter((s) => s[1]).length, lastDone = doneN - 1;
     const hasFu = !!(v.next_due || (lead.followUpTs && new Date(lead.followUpTs) > new Date())), fuAt = v.next_due ? fmtLongDay(v.next_due + "T12:00:00") : lead.followUpTs ? fmtLongDay(lead.followUpTs) : "";
-    const next = cancelled || v.status === "Completed" ? null : !v.confirmed_at ? ["confirm", "Mark confirmed"] : !v.visited_at ? ["visit", "Mark visited"] : ["complete", "Mark completed"];
+    const next = cancelled || v.status === "Completed" ? null : !confirmedAt ? ["confirm", "Mark confirmed"] : !visitedAt ? ["visit", "Mark visited"] : ["complete", "Mark completed"];
     return html`<section class="card p vd-wf"><div class="vd-wfgrid"><div><div class="ch"><i data-lucide="workflow"></i><h3>Visit Workflow</h3>${cancelled ? html`<span class="badge b-Cancelled" style="margin-left:auto">Visit cancelled</span>` : raw("")}</div>
       <div class="stepper vd-stepper">${steps.map(([k, at], i) => html`<div class="s ${at ? (i === lastDone ? "cur" : "done") : ""}"><div class="c">${at ? raw('<i data-lucide="check"></i>') : ""}</div><b>${k}</b><span>${at ? fmtWhen(at) : "—"}</span></div>`)}
         <div class="s"><div class="c"></div><b>Follow-up</b><span>${hasFu ? "Pending · " + fuAt : "Not scheduled"}</span></div></div>
@@ -130,7 +133,7 @@
     if (adv) adv.onclick = guard(async () => {
       const t = new Date().toISOString(), s = adv.dataset.step;
       if (s === "confirm") await save(await Data.visitStatusPatch(v, "Confirmed"));
-      else if (s === "visit") await save({ visited_at: t, confirmed_at: v.confirmed_at || t }, { text: "Customer visited the site", kind: "done" });
+      else if (s === "visit") await save({ visited_at: t, confirmed_at: v.confirmed_at || t, ...(v.status === "Scheduled" ? { status: "Confirmed" } : {}) }, { text: "Customer visited the site", kind: "done" });
       else { await save(await Data.visitStatusPatch(v, "Completed")); if (["New Leads", "Contacted", "Interested", "Visit Scheduled"].includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Visit Done" }); }
       await refresh();
     });

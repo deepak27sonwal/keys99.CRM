@@ -115,6 +115,7 @@
     page.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { state.f[x.dataset.f] = x.value; state.page = 1; draw(); }));
     page.querySelector("#range").onchange = (e) => { state.range = e.target.value; state.page = 1; draw(); };
     page.querySelectorAll("[data-page]").forEach((x) => (x.onclick = () => { state.page = Number(x.dataset.page); draw(); }));
+    page.querySelectorAll("tr.lead-row").forEach((r) => { r.tabIndex = 0; r.setAttribute("aria-label", "Open lead details"); r.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === r) { e.preventDefault(); r.click(); } }; });
     page.querySelectorAll("tr.lead-row").forEach((r) => (r.onclick = (e) => {
       if (e.target.closest("input,a,button")) return;
       state.selected = state.leads.find((l) => l.dbId === Number(r.dataset.id)); draw();

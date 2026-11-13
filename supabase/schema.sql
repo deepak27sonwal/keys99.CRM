@@ -122,7 +122,7 @@ create table if not exists public.integrations (
   secret_hash text not null,
   config jsonb not null default '{}'::jsonb,
   last_event_at timestamptz,
-  created_by uuid default auth.uid(),
+  created_by text,   -- the signed-in user's email
   created_at timestamptz not null default now()
 );
 create table if not exists public.integration_events (
@@ -163,10 +163,10 @@ create unique index if not exists team_members_name_uniq on public.team_members 
 alter table public.team_members enable row level security;
 drop policy if exists "CRM users manage team members" on public.team_members;
 create policy "CRM users manage team members" on public.team_members for all to authenticated using (true) with check (true);
--- One-off seed used when this was set up: the people already assigned to leads became relationship managers.
--- insert into public.team_members (kind, name, email, designation, joined_on)
---   select 'rm', trim(both '"' from manager_name::text), max(trim(both '"' from manager_email::text)), 'Relationship Manager', min(created_at)::date
---   from public.enquiries where manager_name is not null group by manager_name::text on conflict do nothing;
+-- Seed: the people already assigned to leads become relationship managers (idempotent; does nothing when they exist or no lead has a manager).
+insert into public.team_members (kind, name, email, designation, joined_on)
+  select 'rm', trim(both '"' from manager_name::text), max(trim(both '"' from manager_email::text)), 'Relationship Manager', min(created_at)::date
+  from public.enquiries where manager_name is not null and length(trim(both '"' from manager_name::text)) > 0 group by manager_name::text on conflict do nothing;
 
 -- Automatic lead assignment by project (Agents & Teams -> Auto-assign new leads)
 alter table public.team_members
@@ -227,7 +227,7 @@ begin
   new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
     'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
     'description', 'Assigned to ' || a.name || case when a.matched then ' (project: ' || coalesce(new.project, '') || ')' else ' (no project rule, shared round-robin)' end));
-  update public.team_members set last_assigned_at = now() where team_members.id = a.id;
+  update public.team_members set last_assigned_at = clock_timestamp() where team_members.id = a.id;
   return new;
 exception when others then
   raise warning 'auto_assign_enquiry failed: %', sqlerrm;
@@ -302,3 +302,19 @@ end $$;
 revoke all on function public.notify_lead_push() from public, anon, authenticated;
 drop trigger if exists enquiries_send_push on public.enquiries;
 create trigger enquiries_send_push after insert on public.enquiries for each row execute function public.notify_lead_push();
+
+
+-- Lead-capture columns on enquiries (used by supabase/functions/capture-lead; already present on the live project)
+alter table public.enquiries
+  add column if not exists source_link text, add column if not exists meta_lead_id text, add column if not exists meta_page_id text, add column if not exists meta_page_name text,
+  add column if not exists meta_form_id text, add column if not exists meta_form_name text, add column if not exists meta_campaign_id text, add column if not exists meta_campaign_name text,
+  add column if not exists meta_adset_id text, add column if not exists meta_adset_name text, add column if not exists meta_ad_id text, add column if not exists meta_ad_name text,
+  add column if not exists meta_platform text, add column if not exists meta_raw_data jsonb;
+
+-- Add ONE entry to a lead's timeline atomically, so a newer note from someone else is never overwritten by an older copy in the browser.
+create or replace function public.append_activity(p_id bigint, p_act jsonb) returns void
+language sql security invoker set search_path = '' as $$
+  update public.enquiries set activities = coalesce(activities, '[]'::jsonb) || jsonb_build_array(p_act) where id = p_id;
+$$;
+revoke all on function public.append_activity(bigint, jsonb) from public, anon;
+grant execute on function public.append_activity(bigint, jsonb) to authenticated;
