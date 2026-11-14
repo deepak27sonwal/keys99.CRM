@@ -3,7 +3,7 @@
 const NAV = [
   ["Dashboard", "index.html", "layout-dashboard", "dashboard"],
   { group: "Sales", id: "sales", icon: "trending-up", items: [
-    ["Leads Management", "leads.html", "user-search", "leads"], ["Customers", "customer.html", "users", "customer"], ["Sales Pipeline", "#", "filter"],
+    ["Leads Management", "leads.html", "user-search", "leads"], ["Customers", "customer.html", "users", "customer"], ["Sales Pipeline", "pipeline.html", "filter", "pipeline"],
     ["Site Visits", "site-visits.html", "map-pin", "visits"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "#", "list-checks"], ["Commissions", "#", "wallet"]] },
   { group: "Property", id: "property", icon: "building-2", items: [["Developers", "#", "building-2"], ["Projects", "#", "landmark"]] },
   { group: "Manage", id: "manage", icon: "briefcase", items: [

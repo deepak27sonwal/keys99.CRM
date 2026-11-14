@@ -12,3 +12,20 @@ function buildTimeline(cust) {
   return t.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 }
 function timelineList(items) { return items.length ? html`<ul class="tl">${items.map((x) => { const [bg, ic] = IC[x.type] || IC.new; return html`<li><span class="ic" style="background:${bg}"><i data-lucide="${ic}"></i></span><div class="bd"><div class="t"><b>${x.title}</b><small>${fmtDate(x.ts)}</small></div><div class="t"><small class="${x.multi ? "ml" : ""}">${x.description}</small><small>${x.by}</small></div></div></li>`; })}</ul>` : html`<div class="empty-sm">Nothing here yet.</div>`; }
+// Activity history of one lead (notes, follow-ups, enquiries, site visits, bookings), newest first, in a dialog.
+async function openHistory(l) {
+  if (!l) return;
+  const ov = document.createElement("div"); ov.className = "overlay open";
+  ov.innerHTML = `<div class="modal hist-modal" role="dialog" aria-modal="true" aria-label="Activity history"><h2>Activity history · ${esc(l.name)}</h2><div class="hist-body"><div class="empty-sm">Loading…</div></div><div class="actions"><a class="btn" href="customer.html?id=${encodeURIComponent(l.id)}">Open full profile</a><button type="button" class="btn gold" data-x>Close</button></div></div>`;
+  document.body.appendChild(ov); if (window.lucide) lucide.createIcons();
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  ov.querySelector("[data-x]").onclick = close; ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); }); ov.querySelector("[data-x]").focus();
+  const body = ov.querySelector(".hist-body");
+  try {
+    const items = buildTimeline(await Data.getCustomer(l));
+    body.innerHTML = (items.length ? timelineList(items) : html`<div class="empty-sm">No activity yet.</div>`).__raw;
+  } catch (e) { body.innerHTML = `<div class="empty-sm">Could not load the history: ${esc(e.message || e)}</div>`; }
+  if (window.lucide) lucide.createIcons();
+}
