@@ -25,6 +25,7 @@
     e.preventDefault();
     const a = $("pw1").value, b = $("pw2").value;
     if (a.length < 8) return say("Use at least 8 characters.", "err");
+    if (!/[A-Za-z]/.test(a) || !/\d/.test(a)) return say("Use both letters and numbers in the password.", "err");
     if (a !== b) return say("The two passwords don't match.", "err");
     $("btn").disabled = true; $("btn").textContent = "Updating…";
     const { error } = await sb.auth.updateUser({ password: a });

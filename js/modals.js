@@ -5,22 +5,75 @@ const PIPELINE = STATUSES.filter((s) => s !== "Spam");               // funnel /
 const CLOSED = ["Spam", "Booking Done", "Post Sale"];               // no follow-up needed any more
 const BOOKED = ["Booking Done", "Post Sale"];                       // counted as bookings / conversions
 
+// ---------- form validation (every entry form goes through openModal) ----------
+const V = {
+  phone: (s) => { const d = String(s).replace(/[\s\-().]/g, ""); return /^(\+?91|0)?[6-9]\d{9}$/.test(d) || /^\+\d{8,15}$/.test(d); },
+  email: (s) => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s),
+  url: (s) => /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(s),
+  hasLetter: (s) => /[A-Za-zÀ-ɏऀ-ॿ]/.test(s),
+};
+const nowLocal = () => { const d = new Date(Date.now() - 5 * 60000); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const todayStr = () => nowLocal().slice(0, 10);
+const labelOf = (el) => { const l = el.closest("label"); const t = l ? [...l.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(" ") : ""; return t.replace(/\*|\(.*?\)/g, "").replace(/\s+/g, " ").trim() || el.name; };
+// Returns an error message for one control, or "" when it is fine. A date that has not been changed is never complained about (an overdue follow-up must not block saving other edits).
+function fieldError(el, form) {
+  const val = String(el.value || "").trim(), name = el.name, label = labelOf(el), changed = el.dataset.init !== el.value;
+  if (!val) return el.dataset.req === "1" ? (el.tagName === "SELECT" ? "Choose " : "Enter ") + label.toLowerCase() : "";
+  if (["name", "contact_person", "designation", "team", "developer", "project", "location", "city", "agent"].includes(name)) {
+    if (val.length < 2) return label + " needs at least 2 characters";
+    if (!V.hasLetter(val)) return label + " must contain letters";
+  }
+  if (name === "mobile" || name === "phone") { if (!V.phone(val)) return "Enter a valid mobile number, e.g. 98765 43210"; }
+  if (name === "email" && !V.email(val)) return "Enter a valid email address, e.g. name@example.com";
+  if (name === "website" && !V.url(val)) return "Enter a valid website, e.g. example.com";
+  if ((name === "budget" || name === "price_range") && !/\d/.test(val)) return "Include an amount, e.g. ₹ 70L – 1.2Cr";
+  if (name === "rera_no" && !/^[A-Za-z0-9][A-Za-z0-9/\-. ]{4,29}$/.test(val)) return "Enter a valid RERA number (5–30 letters, digits, - or /)";
+  if (name === "text" && val.length < 3) return "Write at least 3 characters";
+  if (name === "booking_value" && !(Number(val) > 0)) return "Booking value must be more than 0";
+  if (name === "agreement_rate" && !(Number(val) >= 0 && Number(val) <= 100)) return "Agreement rate must be between 0 and 100";
+  if (name === "monthly_target" && Number(val) < 0) return "Target can't be negative";
+  if ((name === "follow_up" || name === "visit_at") && changed && val < nowLocal()) return "Pick a date and time in the future";
+  if (name === "date" && changed && val < todayStr()) return "Pick today or a later date";
+  if ((name === "booking_date" || name === "joined_on") && changed && val > todayStr()) return label + " can't be in the future";
+  const q = (n) => form.querySelector(`[name="${n}"]`);
+  if (name === "end" && q("start") && q("start").value && val <= q("start").value) return "End time must be after the start time";
+  if (name === "pickup" && q("start") && q("start").value && val > q("start").value) return "Pickup time must be before the visit starts";
+  return "";
+}
+function setupValidation(form) {
+  form.noValidate = true;
+  const controls = [...form.querySelectorAll("input:not([type=hidden]):not([type=checkbox]),textarea,select")].filter((c) => c.name);
+  controls.forEach((c) => {
+    const lab = c.closest("label"); c.dataset.init = c.value;
+    const own = lab ? [...lab.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(" ") : "";
+    if (c.required || /\*/.test(own)) c.dataset.req = "1";
+    if (c.tagName === "INPUT" && ["text", "tel", "email", "search"].includes(c.type) && c.maxLength < 0) c.maxLength = 120;
+    if (c.tagName === "TEXTAREA" && c.maxLength < 0) c.maxLength = 2000;
+    if (lab && !lab.querySelector(".f-err")) { const m = document.createElement("small"); m.className = "f-err"; m.setAttribute("role", "alert"); lab.appendChild(m); }
+  });
+  const show = (c, msg) => { const lab = c.closest("label"); if (!lab) return; lab.classList.toggle("has-err", !!msg); c.setAttribute("aria-invalid", msg ? "true" : "false"); const m = lab.querySelector(".f-err"); if (m) m.textContent = msg; };
+  const check = (c) => { const msg = fieldError(c, form); show(c, msg); return msg; };
+  controls.forEach((c) => { c.addEventListener("blur", () => { c.dataset.touched = "1"; check(c); }); const again = () => { if (c.getAttribute("aria-invalid") === "true") check(c); }; c.addEventListener("input", again); c.addEventListener("change", () => { check(c); controls.filter((x) => x !== c && x.getAttribute("aria-invalid") === "true").forEach(check); }); });
+  return { validate() { const bad = controls.filter((c) => check(c)); if (bad.length) { const f = bad[0]; (f.closest("label").querySelector(".dd-btn") && f.tagName === "SELECT" ? f.closest("label").querySelector(".dd-btn") : f).focus(); } return bad.length; }, controls };
+}
 function openModal(title, body, onSubmit, submitLabel = "Save") {
   const ov = document.createElement("div");
   ov.className = "overlay open";
-  ov.innerHTML = `<form class="modal"><h2>${esc(title)}</h2>${body.__raw}<div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn gold" type="submit">${esc(submitLabel)}</button></div></form>`;
+  ov.innerHTML = `<form class="modal"><h2>${esc(title)}</h2>${body.__raw}<div class="form-err" role="alert" aria-live="assertive" hidden></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn gold" type="submit">${esc(submitLabel)}</button></div></form>`;
   document.body.appendChild(ov);
   if (window.Dropdown) Dropdown.upgrade(ov);
   if (window.lucide) lucide.createIcons();
   const close = () => ov.remove();
   ov.querySelector("[data-x]").onclick = close;
   ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); });
-  const form = ov.querySelector("form");
+  const form = ov.querySelector("form"), banner = form.querySelector(".form-err"), vd = setupValidation(form);
+  const say = (m) => { banner.textContent = m || ""; banner.hidden = !m; };
   form.onsubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); say("");
+    const n = vd.validate(); if (n) return say(n === 1 ? "Please fix the highlighted field." : "Please fix the " + n + " highlighted fields.");
     const btn = form.querySelector("[type=submit]"); btn.disabled = true;
-    try { await onSubmit(Object.fromEntries(new FormData(form))); close(); }
-    catch (err) { btn.disabled = false; alert("Could not save: " + err.message); }
+    try { await onSubmit(Object.fromEntries([...new FormData(form)].map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]))); close(); }
+    catch (err) { btn.disabled = false; say("Could not save: " + (err.message || err)); }
   };
   const first = form.querySelector("input:not([type=hidden]),textarea,.dd-btn,select:not([data-dd-ready])"); if (first) first.focus();
 }
