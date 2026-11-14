@@ -233,6 +233,7 @@ const Data = {
     const { error } = await q;
     if (error) throw new Error(error.code === "23505" ? "That " + (table === "projects" ? "project" : "developer") + " already exists" : error.message);
   },
+  async retargetProjects(ids, developer) { const { error } = await this.client.from("projects").update({ developer }).in("id", ids); if (error) throw error; },
   async deleteProperty(table, id) { const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; },
   async deleteMember(id) { this._team = null; const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {

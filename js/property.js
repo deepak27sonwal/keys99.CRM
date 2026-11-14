@@ -38,9 +38,12 @@ async function mountPropertyPage(kind) {
       const g = groups.get(k); g.names.push(String(name).trim()); g.leads.push(l); byLead.set(l.dbId, g);
     });
     regs().forEach((r) => { const k = norm(r.name); if (k && !groups.has(k)) groups.set(k, { key: k, names: [], leads: [] }); if (k) groups.get(k).reg = r; });
-    const vOf = new Map(), bOf = new Map();
-    state.visits.forEach((v) => { const g = byLead.get(v.enquiry_id); if (g) (vOf.get(g) || vOf.set(g, []).get(g)).push(v); });
-    state.bookings.forEach((b) => { const g = byLead.get(b.enquiry_id); if (g) (bOf.get(g) || bOf.set(g, []).get(g)).push(b); });
+    // A visit or booking belongs to the project / developer it NAMES; only when it names none does it follow its lead.
+    const devOfProject = new Map(); state.regProj.forEach((r) => r.developer && devOfProject.set(norm(r.name), r.developer)); state.leads.forEach((l) => { if (norm(l.project) && norm(l.developer) && !devOfProject.has(norm(l.project))) devOfProject.set(norm(l.project), l.developer); });
+    const vOf = new Map(), bOf = new Map(), inRangeIds = new Set(state.leads.filter(inRange).map((l) => l.dbId));
+    const groupFor = (named, lead) => { const k = norm(named); if (k) { if (!groups.has(k)) groups.set(k, { key: k, names: [named], leads: [] }); return groups.get(k); } return byLead.get(lead); };
+    state.visits.forEach((v) => { if (!inRangeIds.has(v.enquiry_id)) return; const g = groupFor(isProj ? v.project : devOfProject.get(norm(v.project)), v.enquiry_id); if (g) (vOf.get(g) || vOf.set(g, []).get(g)).push(v); });
+    state.bookings.forEach((b) => { if (!inRangeIds.has(b.enquiry_id)) return; const g = groupFor(isProj ? b.project : b.developer || devOfProject.get(norm(b.project)), b.enquiry_id); if (g) (bOf.get(g) || bOf.set(g, []).get(g)).push(b); });
     return [...groups.values()].map((g) => {
       const visits = vOf.get(g) || [], bookings = bOf.get(g) || [], stage = {}; g.leads.forEach((l) => (stage[l.status] = (stage[l.status] || 0) + 1));
       const bookedIds = new Set(bookings.map((b) => b.enquiry_id)), booked = g.leads.filter((l) => BOOKED.includes(l.status) || bookedIds.has(l.dbId)).length;
@@ -114,7 +117,14 @@ async function mountPropertyPage(kind) {
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`;
     openModal((e && e.reg ? "Edit " : "Add ") + NOUN.toLowerCase(), body, async (f) => {
       const row = { ...f }; delete row.id;
+      // leads link to a project / developer by name, so two registered ones may not share a name
+      if (regs().some((x) => norm(x.name) === norm(f.name) && (!e || !e.reg || x.id !== e.reg.id))) throw new Error("A " + NOUN.toLowerCase() + " with this name already exists");
       await Data.saveProperty(isProj ? "projects" : "developers", e && e.reg ? e.reg.id : null, row);
+      // renaming a developer keeps its registered projects attached to it (leads that already carry the old name are not changed)
+      if (!isProj && e && e.reg && norm(e.reg.name) !== norm(f.name)) {
+        const ids = state.regProj.filter((x) => norm(x.developer) === norm(e.reg.name)).map((x) => x.id);
+        if (ids.length) await Data.retargetProjects(ids, String(f.name).trim());
+      }
       toast(NOUN + (e && e.reg ? " updated" : " saved")); state.open = norm(f.name); await refresh();
     }, e && e.reg ? "Save" : "Add " + NOUN);
   }
