@@ -4,7 +4,9 @@
   if (!page) return;
   const COLS = [...PIPELINE, "Spam"];
   const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
-  const state = { leads: [], bookings: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set() };
+  const state = { leads: [], bookings: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set(), shown: {} };
+  let restoredAt = 0;                                // scroll events caused by putting the scroll position back must not load more
+  const STEP = 5;                                  // each column shows its 5 newest leads, and 5 more every time it is scrolled to the bottom
   let chart = null;
 
   async function load() {
@@ -47,9 +49,9 @@
       <div class="kb-bot">${fuChip(l)}${priorityChip(l)}<span class="kb-acts"><a href="${telHref(l.mobile)}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></span></div></div>`;
   }
   function board(L) {
-    return html`<div class="kb" role="list">${COLS.map((st) => { const items = L.filter((l) => l.status === st);
+    return html`<div class="kb" role="list">${COLS.map((st) => { const items = L.filter((l) => l.status === st).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), shown = Math.max(STEP, state.shown[st] || STEP), more = items.length - shown;
       return html`<section class="kb-col s-${slug(st)}" data-col="${st}" role="listitem" aria-label="${st}, ${items.length} leads"><header class="kb-h"><b>${st}</b><span>${items.length} Leads</span></header>
-        <div class="kb-body" data-drop="${st}">${items.length ? items.map(card) : html`<div class="kb-empty">No leads here</div>`}</div>
+        <div class="kb-body" data-drop="${st}">${items.length ? items.slice(0, shown).map(card) : html`<div class="kb-empty">No leads here</div>`}${more > 0 ? html`<button class="kb-more" data-more="${st}">Show ${Math.min(STEP, more)} more · showing ${shown} of ${items.length}</button>` : items.length > STEP ? html`<div class="kb-end">Showing all ${items.length}</div>` : raw("")}</div>
         <button class="kb-add" data-add="${st}"><i data-lucide="plus"></i>Add Lead</button></section>`; })}</div>`;
   }
   function list(L) {
@@ -69,6 +71,7 @@
 
   function draw() {
     if (chart) { chart.destroy(); chart = null; }
+    const keepLeft = (page.querySelector(".kb") || {}).scrollLeft || 0, keepTop = {}; page.querySelectorAll(".kb-body").forEach((b) => (keepTop[b.dataset.drop] = b.scrollTop));
     const L = scoped(), counts = {}; L.forEach((l) => (counts[l.status] = (counts[l.status] || 0) + 1));
     const ids = new Set(L.map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
     const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), comm = state.bookings.filter((b) => ids.has(b.enquiry_id)).reduce((t, b) => t + Number(b.commission_amount || 0), 0);
@@ -96,6 +99,8 @@
         <section class="card p"><h3 class="sec">Top Projects by Conversion</h3>${tops.length ? html`<ul class="pl-top">${tops.map(([n, p]) => html`<li><span>${n}</span><div class="bar"><i style="width:${Math.max(3, (p / topMax) * 100)}%"></i></div><b>${p}%</b></li>`)}</ul>` : html`<div class="empty-sm">No projects in this period.</div>`}</section>
       </div>`);
     bind(L); drawChart();
+    const kb = page.querySelector(".kb"); if (kb) kb.scrollLeft = keepLeft;
+    restoredAt = performance.now(); page.querySelectorAll(".kb-body").forEach((b) => (b.scrollTop = keepTop[b.dataset.drop] || 0));
   }
 
   function drawChart() {
@@ -117,7 +122,9 @@
   async function moveTo(l, status) {
     if (!l || l.status === status) return;
     if (status === "Spam") return openSpam(l, refresh);
-    const old = l.status; l.status = status; draw();
+    const old = l.status; l.status = status;
+    const idx = scoped().filter((x) => x.status === status).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).indexOf(l); state.shown[status] = Math.max(STEP, state.shown[status] || STEP, idx + 1);   // the card you just dropped stays visible
+    draw();
     try { await Data.updateLead(l.dbId, { status }); toast(l.name + " → " + status); }
     catch (e) { l.status = old; draw(); toast("Could not move the lead: " + (e.message || e)); }
   }
@@ -134,11 +141,14 @@
   }
 
   function bind(L) {
-    page.querySelector("#ptype").onchange = (e) => { state.type = e.target.value; draw(); };
-    page.querySelector("#prange").onchange = (e) => { state.range = e.target.value; draw(); };
+    page.querySelector("#ptype").onchange = (e) => { state.type = e.target.value; state.shown = {}; draw(); };
+    page.querySelector("#prange").onchange = (e) => { state.range = e.target.value; state.shown = {}; draw(); };
     page.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { state.view = b.dataset.view; draw(); }));
     page.querySelector("#padd").onclick = () => openAddLead(refresh);
     page.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => openAddLead(refresh, { status: b.dataset.add })));
+    const loadMore = (st) => { state.shown[st] = Math.max(STEP, state.shown[st] || STEP) + STEP; draw(); };
+    page.querySelectorAll("[data-more]").forEach((b) => (b.onclick = () => loadMore(b.dataset.more)));
+    page.querySelectorAll(".kb-body").forEach((z) => (z.onscroll = () => { if (performance.now() - restoredAt > 250 && z.querySelector("[data-more]") && z.scrollTop + z.clientHeight >= z.scrollHeight - 30) loadMore(z.dataset.drop); }));
     page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); leadMenu(b, byId(b.dataset.menu)); }));
     page.querySelectorAll("[data-chk]").forEach((c) => (c.onchange = () => { const id = Number(c.dataset.chk); c.checked ? state.sel.add(id) : state.sel.delete(id); draw(); }));
     page.querySelectorAll(".kb-card").forEach((c) => {
