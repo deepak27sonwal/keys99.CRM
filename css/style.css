@@ -759,8 +759,8 @@ table{width:100%;border-collapse:collapse}
 .drawer-f{flex-wrap:wrap}
 @media(max-width:900px){
   /* phone card: status + priority sit right under the name (no longer pinned to the corner); 4 equal action buttons */
-  .leads-t td[data-label="Customer"]{padding-right:0;min-height:0}
-  .leads-t td[data-label="Status"]{position:static;order:2;grid-column:1/-1;padding:0 0 2px 52px}
+  /* status badge with the priority stars stacked under it, pinned to the top-right corner as before */
+  .leads-t td[data-label="Status"] .st-prio{flex-direction:column;align-items:flex-end;gap:4px}
   .acts{grid-template-columns:repeat(4,1fr);gap:6px}
   .act{height:44px;font-size:12px;gap:4px;padding:0 4px;flex-direction:column;justify-content:center;line-height:1.1}
   .act [data-lucide]{width:18px;height:18px}
