@@ -28,6 +28,24 @@
     (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || l.agent === state.f.agent));
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
+  // Activity history of one lead (notes, follow-ups, enquiries, site visits, bookings), newest first.
+  async function openHistory(l) {
+    if (!l) return;
+    const ov = document.createElement("div"); ov.className = "overlay open";
+    ov.innerHTML = `<div class="modal hist-modal" role="dialog" aria-modal="true" aria-label="Activity history"><h2>Activity history · ${esc(l.name)}</h2><div class="hist-body"><div class="empty-sm">Loading…</div></div><div class="actions"><a class="btn" href="customer.html?id=${encodeURIComponent(l.id)}">Open full profile</a><button type="button" class="btn gold" data-x>Close</button></div></div>`;
+    document.body.appendChild(ov); if (window.lucide) lucide.createIcons();
+    const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    ov.querySelector("[data-x]").onclick = close; ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); }); ov.querySelector("[data-x]").focus();
+    const body = ov.querySelector(".hist-body");
+    try {
+      const items = buildTimeline(await Data.getCustomer(l));
+      body.innerHTML = (items.length ? timelineList(items) : html`<div class="empty-sm">No activity yet.</div>`).__raw;
+    } catch (e) { body.innerHTML = `<div class="empty-sm">Could not load the history: ${esc(e.message || e)}</div>`; }
+    if (window.lucide) lucide.createIcons();
+  }
+
   function stepper(status) {
     const i2 = PIPELINE.indexOf(status);                       // Spam -> -1 (nothing highlighted)
     return html`<div class="stepper">${PIPELINE.map((s, i) => html`<div class="s ${i < i2 ? "done" : i === i2 ? "cur" : ""}"><div class="c">${i <= i2 ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div>`;
@@ -47,7 +65,7 @@
         <div class="box-b"><h4>Lead Progress</h4>${stepper(l.status)}</div>
         <div class="box-b"><h4>Notes</h4><div class="note"><i data-lucide="sticky-note" class="gold-t"></i><div>${lastNote ? lastNote.description : l.notes || "No notes yet."}${lastNote ? html`<div class="muted" style="font-size:12px;margin-top:4px">${fmtDate(lastNote.at)}${lastNote.by ? " • " + lastNote.by : ""}</div>` : raw("")}</div></div></div>
         <a class="btn brand" style="width:100%;justify-content:center" href="customer.html?id=${encodeURIComponent(l.id)}"><i data-lucide="user"></i>View Full Profile</a></div>
-      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button></div></aside>`;
+      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button><button class="btn outline" id="dHist"><i data-lucide="history"></i>History</button></div></aside>`;
   }
 
   // Follow-up chip: flags overdue / due-today follow-ups on open leads.
@@ -96,7 +114,7 @@
             <td data-label="Created" class="created"><span class="cr-d"><span class="cr-m">${fmtDay(l.createdAt).slice(0, 6)}</span><span class="cr-y">${fmtDay(l.createdAt).slice(6)}</span></span><span class="cr-t">${fmtTime(l.createdAt)}</span><small class="cr-a">${relTime(l.createdAt)}</small></td>
             <td data-label="Next Follow-up" class="fu-cell"><span class="fu ${fu.cls}">${fu.out}</span></td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
-            <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button></div></td></tr>`; })
+            <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button><button class="act act-hist" data-hist="${l.dbId}" aria-label="Activity history of ${l.name}" title="Activity history"><i data-lucide="history"></i><span class="act-t">History</span></button></div></td></tr>`; })
             : html`<tr><td colspan="12" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing ${filtered.length ? (state.page - 1) * PAGE + 1 : 0} – ${(state.page - 1) * PAGE + rows.length} of ${filtered.length.toLocaleString("en-IN")} leads</span>
           <div class="pager"><button data-page="${state.page - 1}" ${state.page <= 1 ? raw("disabled") : raw("")} aria-label="Previous"><i data-lucide="chevron-left"></i></button>
@@ -125,6 +143,8 @@
     const all = page.querySelector("#checkAll");
     all.onchange = () => { state.checked = new Set(all.checked ? filtered.map((l) => l.dbId) : []); draw(); };
     const close = page.querySelector("#closeDrawer"); if (close) close.onclick = () => { state.selected = null; draw(); };
+    page.querySelectorAll("[data-hist]").forEach((x) => (x.onclick = (e) => { e.stopPropagation(); openHistory(state.leads.find((l) => l.dbId === Number(x.dataset.hist))); }));
+    const dh = page.querySelector("#dHist"); if (dh) dh.onclick = () => openHistory(state.selected);
     const dn = page.querySelector("#dNote"); if (dn) dn.onclick = () => openNote(state.selected, refresh);
     const df = page.querySelector("#dFollow"); if (df) df.onclick = () => openFollowUp(state.selected, refresh);
     page.querySelector("#addLead").onclick = () => openAddLead(refresh);

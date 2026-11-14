@@ -3,7 +3,6 @@
   if (!page) return;
   const id = new URLSearchParams(location.search).get("id");
   const ORDER = PIPELINE;
-  const IC = { call: ["#16a34a", "phone"], visit: ["#3b82f6", "calendar-check"], doc: ["#e8a91f", "file-text"], new: ["#94a3b8", "plus"], deal: ["#0f7a6b", "handshake"] };
   const kv = (rows) => html`<dl class="kv2">${rows.map(([k, v]) => html`<dt>${k}</dt><dd>${v || "—"}</dd>`)}</dl>`;
   const title = (icon, text, extra) => html`<div class="ch"><i data-lucide="${icon}"></i><h3>${text}</h3>${extra ? html`<div style="margin-left:auto">${extra}</div>` : raw("")}</div>`;
   const state = { tab: "Overview" };
@@ -19,17 +18,6 @@
   }
   if (!(await load())) return;
 
-  function timeline() {
-    const t = [];
-    cust.related.forEach((r, i) => {
-      r.acts.forEach((a) => t.push({ type: a.type || "doc", title: a.title || "Activity", description: a.description || "", ts: a.at, by: a.by ? "by " + a.by : "" }));
-      const more = [...sourceRows(r).filter(([k]) => ["Page", "Form", "Campaign", "Ad"].includes(k)).map(([k, v]) => k + ": " + v), ...((r.src && r.src.answers) || []).map((x) => x.q + ": " + x.a)];
-      t.push({ type: "new", title: i === 0 ? "Lead Created" : "Enquired Again", description: "Enquiry from " + r.source + (r.project ? " for " + r.project : "") + "." + (more.length ? "\n" + more.join("\n") : ""), ts: r.createdAt, by: "", multi: more.length > 0 });
-    });
-    cust.visits.forEach((v) => t.push({ type: "visit", title: "Site Visit " + v.status, description: v.project || "", ts: v.visit_at, by: v.created_by ? "by " + v.created_by : "" }));
-    cust.bookings.forEach((b) => t.push({ type: "deal", title: "Booking Recorded", description: (b.project || "") + " · " + fmtMoney(b.booking_value), ts: b.booking_date + "T00:00:00", by: b.created_by ? "by " + b.created_by : "" }));
-    return t.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  }
   function projects() {
     const m = new Map();
     cust.related.forEach((r) => { if (r.project && !m.has(r.project)) m.set(r.project, r.developer); });
@@ -40,12 +28,11 @@
   }
 
   function draw() {
-    const tl = timeline(), projs = projects(), deal = cust.bookings[0], expected = cust.bookings.reduce((t, b) => t + Number(b.commission_amount), 0);
+    const tl = buildTimeline(cust), projs = projects(), deal = cust.bookings[0], expected = cust.bookings.reduce((t, b) => t + Number(b.commission_amount), 0);
     const cur = ORDER.indexOf(lead.status), done = () => load().then((ok) => ok && draw());
     const stats = [[tl.length, "Total Interactions", "users"], [cust.visits.length, "Site Visits", "calendar-check"], [cust.bookings.length, "Deal / Booking", "handshake"], [fmtMoney(expected), "Expected Commission", "coins"]];
     const tabs = [["Overview", "Overview"], ["Interactions", "Interactions (" + tl.length + ")"], ["Site Visits", "Site Visits (" + cust.visits.length + ")"], ["Deals", "Deals & Bookings (" + cust.bookings.length + ")"], ["Documents", "Documents"], ["Notes", "Notes"]];
 
-    const timelineList = (items) => items.length ? html`<ul class="tl">${items.map((x) => { const [bg, ic] = IC[x.type] || IC.new; return html`<li><span class="ic" style="background:${bg}"><i data-lucide="${ic}"></i></span><div class="bd"><div class="t"><b>${x.title}</b><small>${fmtDate(x.ts)}</small></div><div class="t"><small class="${x.multi ? "ml" : ""}">${x.description}</small><small>${x.by}</small></div></div></li>`; })}</ul>` : html`<div class="empty-sm">Nothing here yet.</div>`;
     const dealCard = html`${title("handshake", "Deal / Booking Summary")}${deal ? kv([["Project", deal.project], ["Booking Date", fmtDate(deal.booking_date + "T00:00:00").split(",")[0] + ", " + deal.booking_date.slice(0, 4)], ["Booking Value", fmtMoney(deal.booking_value)],
       ["Agreement Rate", deal.agreement_rate + "%"], ["Commission", fmtMoney(deal.commission_amount)], ["Commission Status", raw(`<span class="badge b-${esc(deal.commission_status)}">${esc(deal.commission_status)}</span>`)]]) : html`<div class="empty-sm">No booking yet. Use “Convert to Deal” when this lead books.</div>`}`;
 
