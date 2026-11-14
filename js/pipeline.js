@@ -100,7 +100,7 @@
       </div>`);
     bind(L); drawChart();
     const kb = page.querySelector(".kb"); if (kb) kb.scrollLeft = keepLeft;
-    restoredAt = performance.now(); page.querySelectorAll(".kb-body").forEach((b) => (b.scrollTop = keepTop[b.dataset.drop] || 0));
+    restoredAt = performance.now(); page.querySelectorAll(".kb-body").forEach((b) => (b.scrollTop = state.topReset ? 0 : keepTop[b.dataset.drop] || 0)); state.topReset = false;   // a filter change starts every column from its newest card
   }
 
   function drawChart() {
@@ -118,10 +118,16 @@
 
   const byId = (id) => state.leads.find((l) => l.dbId === Number(id));
   const refresh = async () => { if (await load()) draw(); };
+  // After a lead lands in a column, make sure that column is long enough to show it (it may be older than the 5 newest).
+  function keepVisible(dbId, status) {
+    const x = state.leads.find((q) => q.dbId === dbId); if (!x) return;
+    const idx = scoped().filter((q) => q.status === status).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).findIndex((q) => q.dbId === dbId);
+    if (idx >= Math.max(STEP, state.shown[status] || STEP)) { state.shown[status] = idx + 1; draw(); }
+  }
   // Move one lead to another stage: the card moves at once; if the database refuses, it goes back and says why.
   async function moveTo(l, status) {
     if (!l || l.status === status) return;
-    if (status === "Spam") return openSpam(l, refresh);
+    if (status === "Spam") return openSpam(l, async () => { await refresh(); keepVisible(l.dbId, "Spam"); });
     const old = l.status; l.status = status;
     const idx = scoped().filter((x) => x.status === status).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).indexOf(l); state.shown[status] = Math.max(STEP, state.shown[status] || STEP, idx + 1);   // the card you just dropped stays visible
     draw();
@@ -141,8 +147,8 @@
   }
 
   function bind(L) {
-    page.querySelector("#ptype").onchange = (e) => { state.type = e.target.value; state.shown = {}; draw(); };
-    page.querySelector("#prange").onchange = (e) => { state.range = e.target.value; state.shown = {}; draw(); };
+    page.querySelector("#ptype").onchange = (e) => { state.type = e.target.value; state.shown = {}; state.topReset = true; draw(); };
+    page.querySelector("#prange").onchange = (e) => { state.range = e.target.value; state.shown = {}; state.topReset = true; draw(); };
     page.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { state.view = b.dataset.view; draw(); }));
     page.querySelector("#padd").onclick = () => openAddLead(refresh);
     page.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => openAddLead(refresh, { status: b.dataset.add })));

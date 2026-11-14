@@ -337,7 +337,7 @@ create table if not exists public.projects (
   status text not null default 'New Launch' check (status in ('Upcoming','New Launch','Under Construction','Ready to Move')),
   notes text, created_by text, created_at timestamptz not null default now()
 );
-create unique index if not exists projects_name_dev_uniq on public.projects (lower(trim(name)), lower(trim(coalesce(developer, ''))));
+create unique index if not exists projects_name_uniq on public.projects (lower(trim(name)));   -- leads link to a project by name, so a name is used once
 alter table public.developers enable row level security;
 alter table public.projects enable row level security;
 drop policy if exists "CRM users manage developers" on public.developers;
