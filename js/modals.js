@@ -47,7 +47,7 @@ const V = {
   phone: (s) => { const d = String(s).replace(/[\s\-().]/g, ""); return /^(\+?91|0)?[6-9]\d{9}$/.test(d) || /^\+\d{8,15}$/.test(d); },
   email: (s) => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s),
   url: (s) => /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(s),
-  hasLetter: (s) => /[A-Za-zÀ-ɏऀ-ॿ]/.test(s),
+  hasLetter: (s) => /\p{L}/u.test(s),                       // any script: Latin, Devanagari, Tamil, Bengali, Telugu, Arabic...
 };
 const nowLocal = () => { const d = new Date(Date.now() - 5 * 60000); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
 const todayStr = () => nowLocal().slice(0, 10);
@@ -66,6 +66,11 @@ function fieldError(el, form) {
   if ((name === "budget" || name === "price_range") && !/\d/.test(val)) return "Include an amount, e.g. ₹ 70L – 1.2Cr";
   if (name === "rera_no" && !/^[A-Za-z0-9][A-Za-z0-9/\-. ]{4,29}$/.test(val)) return "Enter a valid RERA number (5–30 letters, digits, - or /)";
   if (name === "text" && val.length < 3) return "Write at least 3 characters";
+  let stepMsg = "";
+  if (el.type === "number" && el.step && el.step !== "any" && Number(el.step) > 0 && Number.isFinite(Number(val))) {   // native validation is off, so honour the field's own step
+    const st = Number(el.step), base = el.min !== "" && Number.isFinite(Number(el.min)) ? Number(el.min) : 0, k = (Number(val) - base) / st;
+    if (Math.abs(k - Math.round(k)) > 1e-6) stepMsg = st === 1 ? "Enter a whole number" : st < 1 ? "Use at most " + (String(st).split(".")[1] || "").length + " decimal places" : "Use a multiple of " + st;   // reported only when no clearer rule below fires first
+  }
   if (name === "booking_value" && !(Number(val) > 0)) return "Booking value must be more than 0";
   if (name === "agreement_rate" && !(Number(val) >= 0 && Number(val) <= 100)) return "Agreement rate must be between 0 and 100";
   if (name === "monthly_target" && Number(val) < 0) return "Target can't be negative";
@@ -75,7 +80,7 @@ function fieldError(el, form) {
   const q = (n) => form.querySelector(`[name="${n}"]`);
   if (name === "end" && q("start") && q("start").value && val <= q("start").value) return "End time must be after the start time";
   if (name === "pickup" && q("start") && q("start").value && val > q("start").value) return "Pickup time must be before the visit starts";
-  return "";
+  return stepMsg;
 }
 function setupValidation(form) {
   form.noValidate = true;
