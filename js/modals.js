@@ -33,8 +33,8 @@ function openAddLead(done, preset = {}) {
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
-    ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Project", "project")}
-    ${field("Developer", "developer")}${field("Location", "location")}
+    ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Project", "project", preset.project || "")}
+    ${field("Developer", "developer", preset.developer || "")}${field("Location", "location")}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
     ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
     async (f) => { await Data.addLead(f); toast("Lead added"); done && done(); });
