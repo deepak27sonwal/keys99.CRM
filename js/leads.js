@@ -28,24 +28,6 @@
     (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || l.agent === state.f.agent));
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
-  // Activity history of one lead (notes, follow-ups, enquiries, site visits, bookings), newest first.
-  async function openHistory(l) {
-    if (!l) return;
-    const ov = document.createElement("div"); ov.className = "overlay open";
-    ov.innerHTML = `<div class="modal hist-modal" role="dialog" aria-modal="true" aria-label="Activity history"><h2>Activity history · ${esc(l.name)}</h2><div class="hist-body"><div class="empty-sm">Loading…</div></div><div class="actions"><a class="btn" href="customer.html?id=${encodeURIComponent(l.id)}">Open full profile</a><button type="button" class="btn gold" data-x>Close</button></div></div>`;
-    document.body.appendChild(ov); if (window.lucide) lucide.createIcons();
-    const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
-    const onKey = (e) => { if (e.key === "Escape") close(); };
-    document.addEventListener("keydown", onKey);
-    ov.querySelector("[data-x]").onclick = close; ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); }); ov.querySelector("[data-x]").focus();
-    const body = ov.querySelector(".hist-body");
-    try {
-      const items = buildTimeline(await Data.getCustomer(l));
-      body.innerHTML = (items.length ? timelineList(items) : html`<div class="empty-sm">No activity yet.</div>`).__raw;
-    } catch (e) { body.innerHTML = `<div class="empty-sm">Could not load the history: ${esc(e.message || e)}</div>`; }
-    if (window.lucide) lucide.createIcons();
-  }
-
   function stepper(status) {
     const i2 = PIPELINE.indexOf(status);                       // Spam -> -1 (nothing highlighted)
     return html`<div class="stepper">${PIPELINE.map((s, i) => html`<div class="s ${i < i2 ? "done" : i === i2 ? "cur" : ""}"><div class="c">${i <= i2 ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div>`;

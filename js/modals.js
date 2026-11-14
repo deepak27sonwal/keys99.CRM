@@ -29,14 +29,14 @@ const field = (label, name, value = "", type = "text", attrs = "", cls = "") =>
 const selectField = (label, name, options, value = "", cls = "") =>
   html`<label class="${cls}">${label}<select name="${name}">${options.map((o) => html`<option ${o === value ? raw("selected") : raw("")}>${o}</option>`)}</select></label>`;
 
-function openAddLead(done) {
+function openAddLead(done, preset = {}) {
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
     ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Project", "project")}
     ${field("Developer", "developer")}${field("Location", "location")}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
-    ${selectField("Status", "status", STATUSES)}</div>`,
+    ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
     async (f) => { await Data.addLead(f); toast("Lead added"); done && done(); });
 }
 async function openEditLead(lead, done) {
