@@ -5,6 +5,43 @@ const PIPELINE = STATUSES.filter((s) => s !== "Spam");               // funnel /
 const CLOSED = ["Spam", "Booking Done", "Post Sale"];               // no follow-up needed any more
 const BOOKED = ["Booking Done", "Post Sale"];                       // counted as bookings / conversions
 
+// Suggestions while typing: a list under a text box that narrows as you type (matches anywhere in the name, starts-with first),
+// moves with the arrow keys, picks with Enter / Tab-free click, and closes with Escape. `getItems()` is read on every keystroke.
+// onPick(value) decides what a pick does (default: put it in the box). Typing something new and pressing Enter is never blocked.
+function attachSuggest(input, getItems, onPick, opts = {}) {
+  const host = input.closest(".overlay") || document.body, pop = document.createElement("ul"), id = "sg" + Math.random().toString(36).slice(2, 8);
+  pop.className = "sg-pop"; pop.id = id; pop.setAttribute("role", "listbox"); pop.hidden = true; host.appendChild(pop);
+  input.setAttribute("role", "combobox"); input.setAttribute("aria-autocomplete", "list"); input.setAttribute("aria-expanded", "false"); input.setAttribute("aria-controls", id); input.autocomplete = "off";
+  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  let shown = [], active = -1;
+  const hide = () => { pop.hidden = true; active = -1; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); };
+  const mark = () => { [...pop.children].forEach((li, i) => { li.classList.toggle("on", i === active); li.setAttribute("aria-selected", i === active ? "true" : "false"); if (i === active) { input.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); } }); };
+  const place = () => { const r = input.getBoundingClientRect(), below = innerHeight - r.bottom, h = Math.min(pop.scrollHeight, 240), up = below < h + 12 && r.top > below; pop.style.left = r.left + "px"; pop.style.width = r.width + "px"; pop.style.maxHeight = Math.max(100, Math.min(240, (up ? r.top : below) - 12)) + "px"; pop.style.top = up ? Math.max(8, r.top - Math.min(h, r.top - 12) - 4) + "px" : r.bottom + 4 + "px"; };
+  const esc2 = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const render = () => {
+    if (!input.isConnected) return pop.remove();
+    const q = norm(input.value), all = (getItems() || []).filter(Boolean);
+    shown = all.filter((x) => !q || norm(x).includes(q)).sort((a, b) => (norm(b).startsWith(q) - norm(a).startsWith(q)) || String(a).localeCompare(String(b))).slice(0, opts.max || 8);
+    if (!shown.length) return hide();
+    const hi = (t) => { const i = q ? norm(t).indexOf(q) : -1; return i < 0 ? esc2(t) : esc2(t.slice(0, i)) + "<b>" + esc2(t.slice(i, i + q.length)) + "</b>" + esc2(t.slice(i + q.length)); };
+    pop.innerHTML = shown.map((t, i) => `<li role="option" id="${id}-${i}" data-i="${i}">${hi(String(t))}</li>`).join("");
+    pop.hidden = false; input.setAttribute("aria-expanded", "true"); active = -1; place();
+  };
+  const pick = (i) => { const v = shown[i]; hide(); if (onPick) onPick(v); else { input.value = v; input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new Event("change", { bubbles: true })); } };
+  input.addEventListener("input", render); input.addEventListener("focus", render);
+  input.addEventListener("blur", () => setTimeout(hide, 120));
+  input.addEventListener("keydown", (e) => {
+    if (pop.hidden) { if (e.key === "ArrowDown") render(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % shown.length; mark(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + shown.length) % shown.length; mark(); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(active); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hide(); }
+    else if (e.key === "Tab") hide();
+  }, true);
+  pop.addEventListener("mousedown", (e) => { const li = e.target.closest("li"); if (li) { e.preventDefault(); pick(Number(li.dataset.i)); } });
+  window.addEventListener("resize", () => { if (!pop.hidden) place(); });
+  return { refresh: render, hide };
+}
 // ---------- form validation (every entry form goes through openModal) ----------
 const V = {
   phone: (s) => { const d = String(s).replace(/[\s\-().]/g, ""); return /^(\+?91|0)?[6-9]\d{9}$/.test(d) || /^\+\d{8,15}$/.test(d); },

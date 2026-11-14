@@ -20,12 +20,13 @@
   const baseName = (p) => String(p || "").split(",")[0].trim();
   const coveredBy = (project) => state.members.filter((m) => m.status === "Active" && (m.projects || []).some((p) => projMatch(project, p)));
   const nextOf = (ms) => [...ms].sort((a, b) => (a.last_assigned_at ? new Date(a.last_assigned_at) : 0) - (b.last_assigned_at ? new Date(b.last_assigned_at) : 0) || a.id - b.id)[0];
-  const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
+  const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); (state.regProj || []).forEach((p) => { if (p && !seen.has(normP(p))) seen.set(normP(p), p); }); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
   const pj = (arr, max = 2) => (arr || []).length ? html`${arr.slice(0, max).map((x) => html`<span class="pj">${x}</span>`)}${arr.length > max ? html`<span class="pj more">+${arr.length - max}</span>` : raw("")}` : raw("—");
 
   async function load() {
     try {
       const [m, l, v, b] = await Promise.all([Data.getTeam(), Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]);
+      try { state.regProj = (await Data.getProjects()).map((p) => p.name); } catch { state.regProj = []; }   // registered projects are suggested too
       Object.assign(state, { members: m, leads: l, visits: v, bookings: b }); state.auto = await Data.getAutoAssign().catch(() => false); compute(); return true;
     } catch (e) {
       render(page, html`<div class="card p" style="margin:24px"><h3>Could not load the team</h3><p class="sub">${e.message}</p></div>`); return false;
@@ -124,8 +125,8 @@
     state.leads.forEach((l) => { const b = baseName(l.project); if (!b || new Date(l.createdAt) < since || coveredBy(l.project).length) return; const k = normP(b); miss.set(k, { name: b, n: ((miss.get(k) || {}).n || 0) + 1 }); });
     const unc = [...miss.values()].sort((a, b) => b.n - a.n), rms = active.filter((m) => m.kind === "rm");
     return html`<div class="card p" style="margin-bottom:14px"><h3>Who gets the next lead?</h3><p class="sub" style="margin:4px 0 10px">Pick a project to see who would receive it. Nothing is assigned by checking.</p>
-      <div class="copyrow"><input id="pvIn" list="projList" placeholder="Type or pick a project" aria-label="Project"><button class="btn sm gold" id="pvGo"><i data-lucide="search"></i>Check</button></div><p class="sub" id="pvOut" style="margin-top:8px"></p>
-      <datalist id="projList">${projectNames().map((n) => html`<option value="${n}"></option>`)}</datalist></div>
+      <div class="copyrow"><input id="pvIn" placeholder="Type or pick a project" aria-label="Project"><button class="btn sm gold" id="pvGo"><i data-lucide="search"></i>Check</button></div><p class="sub" id="pvOut" style="margin-top:8px"></p>
+      </div>
       <div class="card table-wrap"><table class="route-t"><thead><tr><th>Project</th><th>Team members</th><th>Next lead goes to</th><th>Leads</th></tr></thead><tbody>
         ${rows.length ? rows.map((r) => { const ok = r.people.filter((m) => m.status === "Active"), nx = ok.length ? nextOf(ok) : null; return html`<tr><td><b>${r.name}</b></td>
           <td>${r.people.map((m) => html`<span class="pj ${m.status === "Active" ? "" : "off"}" title="${m.status}">${m.name}</span>`)}</td><td>${nx ? html`<b>${nx.name}</b>` : html`<span class="muted">Nobody active</span>`}</td>
@@ -179,8 +180,8 @@
       ${field("Team", "team", m ? m.team || "" : "", "text", 'placeholder="e.g. Pune Team"')}${field("Location", "location", m ? m.location || "" : "", "text", 'placeholder="e.g. Pune"')}
       ${field("Monthly target (₹)", "monthly_target", m ? m.monthly_target || "" : "", "number", 'min="0" step="1000" placeholder="e.g. 10000000"')}${field("Joined on", "joined_on", m ? m.joined_on || "" : new Date().toISOString().slice(0, 10), "date")}
       <div class="full proj-picker"><label>Projects (new leads for these go to this person)</label><div class="chips" data-chips></div>
-        <div class="copyrow"><input list="projListM" placeholder="Type or pick a project, then press Enter" aria-label="Add a project" data-pin><button type="button" class="btn sm" data-padd><i data-lucide="plus"></i>Add</button></div>
-        <datalist id="projListM">${projectNames().map((n) => html`<option value="${n}"></option>`)}</datalist><input type="hidden" name="projects" value="${JSON.stringify((m && m.projects) || [])}"></div>
+        <div class="copyrow"><input placeholder="Start typing a project name, then press Enter" aria-label="Add a project" data-pin><button type="button" class="btn sm" data-padd><i data-lucide="plus"></i>Add</button></div>
+        <input type="hidden" name="projects" value="${JSON.stringify((m && m.projects) || [])}"></div>
       ${m ? html`<p class="sub full" style="margin:0">Leads are matched to a person by name. If you rename them, leads already assigned keep the old name until you change them.</p>` : raw("")}</div>`,
       async (f) => { f.kind = f.kind_label === "Relationship Manager" ? "rm" : "agent"; try { f.projects = JSON.parse(f.projects || "[]"); } catch { f.projects = []; } await Data.saveMember(m ? m.id : null, f); toast(m ? "Saved" : (f.kind === "rm" ? "Relationship manager added" : "Agent added")); done && (await done()); });
     setupPicker();
@@ -190,6 +191,7 @@
     const hid = box.querySelector("[name=projects]"), chips = box.querySelector("[data-chips]"), inp = box.querySelector("[data-pin]"); let list = []; try { list = JSON.parse(hid.value || "[]"); } catch { /* start empty */ }
     const paint = () => { hid.value = JSON.stringify(list); chips.innerHTML = list.map((x, i) => `<span class="pj">${esc(x)}<button type="button" data-rm="${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("") || '<small class="muted">No projects yet</small>'; };
     const add = () => { const v = inp.value.trim(); if (v && !list.some((x) => normP(x) === normP(v))) list.push(v); inp.value = ""; paint(); };
+    attachSuggest(inp, () => projectNames().filter((n) => !list.some((x) => normP(x) === normP(n))), (v) => { inp.value = v; add(); inp.focus(); });   // suggestions narrow as you type
     box.querySelector("[data-padd]").onclick = add; inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
     chips.onclick = (e) => { const b = e.target.closest("[data-rm]"); if (b) { list.splice(Number(b.dataset.rm), 1); paint(); } };
     box.closest("form").addEventListener("submit", () => { if (inp.value.trim()) add(); }, true); paint();
@@ -222,7 +224,7 @@
     };
     const pg = page.querySelector("#pvGo"); if (pg) { const run = async () => { const out = page.querySelector("#pvOut"), v = page.querySelector("#pvIn").value.trim(); out.textContent = "Checking…";
       try { const r = await Data.whoGetsNext(v); out.innerHTML = r ? `<b>${esc(r.name)}</b> — ${r.matched ? "has this project" : "no one has this project, so it goes to the shared relationship manager rotation"}.${r.email ? "" : " They have no email, so the alert goes to the fallback address."}${state.auto ? "" : " <i>Auto-assign is off, so nothing is assigned yet.</i>"}` : "Nobody is available, so the lead would stay unassigned (alert goes to the fallback address)."; } catch (err) { out.textContent = "Could not check: " + err.message; } };
-      pg.onclick = run; page.querySelector("#pvIn").onkeydown = (e) => { if (e.key === "Enter") run(); }; }
+      pg.onclick = run; attachSuggest(page.querySelector("#pvIn"), projectNames, (v) => { page.querySelector("#pvIn").value = v; run(); }); page.querySelector("#pvIn").onkeydown = (e) => { if (e.key === "Enter") run(); }; }
     const c = page.querySelector("#closeDrawer"); if (c) c.onclick = () => { state.selId = null; draw(); };
     const e = page.querySelector("#dEdit"); if (e) e.onclick = () => openMember(state.members.find((m) => m.id === state.selId), null, refresh);
     const t = page.querySelector("#dToggle"); if (t) t.onclick = async () => { const m = state.members.find((x) => x.id === state.selId); try { await Data.setMemberStatus(m.id, m.status === "Active" ? "Inactive" : "Active"); toast("Saved"); await refresh(); } catch (err) { alert(err.message); } };
