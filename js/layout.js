@@ -5,7 +5,7 @@ const NAV = [
   { group: "Sales", id: "sales", icon: "trending-up", items: [
     ["Leads Management", "leads.html", "user-search", "leads"], ["Customers", "customer.html", "users", "customer"], ["Sales Pipeline", "pipeline.html", "filter", "pipeline"],
     ["Site Visits", "site-visits.html", "map-pin", "visits"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "#", "list-checks"], ["Commissions", "#", "wallet"]] },
-  { group: "Property", id: "property", icon: "building-2", items: [["Developers", "#", "building-2"], ["Projects", "#", "landmark"]] },
+  { group: "Property", id: "property", icon: "building-2", items: [["Developers", "developers.html", "building-2", "developers"], ["Projects", "projects.html", "landmark", "projects"]] },
   { group: "Manage", id: "manage", icon: "briefcase", items: [
     ["Agents & Teams", "agents.html", "users-round", "agents"], ["Marketing & Campaigns", "#", "megaphone"], ["Integrations", "integrations.html", "plug-zap", "integrations"],
     ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"]] },
