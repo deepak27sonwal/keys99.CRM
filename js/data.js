@@ -222,6 +222,18 @@ const Data = {
   async setAutoAssign(on) { const { error } = await this.client.from("app_settings").update({ value: !!on, updated_at: new Date().toISOString() }).eq("key", "auto_assign"); if (error) throw error; },
   async whoGetsNext(project) { const { data, error } = await this.client.rpc("assignee_for", { p_project: project || "" }); if (error) throw error; return (data && data[0]) || null; },
   async setMemberStatus(id, status) { this._team = null; const { error } = await this.client.from("team_members").update({ status }).eq("id", id); if (error) throw error; },
+  // ---- registered developers and projects (the Property pages); leads still point to them by name
+  async getDevelopers() { return this.fetchAll("developers"); },
+  async getProjects() { return this.fetchAll("projects"); },
+  async saveProperty(table, id, row) {
+    const clean = {}; Object.entries(row).forEach(([k, v]) => (clean[k] = typeof v === "string" ? (v.trim() || null) : v));
+    if (!clean.name) throw new Error("Name is required");
+    const s = await this.session();
+    const q = id ? this.client.from(table).update(clean).eq("id", id) : this.client.from(table).insert({ ...clean, created_by: s ? s.user.email : null });
+    const { error } = await q;
+    if (error) throw new Error(error.code === "23505" ? "That " + (table === "projects" ? "project" : "developer") + " already exists" : error.message);
+  },
+  async deleteProperty(table, id) { const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; },
   async deleteMember(id) { this._team = null; const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
