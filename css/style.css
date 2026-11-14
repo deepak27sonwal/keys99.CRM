@@ -316,7 +316,7 @@ table{width:100%;border-collapse:collapse}
   .leads-t tr.lead-row.sel{border-color:var(--brand-500)}
   .leads-t td{display:block;border:0;padding:0;white-space:normal;font-size:13px}
   .leads-t td::before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:1px}
-  .leads-t td[data-label="Customer"]{grid-column:1/-1;padding-right:110px;min-height:40px;display:flex;align-items:center}
+  .leads-t td[data-label="Customer"]{grid-column:1/-1;padding-right:126px;min-height:40px;display:flex;align-items:center}
   .leads-t td[data-label="Customer"] .row{min-width:0}.leads-t td[data-label="Customer"] b{overflow-wrap:anywhere}
   /* status badge: top-right corner of the card */
   .leads-t td[data-label="Status"]{position:absolute;top:12px;right:12px;padding:0}
@@ -403,7 +403,7 @@ table{width:100%;border-collapse:collapse}
   .leads-t tr.lead-row.sel{box-shadow:0 6px 18px rgba(15,23,42,.10),0 0 0 1px var(--accent)}
   .leads-t td[data-label="Lead ID"]{order:1;grid-column:1/-1;padding:0;font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--muted)}
   .leads-t td[data-label="Lead ID"]::before{display:none}
-  .leads-t td[data-label="Customer"]{order:2;padding-right:104px}
+  .leads-t td[data-label="Customer"]{order:2;padding-right:126px}
   .leads-t td[data-label="Customer"] .avatar{width:40px!important;height:40px!important;font-size:15px!important;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--accent)}
   .leads-t td[data-label="Customer"] b{font-size:16px}
   .leads-t td[data-label="Mobile"]{order:3}.leads-t td[data-label="Project / Location"]{order:4}

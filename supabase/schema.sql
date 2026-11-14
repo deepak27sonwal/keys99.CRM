@@ -165,8 +165,10 @@ drop policy if exists "CRM users manage team members" on public.team_members;
 create policy "CRM users manage team members" on public.team_members for all to authenticated using (true) with check (true);
 -- Seed: the people already assigned to leads become relationship managers (idempotent; does nothing when they exist or no lead has a manager).
 insert into public.team_members (kind, name, email, designation, joined_on)
-  select 'rm', trim(both '"' from manager_name::text), max(trim(both '"' from manager_email::text)), 'Relationship Manager', min(created_at)::date
-  from public.enquiries where manager_name is not null and length(trim(both '"' from manager_name::text)) > 0 group by manager_name::text on conflict do nothing;
+  select 'rm', trim(both '"' from manager_name::text), max(nullif(nullif(trim(both '"' from manager_email::text), 'null'), '')), 'Relationship Manager', min(created_at)::date
+  from public.enquiries
+  where manager_name is not null and jsonb_typeof(manager_name) = 'string'            -- JSON null, [] and other non-text values are "unassigned", not names
+    and length(trim(both '"' from manager_name::text)) > 0 group by manager_name::text on conflict do nothing;
 
 -- Automatic lead assignment by project (Agents & Teams -> Auto-assign new leads)
 alter table public.team_members
