@@ -34,12 +34,12 @@
   }
   function drawer(l) {
     if (!l) return raw("");
-    const rows = [["hash", "Lead ID", l.id], ["share-2", "Source", sourceChip(l)], ["file-text", "Form", l.src && l.src.form], ["star", "Priority", prioLevel(l) ? priorityChip(l) : ""], ["target", "Requirement", l.requirement], ["home", "Property type", l.propertyType],
+    const rows = [["hash", "Lead ID", l.id], ["share-2", "Source", sourceChip(l)], ["file-text", "Form", l.src && l.src.form], ["target", "Requirement", l.requirement], ["home", "Property type", l.propertyType],
       ["indian-rupee", "Budget", l.budget], ["layers", "BHK", l.bhk], ["building-2", "Project", l.project], ["briefcase", "Developer", l.developer],
       ["map-pin", "Location", l.location], ["user", "Assigned Agent", l.agent], ["calendar-plus", "Created", fmtDay(l.createdAt) + " · " + fmtTime(l.createdAt)], ["calendar", "Next Follow-up", l.followUpTs ? l.followUp : ""]];
     const lastNote = [...l.acts].filter((a) => ["Note", "Follow-up scheduled"].includes(a.title)).sort((a, b) => new Date(a.at) - new Date(b.at)).pop();
     return html`<aside class="card drawer"><div class="drawer-h"><h2>Lead Details</h2><button id="closeDrawer" aria-label="Close"><i data-lucide="x"></i></button></div>
-      <div class="drawer-b"><div class="prof">${avatar(l.name, 64)}<div style="flex:1;min-width:0"><div class="row" style="flex-wrap:wrap"><h3>${l.name}</h3>${badge(l.status)}</div>
+      <div class="drawer-b"><div class="prof">${avatar(l.name, 64)}<div style="flex:1;min-width:0"><div class="row" style="flex-wrap:wrap"><h3>${l.name}</h3><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></div>
         <div class="row" style="margin-top:4px"><i data-lucide="phone" class="brand-t" style="width:14px;height:14px"></i>${l.mobile}<a href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
         ${l.email ? html`<div class="row" style="margin-top:2px"><i data-lucide="mail" class="brand-t" style="width:14px;height:14px"></i>${l.email}</div>` : raw("")}</div></div>
         <dl class="kv">${rows.map(([ic, k, v]) => html`<div class="r"><i data-lucide="${ic}"></i><dt>${k}</dt><dd>${v || "—"}</dd></div>`)}</dl>
@@ -86,19 +86,18 @@
         <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
-          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Priority", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
+          ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b></div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
             <td data-label="Source">${sourceChip(l)}${l.src && l.src.form ? html`<small class="src-form" title="${l.src.form}">${l.src.form}</small>` : raw("")}</td>
-            <td data-label="Priority">${prioLevel(l) ? priorityChip(l) : "—"}</td>
-            <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status">${badge(l.status)}</td>
+            <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status"><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></td>
             <td data-label="Created" class="created"><span class="cr-d"><span class="cr-m">${fmtDay(l.createdAt).slice(0, 6)}</span><span class="cr-y">${fmtDay(l.createdAt).slice(6)}</span></span><span class="cr-t">${fmtTime(l.createdAt)}</span><small class="cr-a">${relTime(l.createdAt)}</small></td>
             <td data-label="Next Follow-up" class="fu-cell"><span class="fu ${fu.cls}">${fu.out}</span></td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
             <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}" title="Call"><i data-lucide="phone"></i><span class="act-t">Call</span></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}" title="WhatsApp"><i data-lucide="message-circle"></i><span class="act-t">WhatsApp</span></a><button class="act act-edit" data-edit="${l.dbId}" aria-label="Edit ${l.name}" title="Edit"><i data-lucide="pencil"></i><span class="act-t">Edit</span></button></div></td></tr>`; })
-            : html`<tr><td colspan="13" class="empty">No leads found.</td></tr>`}</tbody></table></div>
+            : html`<tr><td colspan="12" class="empty">No leads found.</td></tr>`}</tbody></table></div>
         <div class="foot"><span>Showing ${filtered.length ? (state.page - 1) * PAGE + 1 : 0} – ${(state.page - 1) * PAGE + rows.length} of ${filtered.length.toLocaleString("en-IN")} leads</span>
           <div class="pager"><button data-page="${state.page - 1}" ${state.page <= 1 ? raw("disabled") : raw("")} aria-label="Previous"><i data-lucide="chevron-left"></i></button>
             ${pageButtons(state.page, pages).map((p) => (p === "…" ? html`<button disabled>…</button>` : html`<button data-page="${p}" class="${p === state.page ? "active" : ""}">${p}</button>`))}

@@ -82,11 +82,10 @@
         <div class="btns"><a class="btn brand" href="leads.html"><i data-lucide="arrow-left"></i>Back</a><button class="btn" id="editBtn"><i data-lucide="pencil"></i>Edit Profile</button>
           <button class="btn gold" id="dealBtn"><i data-lucide="handshake"></i>Convert to Deal</button><button class="btn" id="visitBtn"><i data-lucide="calendar"></i>Schedule Visit</button></div></div>
       <div class="top-row">
-        <section class="card p id-card">${avatar(lead.name, 110)}<div class="info"><div class="row" style="flex-wrap:wrap"><h2>${lead.name}</h2>${badge(lead.status)}</div>
+        <section class="card p id-card">${avatar(lead.name, 110)}<div class="info"><div class="row" style="flex-wrap:wrap"><h2>${lead.name}</h2><span class="st-prio">${badge(lead.status)}${priorityChip(lead)}</span></div>
           <div class="row"><i data-lucide="phone" class="brand-t" style="width:15px"></i><a href="${telHref(lead.mobile)}">${lead.mobile}</a><a href="${waHref(lead.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
           ${lead.email ? html`<div class="row"><i data-lucide="mail" class="brand-t" style="width:15px"></i>${lead.email}</div>` : raw("")}
-          ${lead.location ? html`<div class="row"><i data-lucide="map-pin" class="brand-t" style="width:15px"></i>${lead.location}</div>` : raw("")}
-          ${priorityChip(lead)}</div></section>
+          ${lead.location ? html`<div class="row"><i data-lucide="map-pin" class="brand-t" style="width:15px"></i>${lead.location}</div>` : raw("")}</div></section>
         <section class="card p"><div class="stats">${stats.map(([v, l, ic]) => html`<div class="stat"><i data-lucide="${ic}"></i><div><b>${v}</b><span>${l}</span></div></div>`)}</div>
           <div class="stepper">${ORDER.map((s, i) => html`<div class="s ${i < cur ? "done" : i === cur ? "cur" : ""}"><div class="c">${i <= cur ? raw('<i data-lucide="check"></i>') : ""}</div><span>${s}</span></div>`)}</div></section>
       </div>
