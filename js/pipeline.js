@@ -101,12 +101,12 @@
   function drawChart() {
     const cv = page.querySelector("#pchart"); if (!cv || !window.Chart) return;
     const now = new Date(), months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)), mk = (d) => d.getFullYear() + "-" + d.getMonth();
-    const lm = new Map(), bm = new Map(), P = pool(), ids = new Set(P.map((l) => l.dbId));
-    P.forEach((l) => { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); });
-    state.bookings.forEach((b) => { if (ids.has(b.enquiry_id)) { const k = mk(new Date(b.booking_date)); bm.set(k, (bm.get(k) || 0) + 1); } });
+    // One cohort per month: the leads CREATED that month, and how many of those have booked (so the rate can never pass 100%).
+    const lm = new Map(), bm = new Map(), P = pool(), withBooking = new Set(state.bookings.map((x) => x.enquiry_id));
+    P.forEach((l) => { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); if (BOOKED.includes(l.status) || withBooking.has(l.dbId)) bm.set(k, (bm.get(k) || 0) + 1); });
     const ls = months.map((d) => lm.get(mk(d)) || 0), bs = months.map((d) => bm.get(mk(d)) || 0), grid = { color: "#eef2f4" }, ticks = { font: { size: 11 } };
     chart = new Chart(cv, { data: { labels: months.map((d) => d.toLocaleString("en-US", { month: "short" })), datasets: [
-      { type: "bar", label: "Leads", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Bookings", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
+      { type: "bar", label: "Leads created", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Booked (of that month's leads)", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
       { type: "line", label: "Conversion Rate (%)", data: months.map((d, i) => pct(bs[i], ls[i])), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false }, ticks }, y: { beginAtZero: true, grid, ticks: { ...ticks, precision: 0 } }, y1: { position: "right", beginAtZero: true, grid: { display: false }, ticks } } } });
   }
