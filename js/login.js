@@ -40,6 +40,7 @@
     e.preventDefault();
     const email = $("email").value.trim(), password = $("password").value;
     if (!email || !password) return say($("msg"), "Enter your email and password.", "err");
+    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(email)) return say($("msg"), "Enter a valid email address, e.g. name@example.com.", "err");
     say($("msg"), ""); busy($("submitBtn"), true, "Signing in");
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) { busy($("submitBtn"), false, "Sign in"); say($("msg"), friendly(error.message), "err"); $("password").select(); return; }
@@ -55,6 +56,7 @@
     e.preventDefault();
     const email = $("resetEmail").value.trim();
     if (!email) return say($("resetMsg"), "Enter your email address.", "err");
+    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(email)) return say($("resetMsg"), "Enter a valid email address, e.g. name@example.com.", "err");
     busy($("resetBtn"), true, "Sending");
     const redirectTo = new URL("reset.html", location.href).href;
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });

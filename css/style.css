@@ -852,3 +852,8 @@ table{width:100%;border-collapse:collapse}
 .ms.off summary{cursor:not-allowed}.ms[open]{border-color:var(--brand-500);box-shadow:0 0 0 3px rgba(15,122,107,.15)}
 .ms-list{border-top:1px solid var(--line);max-height:210px;overflow-y:auto;padding:6px}.ms-o{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px}.ms-o:hover{background:#f1f5f9}.ms-o input{width:16px;height:16px;flex:none}
 .ms-none{padding:8px 10px;color:var(--muted);font-size:13px}
+
+/* form validation */
+.f-err{display:block;min-height:0;color:#b91c1c;font-size:12px;font-weight:500;margin-top:3px}.f-err:empty{display:none}
+label.has-err input,label.has-err textarea,label.has-err select,label.has-err .dd-btn,label.has-err .ms{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
+.form-err{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;font-weight:600}.form-err[hidden]{display:none}
