@@ -67,7 +67,7 @@ function fieldError(el, form) {
   if (name === "rera_no" && !/^[A-Za-z0-9][A-Za-z0-9/\-. ]{4,29}$/.test(val)) return "Enter a valid RERA number (5–30 letters, digits, - or /)";
   if (name === "text" && val.length < 3) return "Write at least 3 characters";
   let stepMsg = "";
-  if (el.type === "number" && el.step && el.step !== "any" && Number(el.step) > 0 && Number.isFinite(Number(val))) {   // native validation is off, so honour the field's own step
+  if (changed && el.type === "number" && el.step && el.step !== "any" && Number(el.step) > 0 && Number.isFinite(Number(val))) {   // only when edited: an older saved value that is off-step must not block other changes   // native validation is off, so honour the field's own step
     const st = Number(el.step), base = el.min !== "" && Number.isFinite(Number(el.min)) ? Number(el.min) : 0, k = (Number(val) - base) / st;
     if (Math.abs(k - Math.round(k)) > 1e-6) stepMsg = st === 1 ? "Enter a whole number" : st < 1 ? "Use at most " + (String(st).split(".")[1] || "").length + " decimal places" : "Use a multiple of " + st;   // reported only when no clearer rule below fires first
   }
