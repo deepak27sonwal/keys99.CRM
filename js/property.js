@@ -160,9 +160,9 @@ async function mountPropertyPage(kind) {
   function openForm(e) {
     const r = (e && e.reg) || {}, seed = !e ? {} : e.reg ? {} : { name: e.name };
     const v = (k) => r[k] || seed[k] || "";
-    const devNames = [...new Set([...state.regDev.map((d) => d.name), ...state.leads.map((l) => l.developer)].filter(Boolean))].sort();
+    const devNames = [...new Set([...state.regDev.map((d) => d.name), ...state.regProj.map((x) => x.developer), ...state.leads.map((l) => String(l.developer || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const body = isProj
-      ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${field("Developer", "developer", v("developer") || (e && e.devs[0]) || "", "text", 'list="dl-dev"')}<datalist id="dl-dev">${devNames.map((d) => html`<option value="${d}">`)}</datalist>
+      ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${field("Developer", "developer", v("developer") || (e && e.devs[0]) || "", "text", 'placeholder="Start typing a developer name" autocomplete="off"')}
           ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${field("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${field("City", "city", v("city"))}
           ${configPicker({ type: r.property_type || "", value: v("configurations"), name: "configurations", typeLabel: "Type", label: "Configurations" })}
           ${field("Price range", "price_range", v("price_range"), "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Possession", "possession", v("possession"), "text", 'placeholder="Dec 2027"')}${field("RERA no.", "rera_no", v("rera_no"), "text", "", "full")}
@@ -181,7 +181,8 @@ async function mountPropertyPage(kind) {
       }
       toast(NOUN + (e && e.reg ? " updated" : " saved")); state.open = norm(f.name); await refresh();
     }, e && e.reg ? "Save" : "Add " + NOUN);
-    if (isProj) wireConfigs(document.querySelector(".overlay.open .modal") || document);
+    const modal = document.querySelector(".overlay.open .modal") || document;
+    if (isProj) { wireConfigs(modal); const dev = modal.querySelector('[name="developer"]'); if (dev) attachSuggest(dev, () => devNames); }   // developer names suggest as you type
   }
 
   function draw() {
