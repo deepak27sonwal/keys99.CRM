@@ -65,7 +65,7 @@ async function openConnectForms(ctx, done) {
       });
       for (const id of del) await Data.disconnectSource(id);
       await Data.connectSources(project.id, add);
-      let applied = 0; if (add.length && form.querySelector("#pickApply").checked) applied = await Data.applyToPastLeads(project.id);
+      let applied = 0; if (form.querySelector("#pickApply").checked) applied = await Data.applyToPastLeads(project.id);   // also when the forms were connected earlier (for example from Integrations)
       toast((add.length ? add.length + " connected" : "") + (add.length && del.length ? ", " : "") + (del.length ? del.length + " disconnected" : "") + (applied ? " · " + applied + " past leads updated" : "") || "No changes");
       if (done) await done();
     },
