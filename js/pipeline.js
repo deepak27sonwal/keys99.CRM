@@ -87,7 +87,7 @@
           <select class="select" id="prange" aria-label="Period">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select>
           <div class="seg-toggle" role="group" aria-label="View"><button data-view="kanban" class="${state.view === "kanban" ? "on" : ""}" aria-pressed="${state.view === "kanban"}"><i data-lucide="layout-dashboard"></i>Kanban</button><button data-view="list" class="${state.view === "list" ? "on" : ""}" aria-pressed="${state.view === "list"}"><i data-lucide="list"></i>List</button></div>
           <button class="btn gold" id="padd"><i data-lucide="plus"></i>Add Lead</button></div></div>
-      <div class="kpis k6">${kpis.map(kpiCard)}</div>
+      <div class="kpis k6 pl-kpis">${kpis.map(kpiCard)}</div>
       ${state.view === "kanban" ? board(L) : list(L)}
       <div class="pl-bottom">
         <section class="card p"><h3 class="sec">Pipeline Summary</h3><div class="pl-sum">${funnel(counts, L.length)}<ul class="pl-leg">${PIPELINE.map((st) => html`<li class="s-${slug(st)}"><i></i><span>${st}</span><b>${counts[st] || 0}</b><small>(${pct(counts[st] || 0, L.length)}%)</small></li>`)}<li class="s-Spam"><i></i><span>Spam</span><b>${counts.Spam || 0}</b><small>(${pct(counts.Spam || 0, L.length)}%)</small></li></ul></div></section>

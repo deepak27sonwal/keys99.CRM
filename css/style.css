@@ -861,3 +861,6 @@ table{width:100%;border-collapse:collapse}
 .f-err{display:block;min-height:0;color:#b91c1c;font-size:12px;font-weight:500;margin-top:3px}.f-err:empty{display:none}
 label.has-err input,label.has-err textarea,label.has-err select,label.has-err .dd-btn,label.has-err .ms{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
 .form-err{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;font-weight:600}.form-err[hidden]{display:none}
+
+/* Sales Pipeline: narrower stat cards (left-aligned) instead of six cards stretched across the whole page */
+@media(min-width:901px){.kpis.k6.pl-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,180px));justify-content:start;gap:10px}.pl-kpis .kpi{padding:10px 12px;gap:9px}.pl-kpis .kpi [data-lucide]{width:24px;height:24px}.pl-kpis .kpi .val{font-size:19px}.pl-kpis .kpi .lbl{white-space:normal;line-height:1.2}}
