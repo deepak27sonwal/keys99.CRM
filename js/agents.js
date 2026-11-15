@@ -18,7 +18,9 @@
   const normP = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   const projMatch = (leadProject, memberProject) => { const n = normP(leadProject), m = normP(memberProject); return n.length >= 3 && m.length >= 3 && (n.startsWith(m) || m.startsWith(n)); };
   const baseName = (p) => String(p || "").split(",")[0].trim();
-  const coveredBy = (project) => state.members.filter((m) => m.status === "Active" && (m.projects || []).some((p) => projMatch(project, p)));
+  // Every project a person receives: the names on their own list plus the projects whose team they were added to (project_members).
+  const allProjects = (m) => [...new Set([...(m.projects || []), ...(state.pmembers || []).filter((x) => x.member_id === m.id && !x.paused).map((x) => ((state.projRows || []).find((p) => p.id === x.project_id) || {}).name).filter(Boolean)])];
+  const coveredBy = (project) => state.members.filter((m) => m.status === "Active" && allProjects(m).some((p) => projMatch(project, p)));
   const nextOf = (ms) => [...ms].sort((a, b) => (a.last_assigned_at ? new Date(a.last_assigned_at) : 0) - (b.last_assigned_at ? new Date(b.last_assigned_at) : 0) || a.id - b.id)[0];
   const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); (state.regProj || []).forEach((p) => { if (p && !seen.has(normP(p))) seen.set(normP(p), p); }); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
   const pj = (arr, max = 2) => (arr || []).length ? html`${arr.slice(0, max).map((x) => html`<span class="pj">${x}</span>`)}${arr.length > max ? html`<span class="pj more">+${arr.length - max}</span>` : raw("")}` : raw("—");
@@ -110,8 +112,8 @@
   }
 
   function autoCard(active) {
-    const covered = new Set(); active.forEach((m) => (m.projects || []).forEach((x) => normP(x).length >= 3 && covered.add(normP(x))));
-    const noEmail = active.filter((m) => !m.email).length, noProj = active.filter((m) => !(m.projects || []).length && m.kind !== "rm").length;
+    const covered = new Set(); active.forEach((m) => allProjects(m).forEach((x) => normP(x).length >= 3 && covered.add(normP(x))));
+    const noEmail = active.filter((m) => !m.email).length, noProj = active.filter((m) => !allProjects(m).length && m.kind !== "rm").length;
     return html`<section class="card p aa-card"><div class="aa-t"><div><h3>Auto-assign new leads <span class="chip ${state.auto ? "c-ok" : "c-none"}">${state.auto ? "On" : "Off"}</span></h3>
       <p class="sub">New leads from your landing pages, Facebook and Google go to a team member who has that project, taking turns. If nobody has the project, they are shared across all active relationship managers. Leads already in the CRM are not changed.</p>
       <small class="muted">${covered.size} project${covered.size === 1 ? "" : "s"} covered${noEmail ? " · " + noEmail + " active member" + (noEmail === 1 ? "" : "s") + " without an email (their lead alerts go to the fallback address)" : ""}${noProj ? " · " + noProj + " agent" + (noProj === 1 ? "" : "s") + " with no projects" : ""}</small></div>
@@ -136,7 +138,7 @@
   }
   function routingView() {
     const active = state.members.filter((m) => m.status === "Active"), byProj = new Map();
-    state.members.forEach((m) => (m.projects || []).forEach((p) => { const k = normP(p); if (k.length < 3) return; if (!byProj.has(k)) byProj.set(k, { name: p, people: [] }); byProj.get(k).people.push(m); }));
+    state.members.forEach((m) => allProjects(m).forEach((p) => { const k = normP(p); if (k.length < 3) return; if (!byProj.has(k)) byProj.set(k, { name: p, people: [] }); byProj.get(k).people.push(m); }));
     const rows = [...byProj.values()].sort((a, b) => a.name.localeCompare(b.name));
     const since = Date.now() - 90 * 86400000, miss = new Map();
     state.leads.forEach((l) => { const b = baseName(l.project); if (!b || new Date(l.createdAt) < since || coveredBy(l.project).length) return; const k = normP(b); miss.set(k, { name: b, n: ((miss.get(k) || {}).n || 0) + 1 }); });
