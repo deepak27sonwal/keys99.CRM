@@ -124,15 +124,45 @@ const field = (label, name, value = "", type = "text", attrs = "", cls = "") =>
 const selectField = (label, name, options, value = "", cls = "") =>
   html`<label class="${cls}">${label}<select name="${name}">${options.map((o) => html`<option ${o === value ? raw("selected") : raw("")}>${o}</option>`)}</select></label>`;
 
+// ---------- property type + configuration (BHK) dropdown, shared by the lead forms and the project form ----------
+// What can be built / sold under each type. The configuration dropdown follows the chosen type.
+const CONFIGS = {
+  Residential: ["1 BHK", "1.5 BHK", "2 BHK", "2.5 BHK", "3 BHK", "3.5 BHK", "4 BHK", "4.5 BHK", "5 BHK", "5.5 BHK", "6 BHK"],
+  Commercial: ["Office Space", "Shop / Retail", "Showroom", "Co-working Space", "Warehouse / Godown", "Industrial Unit", "Commercial Plot", "Food Court / Mall Unit"],
+  Villa: ["3 BHK Villa", "4 BHK Villa", "5 BHK Villa", "Row House", "Bungalow"],
+  "Plot / Land": ["Residential Plot", "Commercial Plot", "NA Plot", "Farm Land", "Agricultural Land"],
+  Other: ["Studio", "Serviced Apartment", "Penthouse", "Co-living", "Other"],
+};
+// Markup: the Type select + the Configuration dropdown. A type that is not in the list (older data) is kept as an option. `name` is the saved field.
+const configPicker = ({ type = "", value = "", name = "bhk", typeLabel = "Property type", label = "Configuration (BHK)" } = {}) => html`${selectField(typeLabel, "property_type", ["", ...Object.keys(CONFIGS), ...(type && !CONFIGS[type] ? [type] : [])], type || "")}
+  <div class="full ms-wrap"><span class="ms-l">${label}</span><details class="ms" id="msBox"><summary id="msSum">Choose a type first</summary><div class="ms-list" id="msList"></div></details><input type="hidden" name="${name}" id="msVal" value="${value || ""}"></div>`;
+// Wires the Type select to the checklist inside an open form (several can be chosen; saved as "2 BHK, 3 BHK").
+function wireConfigs(root) {
+  const type = root.querySelector('[name="property_type"]'), list = root.querySelector("#msList"), sum = root.querySelector("#msSum"), val = root.querySelector("#msVal"), box = root.querySelector("#msBox");
+  if (!type || !list) return;
+  let chosen = String(val.value || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const sync = () => { val.value = chosen.join(", "); sum.textContent = chosen.length ? chosen.join(", ") : type.value ? "Select configurations" : "Choose a type first"; sum.classList.toggle("empty", !chosen.length); };
+  const build = () => {
+    const opts = CONFIGS[type.value] || [];
+    if (type.value) chosen = chosen.filter((c) => opts.includes(c) || !Object.values(CONFIGS).some((a) => a.includes(c)));   // drop picks that belong to another type; keep custom text from older entries
+    const extra = chosen.filter((c) => !opts.includes(c));
+    list.innerHTML = !type.value ? '<p class="ms-none">Pick a type first.</p>' : [...opts, ...extra].map((o) => `<label class="ms-o"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") || '<p class="ms-none">No presets for this type.</p>';
+    list.querySelectorAll("input").forEach((c) => (c.onchange = () => { chosen = [...list.querySelectorAll("input:checked")].map((x) => x.value); sync(); }));
+    box.classList.toggle("off", !type.value); if (!type.value) box.open = false; sync();
+  };
+  type.addEventListener("change", build); build();
+}
 function openAddLead(done, preset = {}) {
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
-    ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Project", "project", preset.project || "")}
+    ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${configPicker()}
+    ${field("Project", "project", preset.project || "")}
     ${field("Developer", "developer", preset.developer || "")}${field("Location", "location")}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
     ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
-    async (f) => { await Data.addLead(f); toast("Lead added"); done && done(); });
+    async (f) => { if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
+  wireConfigs(document.querySelector(".overlay.open .modal") || document);
 }
 async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
@@ -148,7 +178,7 @@ async function openEditLead(lead, done) {
     ${selectField("Status", "status", STATUSES, lead.status)}${field("Next follow-up", "follow_up", toLocalInput(lead.followUpTs), "datetime-local")}
     ${agentField}${selectField("Priority", "priority", ["", "A (High Priority)", "B (Medium)", "C (Low)"], lead.priority)}
     ${field("Budget", "budget", lead.budget)}${field("Location", "location", lead.location)}
-    ${field("Property type", "property_type", lead.propertyType)}${field("BHK", "bhk", lead.bhk)}
+    ${configPicker({ type: lead.propertyType, value: lead.bhk })}
     <label class="full">Notes<textarea name="notes" rows="3">${lead.notes}</textarea></label></div>`,
     async (f) => {
       const changed = k(f.agent) !== k(cur), who = team.find((m) => k(m.name) === k(f.agent));
@@ -158,6 +188,7 @@ async function openEditLead(lead, done) {
       if (changed) { try { await Data.addActivity(lead, "Assigned", f.agent ? "Assigned to " + f.agent + (cur ? " (was " + cur + ")" : "") : "Unassigned (was " + cur + ")"); } catch { /* the assignment itself is saved */ } }
       toast("Saved"); done && done();
     });
+  wireConfigs(document.querySelector(".overlay.open .modal") || document);
 }
 function openNote(lead, done) {
   openModal("Add Note", html`<div class="form"><label class="full">Note *<textarea name="text" rows="4" required></textarea></label></div>`,

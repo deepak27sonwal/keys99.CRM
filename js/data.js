@@ -110,7 +110,7 @@ const Data = {
   async addLead(f) {
     const { error } = await this.client.from("enquiries").insert({
       name: f.name, phone: f.mobile, email: f.email || null, interest: f.requirement || null, budget: f.budget || null,
-      project: f.project || null, developer: f.developer || null, location: f.location || null, source: f.source || null, status: f.status || "New Leads",
+      project: f.project || null, developer: f.developer || null, location: f.location || null, property_type: f.property_type || null, bhk: f.bhk || null, source: f.source || null, status: f.status || "New Leads",
     });
     if (error) throw error;
   },

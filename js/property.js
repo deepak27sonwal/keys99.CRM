@@ -136,30 +136,6 @@ async function mountPropertyPage(kind) {
     const rows = INFO.filter(([, k]) => e.reg[k]);
     return html`<h4>Details</h4><dl class="pp-info">${rows.map(([l, k]) => html`<div><dt>${l}</dt><dd>${k === "phone" ? html`<a href="${telHref(e.reg[k])}">${e.reg[k]}</a>` : k === "email" ? html`<a href="mailto:${e.reg[k]}">${e.reg[k]}</a>` : k === "website" ? html`<a href="${/^https?:/i.test(e.reg[k]) ? e.reg[k] : "https://" + e.reg[k]}" target="_blank" rel="noopener">${e.reg[k]}</a>` : e.reg[k]}</dd></div>`)}</dl>`;
   }
-  // What can be built / sold under each type. The Configurations dropdown follows the chosen Type.
-  const CONFIGS = {
-    Residential: ["2 BHK", "3 BHK", "4 BHK", "5 BHK", "6 BHK"],
-    Commercial: ["Office Space", "Shop / Retail", "Showroom", "Co-working Space", "Warehouse / Godown", "Industrial Unit", "Commercial Plot", "Food Court / Mall Unit"],
-    Villa: ["3 BHK Villa", "4 BHK Villa", "5 BHK Villa", "Row House", "Bungalow"],
-    "Plot / Land": ["Residential Plot", "Commercial Plot", "NA Plot", "Farm Land", "Agricultural Land"],
-    Other: ["Studio", "Serviced Apartment", "Penthouse", "Co-living", "Other"],
-  };
-  // Wires the Type select to the Configurations checklist inside an open form (several can be chosen; saved as "2 BHK, 3 BHK").
-  function wireConfigs(root) {
-    const type = root.querySelector('[name="property_type"]'), list = root.querySelector("#msList"), sum = root.querySelector("#msSum"), val = root.querySelector("#msVal"), box = root.querySelector("#msBox");
-    if (!type || !list) return;
-    let chosen = String(val.value || "").split(",").map((x) => x.trim()).filter(Boolean);
-    const sync = () => { val.value = chosen.join(", "); sum.textContent = chosen.length ? chosen.join(", ") : type.value ? "Select configurations" : "Choose a type first"; sum.classList.toggle("empty", !chosen.length); };
-    const build = () => {
-      const opts = CONFIGS[type.value] || [];
-      if (type.value) chosen = chosen.filter((c) => opts.includes(c) || !Object.values(CONFIGS).some((a) => a.includes(c)));   // drop picks that belong to another type; keep custom text from older entries
-      const extra = chosen.filter((c) => !opts.includes(c));
-      list.innerHTML = !type.value ? '<p class="ms-none">Pick a type first.</p>' : [...opts, ...extra].map((o) => `<label class="ms-o"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("");
-      list.querySelectorAll("input").forEach((c) => (c.onchange = () => { chosen = [...list.querySelectorAll("input:checked")].map((x) => x.value); sync(); }));
-      box.classList.toggle("off", !type.value); if (!type.value) box.open = false; sync();
-    };
-    type.addEventListener("change", build); build();
-  }
   // Add / edit a project or developer. Editing a name does not rename the leads that already use it.
   function openForm(e) {
     const r = (e && e.reg) || {}, seed = !e ? {} : e.reg ? {} : { name: e.name };
@@ -168,8 +144,7 @@ async function mountPropertyPage(kind) {
     const body = isProj
       ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${field("Developer", "developer", v("developer") || (e && e.devs[0]) || "", "text", 'list="dl-dev"')}<datalist id="dl-dev">${devNames.map((d) => html`<option value="${d}">`)}</datalist>
           ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${field("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${field("City", "city", v("city"))}
-          ${selectField("Type", "property_type", ["", ...Object.keys(CONFIGS)], r.property_type || "")}
-          <div class="full ms-wrap"><span class="ms-l">Configurations</span><details class="ms" id="msBox"><summary id="msSum">Choose a type first</summary><div class="ms-list" id="msList"></div></details><input type="hidden" name="configurations" id="msVal" value="${v("configurations")}"></div>
+          ${configPicker({ type: r.property_type || "", value: v("configurations"), name: "configurations", typeLabel: "Type", label: "Configurations" })}
           ${field("Price range", "price_range", v("price_range"), "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Possession", "possession", v("possession"), "text", 'placeholder="Dec 2027"')}${field("RERA no.", "rera_no", v("rera_no"), "text", "", "full")}
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`
       : html`<div class="form">${field("Developer name *", "name", v("name"), "text", "required", "full")}${field("Contact person", "contact_person", v("contact_person"))}${field("Phone", "phone", v("phone"), "tel")}${field("Email", "email", v("email"), "email")}${field("Website", "website", v("website"))}${field("City", "city", v("city"))}
