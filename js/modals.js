@@ -144,7 +144,8 @@ function wireConfigs(root) {
   const sync = () => { val.value = chosen.join(", "); sum.textContent = chosen.length ? chosen.join(", ") : type.value ? "Select configurations" : "Choose a type first"; sum.classList.toggle("empty", !chosen.length); };
   const build = () => {
     const opts = CONFIGS[type.value] || [];
-    if (type.value) chosen = chosen.filter((c) => opts.includes(c) || !Object.values(CONFIGS).some((a) => a.includes(c)));   // drop picks that belong to another type; keep custom text from older entries
+    const known = Object.values(CONFIGS).flat();   // a pick that belongs to some type is dropped when it does not fit the current one (or no type is chosen); custom text from older entries is kept
+    chosen = chosen.filter((c) => (type.value && opts.includes(c)) || !known.includes(c));
     const extra = chosen.filter((c) => !opts.includes(c));
     list.innerHTML = !type.value ? '<p class="ms-none">Pick a type first.</p>' : [...opts, ...extra].map((o) => `<label class="ms-o"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") || '<p class="ms-none">No presets for this type.</p>';
     list.querySelectorAll("input").forEach((c) => (c.onchange = () => { chosen = [...list.querySelectorAll("input:checked")].map((x) => x.value); sync(); }));
