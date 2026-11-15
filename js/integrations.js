@@ -2,7 +2,7 @@
   const page = await mountShell("integrations");
   if (!page) return;
   const DAY = 86400000;
-  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {}, metaForms: [], perm: null, syncMsg: "", formsErr: "" };
+  const state = { sel: "meta", tab: "overview", integrations: [], events: [], saved: {}, metaForms: [], sources: [], projects: [], perm: null, syncMsg: "", formsErr: "" };
 
   // ---------- platform catalogue ----------
   const sampleWA = { object: "whatsapp_business_account", entry: [{ id: "W1", changes: [{ field: "messages", value: { contacts: [{ profile: { name: "Test Lead" }, wa_id: "919876543210" }], messages: [{ from: "919876543210", id: "wamid.TEST", type: "text", text: { body: "Hi, I want to know about 2 BHK options" } }] } }] }] };
@@ -47,7 +47,8 @@
   async function load() {
     try {
       state.integrations = await Data.getIntegrations();
-      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString()); try { state.metaForms = await Data.getMetaForms(); state.formsErr = ""; } catch (e) { state.metaForms = []; state.formsErr = e.message || "unknown error"; }
+      state.events = await Data.getIntegrationEvents(new Date(Date.now() - 90 * DAY).toISOString()); try { state.sources = await Data.getProjectSources(); state.projects = await Data.getProjects(); } catch { state.sources = []; state.projects = []; }
+      try { state.metaForms = await Data.getMetaForms(); state.formsErr = ""; } catch (e) { state.metaForms = []; state.formsErr = e.message || "unknown error"; }
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load integrations: ' + esc(e.message) + "</div>"; return false; }
     return true;
   }
@@ -117,8 +118,9 @@
     return html`<h3 class="sec">Forms on Facebook (${F.length})</h3>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm gold" id="syncForms" ${canSync ? raw("") : raw("disabled")}><i data-lucide="refresh-cw"></i>Sync forms</button><small class="muted" id="syncMsg">${state.syncMsg || (canSync ? "Reads every lead form on your connected Pages." : "Add your Pages first (Sync Settings).")}</small></div>
       ${state.formsErr ? html`<div class="ban pend"><i data-lucide="alert-triangle"></i><div><b>Could not load the saved forms</b>${state.formsErr}</div></div>` : raw("")}
-      ${F.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Form</th><th>Page</th><th>Status</th><th>Questions</th><th></th></tr></thead><tbody>${F.map((f) => html`<tr><td data-label="Form" data-wide><b>${f.name || "Form " + f.form_id}</b>${f.name ? "" : html` <small class="muted">(name not available)</small>`}</td>
+      ${F.length ? html`<div class="table-wrap"><table class="mini-t cards"><thead><tr><th>Form</th><th>Page</th><th>Status</th><th>Project</th><th>Questions</th><th></th></tr></thead><tbody>${F.map((f) => html`<tr><td data-label="Form" data-wide><b>${f.name || "Form " + f.form_id}</b>${f.name ? "" : html` <small class="muted">(name not available)</small>`}</td>
         <td data-label="Page">${pages.get(f.page_id) || f.page_id || "—"}</td><td data-label="Status">${f.status ? html`<span class="chip ${f.status === "ACTIVE" ? "c-ok" : "c-none"}">${f.status.toLowerCase()}</span>` : "—"}</td>
+        <td data-label="Project">${(() => { const s = state.sources.find((x) => x.kind === "meta_form" && String(x.ref_id) === String(f.form_id)), p = s && state.projects.find((x) => x.id === s.project_id); return p ? html`<a class="chip c-ok fproj" href="projects.html?q=${encodeURIComponent(p.name)}" title="Leads from this form go to ${p.name}">${p.name}</a> <button class="btn sm" data-fconnect="${f.form_id}">Change</button>` : html`<button class="btn sm outline" data-fconnect="${f.form_id}"><i data-lucide="link"></i>Connect</button>`; })()}</td>
         <td data-label="Questions">${(f.questions || []).length || "—"}</td><td>${(f.questions || []).length ? html`<button class="btn sm" data-fq="${f.form_id}">View questions</button>` : raw("")}</td></tr>`)}</tbody></table></div>`
         : html`<div class="empty-sm">No forms read yet. Press Sync forms. If Meta refuses, use Check permissions in Sync Settings to see why.</div>`}`;
   }
@@ -258,6 +260,13 @@
     });
     const cp = $("#chkPerm"); if (cp) cp.onclick = guard(async () => { cp.disabled = true; const m = $("#subMsg"); if (m) m.textContent = "Checking each Page's token with Meta…"; try { const r = await Data.captureCall(i.id, { action: "token_check", body: {} }); state.perm = r.ok ? { results: r.results || [] } : { error: r.error || "Could not reach Meta" }; } finally { draw(); } });
     const sf = $("#syncForms"); if (sf) sf.onclick = guard(async () => { sf.disabled = true; const m = $("#syncMsg"); if (m) m.textContent = "Reading forms from Facebook… this can take a minute."; try { const r = await Data.captureCall(i.id, { action: "sync_forms", body: {} }); if (!r.ok) throw new Error(r.error || "Could not reach Meta"); state.syncMsg = r.forms + " form" + (r.forms === 1 ? "" : "s") + " read from " + r.pages + " Page" + (r.pages === 1 ? "" : "s") + (r.with_questions ? " (" + r.with_questions + " with questions)" : "") + "." + ((r.errors || []).length ? " Meta refused: " + r.errors[0].error + (r.errors.length > 1 ? " (+" + (r.errors.length - 1) + " more)" : "") : ""); state.metaForms = await Data.getMetaForms(); } finally { draw(); } });
+    document.querySelectorAll("[data-fconnect]").forEach((b) => (b.onclick = () => {
+      const f = state.metaForms.find((x) => x.form_id === b.dataset.fconnect); if (!f) return;
+      if (!state.projects.length) return showDialog("Register a project first", html`<p>Forms are connected to projects you have added. Add one on the <a href="projects.html">Projects page</a>, then come back here.</p>`);
+      const s = state.sources.find((x) => x.kind === "meta_form" && String(x.ref_id) === String(f.form_id)), cur = s && state.projects.find((x) => x.id === s.project_id);
+      openModal("Connect “" + (f.name || f.form_id) + "”", html`<div class="form"><p class="sub full" style="margin:0">Every new lead from this form gets the chosen project, so it goes to that project's team.</p>${selectField("Project *", "project", ["", ...state.projects.map((p) => p.name).sort()], cur ? cur.name : "", "full")}</div>`,
+        async (v) => { const p = state.projects.find((x) => x.name === v.project); if (!p) throw new Error("Choose a project"); await Data.connectSources(p.id, [{ kind: "meta_form", ref_id: f.form_id, label: f.name }]); toast("Connected to " + p.name); await refresh(); }, "Connect");
+    }));
     document.querySelectorAll("[data-fq]").forEach((b) => (b.onclick = () => { const f = state.metaForms.find((x) => x.form_id === b.dataset.fq); if (f) showDialog(f.name || "Form " + f.form_id, html`<p class="sub">${f.status ? "Status: " + f.status.toLowerCase() + " · " : ""}${f.locale ? f.locale + " · " : ""}${f.leads_count != null ? f.leads_count + " leads" : ""}</p><ol class="fq">${(f.questions || []).map((q) => html`<li><b>${q.label || q.key}</b><small class="muted"> ${q.type || ""}</small></li>`)}</ol>`); }));
     const sa = $("#subAll"); if (sa) sa.onclick = runSubs("subscribe_pages"); const cs = $("#chkSubs"); if (cs) cs.onclick = runSubs("page_status");
     document.querySelectorAll("[data-rmpage]").forEach((b) => (b.onclick = guard(async () => { if (!confirm("Remove this Page? Its leads will stop being captured.")) return; await Data.captureCall(i.id, { action: "clear_secret", body: { page_id: b.dataset.rmpage } }); toast("Page removed"); await refresh(); })));

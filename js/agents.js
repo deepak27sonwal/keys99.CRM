@@ -26,7 +26,8 @@
   async function load() {
     try {
       const [m, l, v, b] = await Promise.all([Data.getTeam(), Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]);
-      try { state.regProj = (await Data.getProjects()).map((p) => p.name); } catch { state.regProj = []; }   // registered projects are suggested too
+      try { state.projRows = await Data.getProjects(); state.regProj = state.projRows.map((p) => p.name); } catch { state.projRows = []; state.regProj = []; }   // registered projects are suggested too
+      try { state.pmembers = await Data.getProjectMembers(); } catch { state.pmembers = []; }
       Object.assign(state, { members: m, leads: l, visits: v, bookings: b }); state.auto = await Data.getAutoAssign().catch(() => false); compute(); return true;
     } catch (e) {
       render(page, html`<div class="card p" style="margin:24px"><h3>Could not load the team</h3><p class="sub">${e.message}</p></div>`); return false;
@@ -117,6 +118,22 @@
       <label class="switch"><input type="checkbox" id="aaSwitch" ${state.auto ? raw("checked") : raw("")} aria-label="Auto-assign new leads"><span></span></label></div></section>`;
   }
 
+  // ---- who got how many leads, and the leads nobody owns yet
+  function distCards() {
+    const day = new Date(); day.setHours(0, 0, 0, 0); const wk = Date.now() - 7 * 864e5, act = state.members.filter((m) => m.status === "Active");
+    const n = (m, since) => state.leads.filter((l) => l.agent === m.name && new Date(l.createdAt).getTime() >= since).length;
+    const projOf = (m) => [...new Set([...(m.projects || []), ...(state.pmembers || []).filter((x) => x.member_id === m.id).map((x) => ((state.projRows || []).find((p) => p.id === x.project_id) || {}).name).filter(Boolean)])];
+    const rows = act.map((m) => ({ m, today: n(m, day.getTime()), week: n(m, wk), projs: projOf(m) })).sort((a, b) => b.today - a.today || b.week - a.week);
+    const open = state.leads.filter((l) => !l.agent && l.status !== "Spam" && Date.now() - new Date(l.createdAt).getTime() < 30 * 864e5).slice(0, 8);
+    return html`<div class="card table-wrap" style="margin-bottom:14px"><div class="p" style="padding:14px 16px 4px"><h3>Today's distribution</h3><p class="sub" style="margin:2px 0 6px">New leads each active person received (their daily limit is set in Edit details).</p></div>
+      <table class="route-t dist-t"><thead><tr><th>Team member</th><th>Projects</th><th>Today</th><th>This week</th><th>Status</th></tr></thead><tbody>
+      ${rows.length ? rows.map(({ m, today, week, projs }) => html`<tr><td data-label="Team member"><b>${m.name}</b><small class="muted">${KIND[m.kind]}</small></td><td data-label="Projects">${projs.length ? pj(projs, 3) : html`<span class="muted">—</span>`}</td>
+        <td data-label="Today"><b>${today}</b>${m.daily_cap ? html` / ${m.daily_cap}<span class="dbar"><i style="width:${Math.min(100, (today / m.daily_cap) * 100)}%"></i></span>` : raw("")}</td><td data-label="This week">${week}</td>
+        <td data-label="Status">${m.daily_cap && today >= m.daily_cap ? html`<span class="badge s-Contacted">At daily limit</span>` : html`<span class="badge s-Booking-Done">Available</span>`}</td></tr>`) : html`<tr><td colspan="5" class="empty">No active team members.</td></tr>`}</tbody></table></div>
+      <div class="card p" style="margin-bottom:14px"><h3>Unassigned leads <span class="pj">${open.length}</span></h3><p class="sub" style="margin:2px 0 8px">Recent leads nobody owns yet (for example projects set to manual, or nobody available). Pick a person to assign.</p>
+      ${open.length ? html`<ul class="un-list">${open.map((l) => html`<li><div class="un-n"><b>${l.name}</b><small>${[l.project || "No project", l.source].filter(Boolean).join(" · ")} · ${relTime(l.createdAt)}</small></div>
+        <select data-unsel="${l.dbId}" aria-label="Assign ${l.name} to"><option value="">Assign to…</option>${act.map((m) => html`<option value="${m.id}">${m.name}</option>`)}</select><button class="btn sm gold" data-unassign="${l.dbId}">Assign</button></li>`)}</ul>` : html`<p class="sub" style="margin:0">Every recent lead has an owner.</p>`}</div>`;
+  }
   function routingView() {
     const active = state.members.filter((m) => m.status === "Active"), byProj = new Map();
     state.members.forEach((m) => (m.projects || []).forEach((p) => { const k = normP(p); if (k.length < 3) return; if (!byProj.has(k)) byProj.set(k, { name: p, people: [] }); byProj.get(k).people.push(m); }));
@@ -126,7 +143,7 @@
     const unc = [...miss.values()].sort((a, b) => b.n - a.n), rms = active.filter((m) => m.kind === "rm");
     return html`<div class="card p" style="margin-bottom:14px"><h3>Who gets the next lead?</h3><p class="sub" style="margin:4px 0 10px">Pick a project to see who would receive it. Nothing is assigned by checking.</p>
       <div class="copyrow"><input id="pvIn" placeholder="Type or pick a project" aria-label="Project"><button class="btn sm gold" id="pvGo"><i data-lucide="search"></i>Check</button></div><p class="sub" id="pvOut" style="margin-top:8px"></p>
-      </div>
+      </div>${distCards()}
       <div class="card table-wrap"><table class="route-t"><thead><tr><th>Project</th><th>Team members</th><th>Next lead goes to</th><th>Leads</th></tr></thead><tbody>
         ${rows.length ? rows.map((r) => { const ok = r.people.filter((m) => m.status === "Active"), nx = ok.length ? nextOf(ok) : null; return html`<tr><td><b>${r.name}</b></td>
           <td>${r.people.map((m) => html`<span class="pj ${m.status === "Active" ? "" : "off"}" title="${m.status}">${m.name}</span>`)}</td><td>${nx ? html`<b>${nx.name}</b>` : html`<span class="muted">Nobody active</span>`}</td>
@@ -178,7 +195,7 @@
       ${field("Name *", "name", m ? m.name : "", "text", "required maxlength=\"120\"")}${field("Mobile * (10 digits)", "phone", m ? m.phone || "" : "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
       ${field("Email", "email", m ? m.email || "" : "", "email")}${field("Designation", "designation", m ? m.designation || "" : "", "text", 'placeholder="' + (k === "rm" ? "Relationship Manager" : "Sales Executive") + '"')}
       ${field("Team", "team", m ? m.team || "" : "", "text", 'placeholder="e.g. Pune Team"')}${field("Location", "location", m ? m.location || "" : "", "text", 'placeholder="e.g. Pune"')}
-      ${field("Monthly target (₹)", "monthly_target", m ? m.monthly_target || "" : "", "number", 'min="0" step="1000" placeholder="e.g. 10000000"')}${field("Joined on", "joined_on", m ? m.joined_on || "" : new Date().toISOString().slice(0, 10), "date")}
+      ${field("Monthly target (₹)", "monthly_target", m ? m.monthly_target || "" : "", "number", 'min="0" step="1000" placeholder="e.g. 10000000"')}${field("Daily lead limit", "daily_cap", m ? m.daily_cap || "" : "", "number", 'min="1" step="1" placeholder="No limit"')}${field("Joined on", "joined_on", m ? m.joined_on || "" : new Date().toISOString().slice(0, 10), "date")}
       <div class="full proj-picker"><label>Projects (new leads for these go to this person)</label><div class="chips" data-chips></div>
         <div class="copyrow"><input placeholder="Start typing a project name, then press Enter" aria-label="Add a project" data-pin><button type="button" class="btn sm" data-padd><i data-lucide="plus"></i>Add</button></div>
         <input type="hidden" name="projects" value="${JSON.stringify((m && m.projects) || [])}"></div>
@@ -222,6 +239,11 @@
       if (want && !confirm("Turn on auto-assign? From now on, every new lead is assigned automatically." + (noEmail ? "\n\n" + noEmail + " active member(s) have no email, so alerts for their leads go to the fallback address." : ""))) { sw.checked = false; return; }
       try { await Data.setAutoAssign(want); state.auto = want; toast(want ? "Auto-assign is on" : "Auto-assign is off"); draw(); } catch (err) { sw.checked = !want; alert("Could not change it: " + err.message); }
     };
+    page.querySelectorAll("[data-unassign]").forEach((b) => (b.onclick = async () => {
+      const id = Number(b.dataset.unassign), sel = page.querySelector(`[data-unsel="${id}"]`), m = state.members.find((x) => x.id === Number(sel.value)), l = state.leads.find((x) => x.dbId === id);
+      if (!m) return toast("Pick a team member first");
+      b.disabled = true; try { await Data.updateLead(id, { agent: m.name, agentEmail: m.email }); await Data.addActivity(l, "Assigned", "Assigned to " + m.name + " (from the unassigned list)"); toast(l.name + " assigned to " + m.name); await refresh(); } catch (e) { b.disabled = false; toast("Could not assign: " + (e.message || e)); }
+    }));
     const pg = page.querySelector("#pvGo"); if (pg) { const run = async () => { const out = page.querySelector("#pvOut"), v = page.querySelector("#pvIn").value.trim(); out.textContent = "Checking…";
       try { const r = await Data.whoGetsNext(v); out.innerHTML = r ? `<b>${esc(r.name)}</b> — ${r.matched ? "has this project" : "no one has this project, so it goes to the shared relationship manager rotation"}.${r.email ? "" : " They have no email, so the alert goes to the fallback address."}${state.auto ? "" : " <i>Auto-assign is off, so nothing is assigned yet.</i>"}` : "Nobody is available, so the lead would stay unassigned (alert goes to the fallback address)."; } catch (err) { out.textContent = "Could not check: " + err.message; } };
       pg.onclick = run; attachSuggest(page.querySelector("#pvIn"), projectNames, (v) => { page.querySelector("#pvIn").value = v; run(); }); page.querySelector("#pvIn").onkeydown = (e) => { if (e.key === "Enter") run(); }; }

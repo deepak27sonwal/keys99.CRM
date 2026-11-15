@@ -43,7 +43,7 @@ const Data = {
       location: r.location || "", agent, status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
       source: r.source || "Website", propertyType: r.property_type || "", bhk: r.bhk || "", priority: r.priority || "",
       notes: r.notes || "", lostReason: r.lost_reason || "", createdAt: r.created_at, acts: Array.isArray(r.activities) ? r.activities : [],
-      src: { platform: r.meta_platform || "", page: r.meta_page_name || "", form: r.meta_form_name || "", campaign: r.meta_campaign_name || "", adset: r.meta_adset_name || "", ad: r.meta_ad_name || "",
+      src: { platform: r.meta_platform || "", page: r.meta_page_name || "", form: r.meta_form_name || "", formId: r.meta_form_id || "", campaignId: r.meta_campaign_id || "", campaign: r.meta_campaign_name || "", adset: r.meta_adset_name || "", ad: r.meta_ad_name || "",
         answers: r.meta_raw_data && Array.isArray(r.meta_raw_data.answers) ? r.meta_raw_data.answers.filter((x) => x && x.q && x.a) : [] },
     };
   },
@@ -207,7 +207,7 @@ const Data = {
   teamRow(f) {
     return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
       designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, location: String(f.location || "").trim() || null,
-      monthly_target: Math.max(0, Number(f.monthly_target) || 0), joined_on: f.joined_on || null,
+      monthly_target: Math.max(0, Number(f.monthly_target) || 0), daily_cap: Number(f.daily_cap) > 0 ? Math.floor(Number(f.daily_cap)) : null, joined_on: f.joined_on || null,
       projects: [...new Set((Array.isArray(f.projects) ? f.projects : []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 40), status: f.status === "Inactive" ? "Inactive" : "Active" };
   },
   async saveMember(id, f) {
@@ -233,6 +233,25 @@ const Data = {
     const { error } = await q;
     if (error) throw new Error(error.code === "23505" ? "That " + (table === "projects" ? "project" : "developer") + " already exists" : error.message);
   },
+  // ---- project lead distribution: connected forms / campaigns, team members per project, who-gets-next preview
+  async getProjectSources() { return this.fetchAll("project_sources"); },
+  async getProjectMembers() { const { data, error } = await this.client.from("project_members").select("*").limit(5000); if (error) throw error; return data; },
+  async connectSources(projectId, items) {
+    if (!items.length) return;
+    const s = await this.session(), rows = items.map((x) => ({ project_id: projectId, kind: x.kind, ref_id: String(x.ref_id), label: x.label || null, created_by: s ? s.user.email : null }));
+    const { error } = await this.client.from("project_sources").upsert(rows, { onConflict: "kind,ref_id" });   // a form can belong to one project only: connecting it here moves it
+    if (error) throw error;
+  },
+  async disconnectSource(id) { const { error } = await this.client.from("project_sources").delete().eq("id", id); if (error) throw error; },
+  async setProjectMembers(projectId, memberIds, patch = {}) {
+    if (!memberIds.length) return;
+    const { error } = await this.client.from("project_members").upsert(memberIds.map((m) => ({ project_id: projectId, member_id: m, ...patch })), { onConflict: "project_id,member_id" });
+    if (error) throw error;
+  },
+  async removeProjectMember(projectId, memberId) { const { error } = await this.client.from("project_members").delete().eq("project_id", projectId).eq("member_id", memberId); if (error) throw error; },
+  async countUnrouted(forms, campaigns) { const { data, error } = await this.client.rpc("count_unrouted", { p_forms: forms, p_campaigns: campaigns }); if (error) throw error; return Number(data) || 0; },
+  async applyToPastLeads(projectId) { const { data, error } = await this.client.rpc("connect_apply_existing", { p_project_id: projectId }); if (error) throw error; return Number(data) || 0; },
+  async previewAssignee(project) { const { data, error } = await this.client.rpc("assignee_detail", { p_project: project || "" }); if (error) throw error; return (data && data[0]) || null; },
   async retargetProjects(ids, developer) { const { error } = await this.client.from("projects").update({ developer }).in("id", ids); if (error) throw error; },
   async deleteProperty(table, id) { const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; },
   async deleteMember(id) { this._team = null; const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
