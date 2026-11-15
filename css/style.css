@@ -873,7 +873,7 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
   .kpis>.kpi:last-child:nth-child(odd){grid-column:auto}
   .kpi{flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;gap:3px;padding:8px 3px 7px;border-radius:10px;box-shadow:none}
   .kpi>div{width:100%;min-width:0}.kpi [data-lucide]{width:17px;height:17px}
-  .kpi .val{font-size:15px;white-space:nowrap}
+  .kpi .val{font-size:clamp(12px,3.9vw,15px);white-space:normal;overflow-wrap:anywhere;line-height:1.15}
   .kpi .lbl{font-size:10px;line-height:1.15;white-space:normal;min-height:2.3em;display:flex;align-items:center;justify-content:center}
   .kpi .dl{font-size:9.5px;justify-content:center;line-height:1.1}.kpi .dl [data-lucide]{width:9px;height:9px}
   .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
