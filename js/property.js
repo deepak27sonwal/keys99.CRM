@@ -13,6 +13,7 @@ async function mountPropertyPage(kind) {
     catch (e) { page.innerHTML = '<div class="card empty">Could not load ' + KEY + ": " + esc(e.message) + "</div>"; return false; }
     try { [state.regProj, state.regDev] = await Promise.all([Data.getProjects(), Data.getDevelopers()]); state.regErr = ""; }   // registered ones; a failure must not hide the leads-based view
     catch (e) { state.regProj = []; state.regDev = []; state.regErr = e.message || "unknown error"; }
+    if (!isProj) { try { state.sources = await Data.getProjectSources(); } catch { state.sources = []; } }   // the Developers page also needs them to place leads of a connected form
     if (isProj) {   // distribution data: failures are shown in the panel, never hide the rest of the page
       try { [state.sources, state.pmembers, state.team, state.metaForms] = await Promise.all([Data.getProjectSources(), Data.getProjectMembers(), Data.getTeam(), Data.getMetaForms().catch(() => [])]); state.auto = await Data.getAutoAssign().catch(() => null); state.distErr = ""; }
       catch (e) { state.sources = []; state.pmembers = []; state.team = []; state.distErr = e.message || "unknown error"; }
@@ -48,10 +49,13 @@ async function mountPropertyPage(kind) {
     const canon = (name) => alnum((matchReg(name, state.regProj) || {}).name || name);   // leads of one registered project share a key however their text is worded
     const common = new Map(); state.leads.forEach((l) => { const a = canon(l.project), d = String(l.developer || "").trim(); if (a && d) { const m = common.get(a) || new Map(); m.set(d, (m.get(d) || 0) + 1); common.set(a, m); } });
     const projDev = (name) => { const r = matchReg(name, state.regProj); if (r && r.developer) return r.developer; const m = common.get(canon(name)); return m ? [...m].sort((x, y) => y[1] - x[1])[0][0] : ""; };
-    const devOf = (l) => String(l.developer || "").trim() || projDev(l.project);
+    // A lead that came through a form / campaign connected to a registered project belongs to that project, whatever its own project text says (connected form wins).
+    const bySrc = new Map(); (state.sources || []).forEach((s) => { const r = state.regProj.find((x) => x.id === s.project_id); if (r) bySrc.set(s.kind + "|" + s.ref_id, r); });
+    const srcReg = (l) => (l.src && ((l.src.formId && bySrc.get("meta_form|" + l.src.formId)) || (l.src.campaignId && bySrc.get("meta_campaign|" + l.src.campaignId)))) || null;
+    const devOf = (l) => String(l.developer || "").trim() || ((srcReg(l) || {}).developer) || projDev((srcReg(l) || {}).name || l.project);
     const keyOf = (name) => { const r = matchReg(name, regList); return { r, k: r ? norm(r.name) : norm(name) }; };
     state.leads.filter(inRange).forEach((l) => {
-      const name = isProj ? l.project : devOf(l); if (!norm(name)) return;
+      const sr = isProj ? srcReg(l) : null, name = isProj ? (sr ? sr.name : l.project) : devOf(l); if (!norm(name)) return;
       const { r, k } = keyOf(name); if (!groups.has(k)) groups.set(k, { key: k, names: [], leads: [] });
       const g = groups.get(k); g.names.push(r ? r.name : String(name).trim()); g.leads.push(l); byLead.set(l.dbId, g);
     });
@@ -126,6 +130,7 @@ async function mountPropertyPage(kind) {
     const mem = state.pmembers.filter((m) => m.project_id === pid).map((m) => ({ m, t: state.team.find((x) => x.id === m.member_id) })).filter((x) => x.t);
     const legacy = state.team.filter((t) => (t.status || "Active") === "Active" && !mem.some((x) => x.t.id === t.id) && (t.projects || []).some((p) => { const a = norm(p).replace(/[^a-z0-9]/g, ""), b = norm(e.name).replace(/[^a-z0-9]/g, ""); return a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)); }));
     const cnt = (t, since) => state.leads.filter((l) => l.agent === t.name && new Date(l.createdAt).getTime() >= since).length;
+    const unrouted = state.leads.filter((l) => !String(l.project || "").trim() && l.src && srcs.some((s) => (s.kind === "meta_form" && s.ref_id === l.src.formId) || (s.kind === "meta_campaign" && s.ref_id === l.src.campaignId))).length;
     const warns = [];
     if (!srcs.length) warns.push("No forms are connected: Facebook leads reach this project only when they name it themselves.");
     if (!mem.length && !legacy.length) warns.push("No team is assigned: new leads go to " + (e.reg.fallback === "unassigned" ? "nobody (left unassigned)" : "the shared relationship managers") + ".");
@@ -137,6 +142,7 @@ async function mountPropertyPage(kind) {
     return html`<h4>Lead sources</h4>
       <div class="pp-chips">${srcs.length ? srcs.map((s) => html`<span class="kb-chip src-chip"><i data-lucide="${s.kind === "meta_form" ? "file-text" : "megaphone"}"></i>${s.label || s.ref_id}<button type="button" data-unsrc="${s.id}" aria-label="Disconnect ${s.label || s.ref_id}">×</button></span>`) : html`<small class="muted">No forms or campaigns connected yet</small>`}</div>
       <button type="button" class="btn sm outline" id="ppConnect"><i data-lucide="link"></i>${srcs.length ? "Manage connected forms" : "Connect forms"}</button>
+      ${unrouted ? html`<p class="pp-note">${unrouted} earlier lead${unrouted === 1 ? "" : "s"} from the connected forms ${unrouted === 1 ? "has" : "have"} no project saved. They are counted here already; press the button to save <b>${e.name}</b> on ${unrouted === 1 ? "it" : "them"} so the Leads page and filters show it too.</p><button type="button" class="btn sm gold" id="ppApply"><i data-lucide="check"></i>Set project on ${unrouted} lead${unrouted === 1 ? "" : "s"}</button>` : raw("")}
       <h4>Team &amp; distribution</h4>
       ${mem.length || legacy.length ? html`<ul class="pp-team">${mem.map(row)}${legacy.map((t) => html`<li class="legacy">${avatar(t.name, 30)}<div class="pt-n"><b>${t.name}</b><small>Set in Agents &amp; Teams (weight 1)</small><small>${cnt(t, day)} today · ${cnt(t, wk)} this week</small></div></li>`)}</ul>` : html`<p class="pp-note">Nobody is assigned yet.</p>`}
       <button type="button" class="btn sm outline" id="ppTeam"><i data-lucide="users"></i>${mem.length ? "Add or remove team members" : "Add team members"}</button>
@@ -209,6 +215,7 @@ async function mountPropertyPage(kind) {
     const open = (k) => { state.open = k; state.panelFocused = false; draw(); };
     const cur = () => all.find((x) => x.key === state.open), guard = (fn) => async (...a) => { try { await fn(...a); } catch (er) { toast("Could not save: " + (er.message || er)); } };
     const dc = page.querySelector("#ppConnect"); if (dc) dc.onclick = () => openConnectForms({ project: cur().reg, sources: state.sources, projects: state.regProj, metaForms: state.metaForms, leads: state.leads }, refresh);
+    const ap = page.querySelector("#ppApply"); if (ap) ap.onclick = guard(async () => { ap.disabled = true; const n = await Data.applyToPastLeads(cur().reg.id); toast(n + " lead" + (n === 1 ? "" : "s") + " updated"); await refresh(); });
     const dt = page.querySelector("#ppTeam"); if (dt) dt.onclick = () => openAddTeam({ project: cur().reg, team: state.team, members: state.pmembers, leads: state.leads }, refresh);
     page.querySelectorAll("[data-unsrc]").forEach((b) => (b.onclick = guard(async () => { await Data.disconnectSource(Number(b.dataset.unsrc)); toast("Disconnected"); await refresh(); })));
     const step = (attr, d) => page.querySelectorAll(`[${attr}]`).forEach((b) => (b.onclick = guard(async () => { const id = Number(b.getAttribute(attr)), m = state.pmembers.find((x) => x.project_id === cur().reg.id && x.member_id === id); await Data.setProjectMembers(cur().reg.id, [id], { weight: Math.min(5, Math.max(1, ((m && m.weight) || 1) + d)) }); await refresh(); })));
