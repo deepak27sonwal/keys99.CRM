@@ -6,13 +6,17 @@ async function mountPropertyPage(kind) {
   if (!page) return;
   const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const SORTS = { leads: "Most leads", conv: "Best conversion", book: "Most bookings", comm: "Most commission", recent: "Latest lead", name: "Name A–Z" };
-  const state = { leads: [], visits: [], bookings: [], regProj: [], regDev: [], regErr: "", q: new URLSearchParams(location.search).get("q") || "", range: "all", sort: "leads", view: "cards", f: { developer: "", location: "" }, open: null };
+  const state = { leads: [], visits: [], bookings: [], regProj: [], regDev: [], regErr: "", sources: [], pmembers: [], team: [], metaForms: [], auto: null, distErr: "", panelFocused: false, q: new URLSearchParams(location.search).get("q") || "", range: "all", sort: "leads", view: "cards", f: { developer: "", location: "" }, open: null };
 
   async function load() {
     try { [state.leads, state.visits, state.bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); }
     catch (e) { page.innerHTML = '<div class="card empty">Could not load ' + KEY + ": " + esc(e.message) + "</div>"; return false; }
     try { [state.regProj, state.regDev] = await Promise.all([Data.getProjects(), Data.getDevelopers()]); state.regErr = ""; }   // registered ones; a failure must not hide the leads-based view
     catch (e) { state.regProj = []; state.regDev = []; state.regErr = e.message || "unknown error"; }
+    if (isProj) {   // distribution data: failures are shown in the panel, never hide the rest of the page
+      try { [state.sources, state.pmembers, state.team, state.metaForms] = await Promise.all([Data.getProjectSources(), Data.getProjectMembers(), Data.getTeam(), Data.getMetaForms().catch(() => [])]); state.auto = await Data.getAutoAssign().catch(() => null); state.distErr = ""; }
+      catch (e) { state.sources = []; state.pmembers = []; state.team = []; state.distErr = e.message || "unknown error"; }
+    }
     return true;
   }
   if (!(await load())) return;
@@ -84,6 +88,7 @@ async function mountPropertyPage(kind) {
       <div class="pp-pb">
         <div class="pp-kpis"><div><b>${e.leads.length}</b><span>Leads</span></div><div><b>${e.active}</b><span>Active</span></div><div><b>${e.visits.length}</b><span>Site visits</span></div><div><b>${e.booked}</b><span>Booked</span></div><div><b>${e.conv}%</b><span>Conversion</span></div><div><b>${e.comm ? fmtMoney(e.comm) : "—"}</b><span>Commission</span></div></div>
         ${infoBlock(e)}
+        ${distBlock(e)}
         ${e.value ? html`<p class="pp-val">Booking value <b>${fmtMoney(e.value)}</b> across ${e.bookings.length} ${e.bookings.length === 1 ? "booking" : "bookings"}</p>` : raw("")}
         ${e.leads.length ? html`<h4>Leads by stage</h4>` : raw("")}<ul class="pp-stages">${stages.map((s) => html`<li class="s-${slug(s)}"><i></i><span>${s}</span><div class="bar"><u style="width:${(e.stage[s] / e.leads.length) * 100}%"></u></div><b>${e.stage[s]}</b></li>`)}</ul>
         <h4>Where the leads come from</h4><div class="pp-chips">${e.srcs.slice(0, 6).map(([s, n]) => html`<span class="kb-chip">${s} · ${n}</span>`)}</div>
@@ -97,6 +102,35 @@ async function mountPropertyPage(kind) {
 
   const INFO = isProj ? [["Developer", "developer"], ["Location", "location"], ["City", "city"], ["Type", "property_type"], ["Configurations", "configurations"], ["Price range", "price_range"], ["Possession", "possession"], ["RERA no.", "rera_no"], ["Status", "status"], ["Notes", "notes"]]
     : [["Contact person", "contact_person"], ["Phone", "phone"], ["Email", "email"], ["Website", "website"], ["City", "city"], ["Notes", "notes"]];
+  // ---- Lead sources (connected forms) and team & distribution for a registered project
+  const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  function distBlock(e) {
+    if (!isProj) return raw("");
+    if (!e.reg) return html`<p class="pp-note">To connect Facebook forms and assign a team to this project, press <b>Add details</b> first (it takes a name only).</p>`;
+    if (state.distErr) return html`<div class="ban pend"><i data-lucide="alert-triangle"></i><div><b>Could not load forms and team</b>${state.distErr}</div></div>`;
+    const pid = e.reg.id, srcs = state.sources.filter((s) => s.project_id === pid), day = startOfDay().getTime(), wk = Date.now() - 7 * 864e5;
+    const mem = state.pmembers.filter((m) => m.project_id === pid).map((m) => ({ m, t: state.team.find((x) => x.id === m.member_id) })).filter((x) => x.t);
+    const legacy = state.team.filter((t) => (t.status || "Active") === "Active" && !mem.some((x) => x.t.id === t.id) && (t.projects || []).some((p) => { const a = norm(p).replace(/[^a-z0-9]/g, ""), b = norm(e.name).replace(/[^a-z0-9]/g, ""); return a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)); }));
+    const cnt = (t, since) => state.leads.filter((l) => l.agent === t.name && new Date(l.createdAt).getTime() >= since).length;
+    const warns = [];
+    if (!srcs.length) warns.push("No forms are connected: Facebook leads reach this project only when they name it themselves.");
+    if (!mem.length && !legacy.length) warns.push("No team is assigned: new leads go to " + (e.reg.fallback === "unassigned" ? "nobody (left unassigned)" : "the shared relationship managers") + ".");
+    if (state.auto === false) warns.push("Automatic assignment is switched off, so nothing is distributed yet.");
+    const row = ({ m, t }) => html`<li class="${m.paused ? "paused" : ""}">${avatar(t.name, 30)}<div class="pt-n"><b>${t.name}</b><small>${t.kind === "rm" ? "Relationship Manager" : "Agent"}${t.daily_cap ? " · cap " + t.daily_cap + "/day" : ""}</small><small>${cnt(t, day)} today · ${cnt(t, wk)} this week</small></div>
+      <div class="pt-w" role="group" aria-label="Weight for ${t.name}"><button type="button" data-wdn="${t.id}" aria-label="Lower weight" ${m.weight <= 1 ? raw("disabled") : raw("")}>−</button><span title="Weight: a higher weight gets more leads (used in weighted sharing)"><b>${m.weight}</b><small>weight</small></span><button type="button" data-wup="${t.id}" aria-label="Raise weight" ${m.weight >= 5 ? raw("disabled") : raw("")}>+</button></div>
+      <button type="button" class="pt-b" data-pause="${t.id}" aria-pressed="${m.paused}" title="${m.paused ? "Resume" : "Pause"} leads for this project"><i data-lucide="${m.paused ? "play" : "pause"}"></i></button>
+      <button type="button" class="pt-b" data-rmteam="${t.id}" aria-label="Remove ${t.name}" title="Remove from this project"><i data-lucide="x"></i></button></li>`;
+    return html`<h4>Lead sources</h4>
+      <div class="pp-chips">${srcs.length ? srcs.map((s) => html`<span class="kb-chip src-chip"><i data-lucide="${s.kind === "meta_form" ? "file-text" : "megaphone"}"></i>${s.label || s.ref_id}<button type="button" data-unsrc="${s.id}" aria-label="Disconnect ${s.label || s.ref_id}">×</button></span>`) : html`<small class="muted">No forms or campaigns connected yet</small>`}</div>
+      <button type="button" class="btn sm outline" id="ppConnect"><i data-lucide="link"></i>${srcs.length ? "Manage connected forms" : "Connect forms"}</button>
+      <h4>Team &amp; distribution</h4>
+      ${mem.length || legacy.length ? html`<ul class="pp-team">${mem.map(row)}${legacy.map((t) => html`<li class="legacy">${avatar(t.name, 30)}<div class="pt-n"><b>${t.name}</b><small>Set in Agents &amp; Teams (weight 1)</small><small>${cnt(t, day)} today · ${cnt(t, wk)} this week</small></div></li>`)}</ul>` : html`<p class="pp-note">Nobody is assigned yet.</p>`}
+      <button type="button" class="btn sm outline" id="ppTeam"><i data-lucide="users"></i>${mem.length ? "Add or remove team members" : "Add team members"}</button>
+      <div class="pp-dist"><label>Share leads<select id="ppMode"><option value="round_robin" ${e.reg.distribution === "round_robin" ? raw("selected") : raw("")}>Equally, in turn (round-robin)</option><option value="weighted" ${e.reg.distribution === "weighted" ? raw("selected") : raw("")}>By weight (higher weight gets more)</option><option value="manual" ${e.reg.distribution === "manual" ? raw("selected") : raw("")}>Manually (no automatic assignment)</option></select></label>
+        <label>If nobody is available<select id="ppFb"><option value="rm_pool" ${e.reg.fallback === "rm_pool" ? raw("selected") : raw("")}>Give it to the shared relationship managers</option><option value="unassigned" ${e.reg.fallback === "unassigned" ? raw("selected") : raw("")}>Leave it unassigned</option></select></label></div>
+      <div class="pp-next" id="ppNext" aria-live="polite"><i data-lucide="shuffle"></i><span>Checking who gets the next lead…</span></div>
+      ${warns.length ? html`<ul class="pp-warn">${warns.map((w) => html`<li><i data-lucide="alert-triangle"></i>${w}</li>`)}</ul>${state.auto === false ? html`<button type="button" class="btn sm gold" id="ppAuto"><i data-lucide="zap"></i>Turn on automatic assignment</button>` : raw("")}` : raw("")}`;
+  }
   function infoBlock(e) {
     if (!e.reg) return html`<p class="pp-note">Built from your leads. Press <b>Add details</b> to save its ${isProj ? "RERA number, price, possession date" : "contact person, phone, website"} and more.</p>`;
     const rows = INFO.filter(([, k]) => e.reg[k]);
@@ -156,6 +190,7 @@ async function mountPropertyPage(kind) {
   }
 
   function draw() {
+    const keepPb = (page.querySelector(".pp-pb") || {}).scrollTop || 0;
     const all = aggregate(), list = visible(all), opts = (k) => [...new Set(all.flatMap((e) => (k === "developer" ? e.devs : e.locs)))].sort();
     const L = all.flatMap((e) => e.leads), booked = all.reduce((t, e) => t + e.booked, 0), comm = all.reduce((t, e) => t + e.comm, 0), visits = all.reduce((t, e) => t + e.visits.length, 0);
     const kpis = [[isProj ? "Projects" : "Developers", all.length.toLocaleString("en-IN"), "", isProj ? "landmark" : "building-2", 1], ["Total Leads", L.length.toLocaleString("en-IN"), "", "users"], ["Site Visits", visits, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Commission", fmtMoney(comm), "", "coins", 0, 1], ["Conversion", pct(booked, L.length) + "%", "", "trending-up"]];
@@ -176,14 +211,27 @@ async function mountPropertyPage(kind) {
         : html`<div class="card table-wrap"><table class="leads-t pp-t"><thead><tr>${[NOUN, "Location", "Leads", "Active", "Visits", "Booked", "Conversion", "Commission", "Funnel"].map((h) => html`<th>${h}</th>`)}</tr></thead><tbody>${list.map(row)}</tbody></table></div>`}
       ${panel(all.find((e) => e.key === state.open))}`);
     bind(all);
-    const pn = page.querySelector(".pp-panel"); if (pn) pn.querySelector(".pp-x").focus();
+    const pn = page.querySelector(".pp-panel"); if (pn) { if (!state.panelFocused) { pn.querySelector(".pp-x").focus(); state.panelFocused = true; } const pb = pn.querySelector(".pp-pb"); if (pb) pb.scrollTop = keepPb; } else state.panelFocused = false;
+    const cur = all.find((x) => x.key === state.open);
+    if (cur && cur.reg && isProj && !state.distErr) Data.previewAssignee(cur.name).then((r) => { const el = page.querySelector("#ppNext span"); if (el) el.innerHTML = r && r.id ? "Next lead goes to <b>" + esc(r.name) + "</b> <small>" + esc(r.reason || "") + "</small>" : "Next lead stays <b>unassigned</b>" + (r && r.reason ? " <small>" + esc(r.reason) + "</small>" : ""); }).catch(() => { const el = page.querySelector("#ppNext span"); if (el) el.textContent = "Could not work out who is next."; });
   }
   const refresh = async () => { if (await load()) draw(); };
   function bind(all) {
-    const open = (k) => { state.open = k; draw(); };
+    const open = (k) => { state.open = k; state.panelFocused = false; draw(); };
+    const cur = () => all.find((x) => x.key === state.open), guard = (fn) => async (...a) => { try { await fn(...a); } catch (er) { toast("Could not save: " + (er.message || er)); } };
+    const dc = page.querySelector("#ppConnect"); if (dc) dc.onclick = () => openConnectForms({ project: cur().reg, sources: state.sources, projects: state.regProj, metaForms: state.metaForms, leads: state.leads }, refresh);
+    const dt = page.querySelector("#ppTeam"); if (dt) dt.onclick = () => openAddTeam({ project: cur().reg, team: state.team, members: state.pmembers, leads: state.leads }, refresh);
+    page.querySelectorAll("[data-unsrc]").forEach((b) => (b.onclick = guard(async () => { await Data.disconnectSource(Number(b.dataset.unsrc)); toast("Disconnected"); await refresh(); })));
+    const step = (attr, d) => page.querySelectorAll(`[${attr}]`).forEach((b) => (b.onclick = guard(async () => { const id = Number(b.getAttribute(attr)), m = state.pmembers.find((x) => x.project_id === cur().reg.id && x.member_id === id); await Data.setProjectMembers(cur().reg.id, [id], { weight: Math.min(5, Math.max(1, ((m && m.weight) || 1) + d)) }); await refresh(); })));
+    step("data-wup", 1); step("data-wdn", -1);
+    page.querySelectorAll("[data-pause]").forEach((b) => (b.onclick = guard(async () => { const id = Number(b.dataset.pause), m = state.pmembers.find((x) => x.project_id === cur().reg.id && x.member_id === id); await Data.setProjectMembers(cur().reg.id, [id], { paused: !(m && m.paused) }); await refresh(); })));
+    page.querySelectorAll("[data-rmteam]").forEach((b) => (b.onclick = guard(async () => { await Data.removeProjectMember(cur().reg.id, Number(b.dataset.rmteam)); await refresh(); })));
+    const setting = (sel, key) => { const s = page.querySelector(sel); if (s) s.onchange = guard(async () => { await Data.saveProperty("projects", cur().reg.id, { name: cur().reg.name, [key]: s.value }); toast("Saved"); await refresh(); }); };
+    setting("#ppMode", "distribution"); setting("#ppFb", "fallback");
+    const au = page.querySelector("#ppAuto"); if (au) au.onclick = guard(async () => { await Data.setAutoAssign(true); toast("Automatic assignment is on"); await refresh(); });
     page.querySelectorAll("[data-open]").forEach((x) => { x.onclick = () => open(x.dataset.open); x.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(x.dataset.open); } }; });
-    page.querySelectorAll("[data-close]").forEach((x) => (x.onclick = () => { const k = state.open; state.open = null; draw(); const back = page.querySelector(`[data-open="${k}"]`); if (back) back.focus(); }));
-    const esc2 = (e) => { if (e.key === "Escape" && state.open) { state.open = null; draw(); } }; document.removeEventListener("keydown", window.__ppEsc || (() => {})); window.__ppEsc = esc2; document.addEventListener("keydown", esc2);
+    page.querySelectorAll("[data-close]").forEach((x) => (x.onclick = () => { const k = state.open; state.open = null; state.panelFocused = false; draw(); const back = page.querySelector(`[data-open="${k}"]`); if (back) back.focus(); }));
+    const esc2 = (e) => { if (e.key === "Escape" && state.open && !document.querySelector(".overlay")) { state.open = null; state.panelFocused = false; draw(); } }; document.removeEventListener("keydown", window.__ppEsc || (() => {})); window.__ppEsc = esc2; document.addEventListener("keydown", esc2);
     const q = page.querySelector("#ppq"); q.oninput = () => { state.q = q.value; const pos = q.selectionStart; draw(); const n = page.querySelector("#ppq"); n.focus(); n.setSelectionRange(pos, pos); };
     page.querySelector("#ppr").onchange = (e) => { state.range = e.target.value; draw(); }; page.querySelector("#pps").onchange = (e) => { state.sort = e.target.value; draw(); };
     page.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { state.f[x.dataset.f] = x.value; draw(); }));
