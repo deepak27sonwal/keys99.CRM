@@ -861,3 +861,20 @@ table{width:100%;border-collapse:collapse}
 .f-err{display:block;min-height:0;color:#b91c1c;font-size:12px;font-weight:500;margin-top:3px}.f-err:empty{display:none}
 label.has-err input,label.has-err textarea,label.has-err select,label.has-err .dd-btn,label.has-err .ms{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
 .form-err{margin:10px 0 0;padding:9px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;font-weight:600}.form-err[hidden]{display:none}
+
+/* ---------- compact stat chips: smaller everywhere, four in a row on phones ---------- */
+.kpis{gap:10px;margin-bottom:14px}
+.kpi{padding:11px 12px;gap:10px;border-radius:11px}.kpi [data-lucide]{width:26px;height:26px}.kpi .val{font-size:20px}.kpi .lbl,.kpi .dl{font-size:11.5px}
+.stat{padding:9px 10px;gap:9px}.stat [data-lucide]{width:24px;height:24px}.stat b{font-size:17px}.stat span{font-size:11.5px}
+@media(max-width:900px){
+  .kpis,.kpis.k6,.kpis.k7{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px}
+  .kpis>.kpi:last-child:nth-child(odd){grid-column:auto}
+  .kpi{flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;gap:3px;padding:8px 3px 7px;border-radius:10px;box-shadow:none}
+  .kpi>div{width:100%;min-width:0}.kpi [data-lucide]{width:17px;height:17px}
+  .kpi .val{font-size:15px;white-space:nowrap}
+  .kpi .lbl{font-size:10px;line-height:1.15;white-space:normal;min-height:2.3em;display:flex;align-items:center;justify-content:center}
+  .kpi .dl{font-size:9.5px;justify-content:center;line-height:1.1}.kpi .dl [data-lucide]{width:9px;height:9px}
+  .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .stat{flex-direction:column;align-items:center;text-align:center;gap:3px;padding:8px 3px}.stat [data-lucide]{width:17px;height:17px}.stat b{font-size:15px}.stat span{font-size:10px;line-height:1.15}
+  .pp-kpis{grid-template-columns:repeat(3,1fr)}
+}
