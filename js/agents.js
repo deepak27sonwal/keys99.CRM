@@ -19,7 +19,13 @@
   const projMatch = (leadProject, memberProject) => { const n = normP(leadProject), m = normP(memberProject); return n.length >= 3 && m.length >= 3 && (n.startsWith(m) || m.startsWith(n)); };
   const baseName = (p) => String(p || "").split(",")[0].trim();
   // Every project a person receives: the names on their own list plus the projects whose team they were added to (project_members).
-  const allProjects = (m) => [...new Set([...(m.projects || []), ...(state.pmembers || []).filter((x) => x.member_id === m.id && !x.paused).map((x) => ((state.projRows || []).find((p) => p.id === x.project_id) || {}).name).filter(Boolean)])];
+  const allProjects = (m) => {
+    const mine = (state.pmembers || []).filter((x) => x.member_id === m.id), nameOf = (x) => ((state.projRows || []).find((p) => p.id === x.project_id) || {}).name;
+    const pausedNames = mine.filter((x) => x.paused).map(nameOf).filter(Boolean);
+    // paused on a project means no leads for it, even if the person is also on its old per-person list
+    const own = (m.projects || []).filter((p) => !pausedNames.some((q) => projMatch(p, q) || projMatch(q, p)));
+    return [...new Set([...own, ...mine.filter((x) => !x.paused).map(nameOf).filter(Boolean)])];
+  };
   const coveredBy = (project) => state.members.filter((m) => m.status === "Active" && allProjects(m).some((p) => projMatch(project, p)));
   const nextOf = (ms) => [...ms].sort((a, b) => (a.last_assigned_at ? new Date(a.last_assigned_at) : 0) - (b.last_assigned_at ? new Date(b.last_assigned_at) : 0) || a.id - b.id)[0];
   const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); (state.regProj || []).forEach((p) => { if (p && !seen.has(normP(p))) seen.set(normP(p), p); }); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
