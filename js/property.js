@@ -45,8 +45,9 @@ async function mountPropertyPage(kind) {
   function aggregate() {
     const groups = new Map(), byLead = new Map(), regList = regs();
     // a lead's developer: its own text, else the developer of the registered project it belongs to, else the one most leads of that project name carry
-    const common = new Map(); state.leads.forEach((l) => { const a = alnum(l.project), d = String(l.developer || "").trim(); if (a && d) { const m = common.get(a) || new Map(); m.set(d, (m.get(d) || 0) + 1); common.set(a, m); } });
-    const projDev = (name) => { const r = matchReg(name, state.regProj); if (r && r.developer) return r.developer; const m = common.get(alnum(name)); return m ? [...m].sort((x, y) => y[1] - x[1])[0][0] : ""; };
+    const canon = (name) => alnum((matchReg(name, state.regProj) || {}).name || name);   // leads of one registered project share a key however their text is worded
+    const common = new Map(); state.leads.forEach((l) => { const a = canon(l.project), d = String(l.developer || "").trim(); if (a && d) { const m = common.get(a) || new Map(); m.set(d, (m.get(d) || 0) + 1); common.set(a, m); } });
+    const projDev = (name) => { const r = matchReg(name, state.regProj); if (r && r.developer) return r.developer; const m = common.get(canon(name)); return m ? [...m].sort((x, y) => y[1] - x[1])[0][0] : ""; };
     const devOf = (l) => String(l.developer || "").trim() || projDev(l.project);
     const keyOf = (name) => { const r = matchReg(name, regList); return { r, k: r ? norm(r.name) : norm(name) }; };
     state.leads.filter(inRange).forEach((l) => {
