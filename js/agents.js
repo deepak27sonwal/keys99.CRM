@@ -19,14 +19,30 @@
   const projMatch = (leadProject, memberProject) => { const n = normP(leadProject), m = normP(memberProject); return n.length >= 3 && m.length >= 3 && (n.startsWith(m) || m.startsWith(n)); };
   const baseName = (p) => String(p || "").split(",")[0].trim();
   // Every project a person receives: the names on their own list plus the projects whose team they were added to (project_members).
+  // The registered project a name belongs to, the way the database resolves it (exact name first, else the longest registered name it starts with or that starts with it).
+  const resolveProj = (name) => {
+    const n = normP(name); if (n.length < 3) return null; let best = null, len = -1;
+    (state.projRows || []).forEach((r) => { const k = normP(r.name); if (k.length < 3) return; if (k === n) { best = r; len = 1e9; } else if (len < 1e9 && (n.startsWith(k) || k.startsWith(n)) && k.length > len) { best = r; len = k.length; } });
+    return best;
+  };
   const allProjects = (m) => {
     const mine = (state.pmembers || []).filter((x) => x.member_id === m.id), nameOf = (x) => ((state.projRows || []).find((p) => p.id === x.project_id) || {}).name;
-    const pausedNames = mine.filter((x) => x.paused).map(nameOf).filter(Boolean);
-    // paused on a project means no leads for it, even if the person is also on its old per-person list
-    const own = (m.projects || []).filter((p) => !pausedNames.some((q) => projMatch(p, q) || projMatch(q, p)));
+    const pausedIds = new Set(mine.filter((x) => x.paused).map((x) => x.project_id));
+    // paused on a project means no leads for it, even if the person is also on its old per-person list; only entries that RESOLVE to that project are dropped ("Oak Court Phase 2" is its own project)
+    const own = (m.projects || []).filter((p) => { const r = resolveProj(p); return !(r && pausedIds.has(r.id)); });
     return [...new Set([...own, ...mine.filter((x) => !x.paused).map(nameOf).filter(Boolean)])];
   };
-  const coveredBy = (project) => state.members.filter((m) => m.status === "Active" && allProjects(m).some((p) => projMatch(project, p)));
+  // Who would receive a lead for this project, as the database decides: a person paused on the lead's registered project is out; otherwise they are in
+  // through the project's team or through a name on their old per-person list.
+  const coveredBy = (project) => {
+    const r = resolveProj(project);
+    return state.members.filter((m) => {
+      if (m.status !== "Active") return false;
+      const mine = (state.pmembers || []).filter((x) => x.member_id === m.id && r && x.project_id === r.id);
+      if (mine.some((x) => x.paused)) return false;
+      return mine.length > 0 || (m.projects || []).some((p) => projMatch(project, p));
+    });
+  };
   const nextOf = (ms) => [...ms].sort((a, b) => (a.last_assigned_at ? new Date(a.last_assigned_at) : 0) - (b.last_assigned_at ? new Date(b.last_assigned_at) : 0) || a.id - b.id)[0];
   const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); (state.regProj || []).forEach((p) => { if (p && !seen.has(normP(p))) seen.set(normP(p), p); }); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
   const pj = (arr, max = 2) => (arr || []).length ? html`${arr.slice(0, max).map((x) => html`<span class="pj">${x}</span>`)}${arr.length > max ? html`<span class="pj more">+${arr.length - max}</span>` : raw("")}` : raw("—");
