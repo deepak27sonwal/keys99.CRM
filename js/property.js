@@ -33,19 +33,32 @@ async function mountPropertyPage(kind) {
   const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
   const top = (arr) => { const m = new Map(); arr.filter(Boolean).forEach((x) => m.set(x, (m.get(x) || 0) + 1)); return [...m].sort((a, b) => b[1] - a[1]); };
 
+  // Names are matched the way the database does it: letters and digits only, and a registered name also matches a longer lead text that starts with it
+  // ("Tanish Urbania" owns "Tanish Urbania, Charholi, Pune"); the longest registered name wins.
+  const alnum = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const matchReg = (name, list) => {
+    const a = alnum(name); if (a.length < 3) return null; let best = null, len = -1;
+    list.forEach((r) => { const b = alnum(r.name); if (b.length < 3) return; if (a === b) { best = r; len = 1e9; } else if (len < 1e9 && (a.startsWith(b) || b.startsWith(a)) && b.length > len) { best = r; len = b.length; } });
+    return best;
+  };
   // One entry per project (or developer), built from the leads in the chosen period.
   function aggregate() {
-    const groups = new Map(), byLead = new Map();
+    const groups = new Map(), byLead = new Map(), regList = regs();
+    // a lead's developer: its own text, else the developer of the registered project it belongs to, else the one most leads of that project name carry
+    const common = new Map(); state.leads.forEach((l) => { const a = alnum(l.project), d = String(l.developer || "").trim(); if (a && d) { const m = common.get(a) || new Map(); m.set(d, (m.get(d) || 0) + 1); common.set(a, m); } });
+    const projDev = (name) => { const r = matchReg(name, state.regProj); if (r && r.developer) return r.developer; const m = common.get(alnum(name)); return m ? [...m].sort((x, y) => y[1] - x[1])[0][0] : ""; };
+    const devOf = (l) => String(l.developer || "").trim() || projDev(l.project);
+    const keyOf = (name) => { const r = matchReg(name, regList); return { r, k: r ? norm(r.name) : norm(name) }; };
     state.leads.filter(inRange).forEach((l) => {
-      const name = isProj ? l.project : l.developer; if (!norm(name)) return;
-      const k = norm(name); if (!groups.has(k)) groups.set(k, { key: k, names: [], leads: [] });
-      const g = groups.get(k); g.names.push(String(name).trim()); g.leads.push(l); byLead.set(l.dbId, g);
+      const name = isProj ? l.project : devOf(l); if (!norm(name)) return;
+      const { r, k } = keyOf(name); if (!groups.has(k)) groups.set(k, { key: k, names: [], leads: [] });
+      const g = groups.get(k); g.names.push(r ? r.name : String(name).trim()); g.leads.push(l); byLead.set(l.dbId, g);
     });
     regs().forEach((r) => { const k = norm(r.name); if (k && !groups.has(k)) groups.set(k, { key: k, names: [], leads: [] }); if (k) groups.get(k).reg = r; });
     // A visit or booking belongs to the project / developer it NAMES; only when it names none does it follow its lead.
-    const devOfProject = new Map(); state.regProj.forEach((r) => r.developer && devOfProject.set(norm(r.name), r.developer)); state.leads.forEach((l) => { if (norm(l.project) && norm(l.developer) && !devOfProject.has(norm(l.project))) devOfProject.set(norm(l.project), l.developer); });
+    const devOfProject = { get: (name) => projDev(name) };
     const vOf = new Map(), bOf = new Map(), inRangeIds = new Set(state.leads.filter(inRange).map((l) => l.dbId));
-    const groupFor = (named, lead) => { const k = norm(named); if (k) { if (!groups.has(k)) groups.set(k, { key: k, names: [named], leads: [] }); return groups.get(k); } return byLead.get(lead); };
+    const groupFor = (named, lead) => { if (norm(named)) { const { r, k } = keyOf(named); if (!groups.has(k)) groups.set(k, { key: k, names: [r ? r.name : named], leads: [] }); return groups.get(k); } return byLead.get(lead); };
     state.visits.forEach((v) => { if (!inRangeIds.has(v.enquiry_id)) return; const g = groupFor(isProj ? v.project : devOfProject.get(norm(v.project)), v.enquiry_id); if (g) (vOf.get(g) || vOf.set(g, []).get(g)).push(v); });
     state.bookings.forEach((b) => { if (!inRangeIds.has(b.enquiry_id)) return; const g = groupFor(isProj ? b.project : b.developer || devOfProject.get(norm(b.project)), b.enquiry_id); if (g) (bOf.get(g) || bOf.set(g, []).get(g)).push(b); });
     return [...groups.values()].map((g) => {
@@ -56,7 +69,7 @@ async function mountPropertyPage(kind) {
         value: bookings.reduce((t, b) => t + Number(b.booking_value || 0), 0), comm: bookings.reduce((t, b) => t + Number(b.commission_amount || 0), 0),
         last: g.leads.reduce((t, l) => Math.max(t, new Date(l.createdAt).getTime()), 0),
         devs: [...new Set([...(reg && isProj && reg.developer ? [reg.developer] : []), ...top(g.leads.map((l) => l.developer)).map((x) => x[0])])],
-        projs: [...new Set([...state.regProj.filter((r) => !isProj && norm(r.developer) === g.key).map((r) => r.name), ...top(g.leads.map((l) => l.project)).map((x) => x[0])])],
+        projs: [...new Set([...state.regProj.filter((r) => !isProj && r.developer && keyOf(r.developer).k === g.key).map((r) => r.name), ...top(g.leads.map((l) => (matchReg(l.project, state.regProj) || {}).name || l.project)).map((x) => x[0])])],
         locs: [...new Set([...(reg ? [reg.location, reg.city].filter(Boolean) : []), ...top(g.leads.map((l) => l.location)).map((x) => x[0])])],
         srcs: top(g.leads.map((l) => l.source || "Website")) };
     });
@@ -93,7 +106,7 @@ async function mountPropertyPage(kind) {
         ${e.leads.length ? html`<h4>Leads by stage</h4>` : raw("")}<ul class="pp-stages">${stages.map((s) => html`<li class="s-${slug(s)}"><i></i><span>${s}</span><div class="bar"><u style="width:${(e.stage[s] / e.leads.length) * 100}%"></u></div><b>${e.stage[s]}</b></li>`)}</ul>
         <h4>Where the leads come from</h4><div class="pp-chips">${e.srcs.slice(0, 6).map(([s, n]) => html`<span class="kb-chip">${s} · ${n}</span>`)}</div>
         ${isProj ? (e.devs.length ? html`<h4>Developer</h4><div class="pp-chips">${e.devs.map((d) => html`<a class="kb-chip lnk" href="developers.html?q=${encodeURIComponent(d)}">${d}</a>`)}</div>` : raw(""))
-          : html`<h4>Projects</h4><ul class="pp-list">${e.projs.map((p) => [p, e.leads.filter((l) => norm(l.project) === norm(p)).length]).map(([p, n]) => html`<li><a href="projects.html?q=${encodeURIComponent(p)}"><b>${p}</b><span>${n} ${n === 1 ? "lead" : "leads"}</span><i data-lucide="chevron-right"></i></a></li>`)}</ul>`}
+          : html`<h4>Projects</h4><ul class="pp-list">${e.projs.map((p) => [p, e.leads.filter((l) => ((matchReg(l.project, state.regProj) || {}).name || l.project) === p).length]).map(([p, n]) => html`<li><a href="projects.html?q=${encodeURIComponent(p)}"><b>${p}</b><span>${n} ${n === 1 ? "lead" : "leads"}</span><i data-lucide="chevron-right"></i></a></li>`)}</ul>`}
         ${recent.length ? html`<h4>Latest leads</h4>` : raw("")}<ul class="pp-list">${recent.map((l) => html`<li><a href="customer.html?id=${encodeURIComponent(l.id)}">${avatar(l.name, 26)}<b>${l.name}</b><span>${badge(l.status)}</span><small>${relTime(l.createdAt)}</small></a></li>`)}</ul>
         ${visits.length ? html`<h4>Site visits</h4><ul class="pp-list">${visits.map((v) => html`<li><a href="site-visit.html?id=${v.id}"><b>${fmtDate(v.visit_at)}</b><span>${v.status}</span><i data-lucide="chevron-right"></i></a></li>`)}</ul>` : raw("")}
       </div>
