@@ -47,11 +47,59 @@
   const projectNames = () => { const seen = new Map(); state.leads.forEach((l) => { const b = baseName(l.project); if (b && !seen.has(normP(b))) seen.set(normP(b), b); }); state.members.forEach((m) => (m.projects || []).forEach((p) => { if (!seen.has(normP(p))) seen.set(normP(p), p); })); (state.regProj || []).forEach((p) => { if (p && !seen.has(normP(p))) seen.set(normP(p), p); }); return [...seen.values()].sort((a, b) => a.localeCompare(b)); };
   const pj = (arr, max = 2) => (arr || []).length ? html`${arr.slice(0, max).map((x) => html`<span class="pj">${x}</span>`)}${arr.length > max ? html`<span class="pj more">+${arr.length - max}</span>` : raw("")}` : raw("—");
 
+
+  // ---- employee logins (admin only; the server checks again) ----
+  const loginOf = (m) => (state.logins || []).find((u) => u.member_id === m.id && u.role === "employee");
+  const loginBadge = (m) => { const u = loginOf(m); return u ? html`<small class="login-b ${u.active ? "on" : "off"}"><i data-lucide="key-round"></i>${u.active ? "Has login" : "Login off"}</small>` : raw(""); };
+  const genPassword = () => {
+    const A = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz", D = "23456789", all = A + D, r = (n) => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; };
+    const out = [A[r(A.length)], D[r(D.length)]]; while (out.length < 12) out.push(all[r(all.length)]);
+    for (let i = out.length - 1; i > 0; i--) { const j = r(i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+    return out.join("");
+  };
+  function pwTools() {      // Generate / Show buttons for a password box inside the open dialog
+    const m = document.querySelector(".overlay.open .modal"), i = m && m.querySelector('input[name="password"]'); if (!i) return;
+    m.querySelector("[data-gen]").onclick = () => { i.value = genPassword(); i.type = "text"; i.dispatchEvent(new Event("input", { bubbles: true })); };
+    m.querySelector("[data-show]").onclick = (e) => { i.type = i.type === "password" ? "text" : "password"; e.currentTarget.textContent = i.type === "password" ? "Show" : "Hide"; };
+  }
+  const pwField = () => html`<label class="full">Temporary password * <small class="muted">(at least 10 characters, letters and numbers; they must change it at first sign-in)</small>
+    <span class="pw-row"><input name="password" type="password" autocomplete="off" required minlength="10"><button type="button" class="btn sm" data-gen>Generate</button><button type="button" class="btn sm" data-show>Show</button></span></label>`;
+  function openCreateLogin(m, done) {
+    openModal("Create login · " + m.name, html`<div class="form">${field("Email *", "email", m.email || "", "email", "required", "full")}${pwField()}
+      <p class="sub full">${m.name} will see only their own leads, tasks and follow-ups. Share the email and temporary password with them privately.</p></div>`,
+      async (f) => {
+        const pe = pwProblem(f.password); if (pe) throw new Error(pe);
+        await Data.loginAdmin({ action: "create", member_id: m.id, email: f.email, password: f.password });
+        copyText("Keys99 CRM login\nEmail: " + f.email.toLowerCase() + "\nTemporary password: " + f.password + "\n" + new URL("login.html", location.href).href, "Login created for " + m.name + ". Details copied: send them privately.");
+        done && done();
+      }, "Create login");
+    pwTools();
+  }
+  function openResetLogin(m, done) {
+    openModal("Reset password · " + m.name, html`<div class="form">${pwField()}<p class="sub full">They will be asked to choose a new password at their next sign-in.</p></div>`,
+      async (f) => {
+        const pe = pwProblem(f.password); if (pe) throw new Error(pe);
+        await Data.loginAdmin({ action: "reset-password", member_id: m.id, password: f.password });
+        copyText("Keys99 CRM temporary password: " + f.password, "Password reset for " + m.name + ". New password copied.");
+        done && done();
+      }, "Reset password");
+    pwTools();
+  }
+  const loginAct = (m, action, okMsg, done) => async () => { try { await Data.loginAdmin({ action, member_id: m.id }); toast(okMsg); await done(); } catch (err) { alert(err.message); } };
+  function loginMenu(m) {
+    const u = loginOf(m);
+    if (!u) return [["Create login", "key-round", () => openCreateLogin(m, refresh)]];
+    return [["Reset password", "key-round", () => openResetLogin(m, refresh)],
+      u.active ? ["Disable login", "lock", loginAct(m, "disable", "Login disabled", refresh)] : ["Enable login", "unlock", loginAct(m, "enable", "Login enabled", refresh)],
+      ["Remove login", "user-minus", async () => { if (!confirm("Remove the login of " + m.name + "? They can no longer sign in. Their leads stay assigned to them.")) return; await loginAct(m, "remove", "Login removed", refresh)(); }, true]];
+  }
+
   async function load() {
     try {
       const [m, l, v, b] = await Promise.all([Data.getTeam(), Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]);
       try { state.projRows = await Data.getProjects(); state.regProj = state.projRows.map((p) => p.name); } catch { state.projRows = []; state.regProj = []; }   // registered projects are suggested too
       try { state.pmembers = await Data.getProjectMembers(); } catch { state.pmembers = []; }
+      try { state.logins = await Data.getLogins(); } catch { state.logins = []; }
       Object.assign(state, { members: m, leads: l, visits: v, bookings: b }); state.auto = await Data.getAutoAssign().catch(() => false); compute(); return true;
     } catch (e) {
       render(page, html`<div class="card p" style="margin:24px"><h3>Could not load the team</h3><p class="sub">${e.message}</p></div>`); return false;
@@ -111,7 +159,7 @@
           <input class="select team-q" id="q" type="search" placeholder="Search by name, mobile or email…" value="${state.q}" aria-label="Search team"></div>
         <div class="card table-wrap"><table class="team-t"><thead><tr>${["Member", "Team", "Projects", "Role", "Leads", "Site Visits", "Bookings", "Deal Value", "Commission", "Conversion", "Status", ""].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((m) => { const s = S(m); return html`<tr class="tm-row ${m.id === state.selId ? "sel" : ""}" data-id="${m.id}" tabindex="0">
-            <td data-label="Member"><div class="row">${avatar(m.name, 34)}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small></div></div></td>
+            <td data-label="Member"><div class="row">${avatar(m.name, 34)}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small>${loginBadge(m)}</div></div></td>
             <td data-label="Team">${m.team || "—"}</td><td data-label="Projects" class="pjs">${pj(m.projects)}</td><td data-label="Role">${m.designation || KIND[m.kind]}${m.designation && m.designation !== KIND[m.kind] ? html`<small>${KIND[m.kind]}</small>` : raw("")}</td>
             <td data-label="Leads">${s.leads}</td><td data-label="Site Visits">${s.visits}</td><td data-label="Bookings">${s.bookings}</td>
             <td data-label="Deal Value">${s.value ? fmtMoney(s.value) : "—"}</td><td data-label="Commission">${s.commission ? fmtMoney(s.commission) : "—"}</td><td data-label="Conversion">${s.leads ? fmtPct(pct(s.booked, s.leads)) : "—"}</td>
@@ -253,6 +301,7 @@
     page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => {
       e.stopPropagation(); const m = state.members.find((x) => x.id === Number(b.dataset.menu));
       popMenu(b, [["Edit details", "pencil", () => openMember(m, m.kind, refresh)], [m.status === "Active" ? "Deactivate" : "Activate", m.status === "Active" ? "user-x" : "user-check", async () => { try { await Data.setMemberStatus(m.id, m.status === "Active" ? "Inactive" : "Active"); toast("Saved"); await refresh(); } catch (err) { alert(err.message); } }],
+        ...loginMenu(m),
         ["Delete", "trash-2", async () => { if (!confirm("Delete " + m.name + "? Leads already assigned to this name keep it.")) return; try { await Data.deleteMember(m.id); if (state.selId === m.id) state.selId = null; toast("Deleted"); await refresh(); } catch (err) { alert(err.message); } }, true]]);
     }));
     const add = (kind) => () => openMember(null, kind, refresh);

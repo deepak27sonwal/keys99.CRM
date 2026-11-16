@@ -83,7 +83,7 @@
           <div class="btns"><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
         <div class="kpis k6">${kpis.map(kpiCard)}</div>
         <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === "All Leads" ? "" : "has-stage s-" + slug(t)} ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
-        <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${sel("agent", "Agent")}
+        <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${window.ME && window.ME.role === "employee" ? "" : sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
