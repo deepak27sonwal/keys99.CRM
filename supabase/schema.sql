@@ -849,3 +849,43 @@ exception when others then
   raise warning 'auto_assign_enquiry failed: %', sqlerrm;
   return new;
 end $f$;
+
+-- ===== Calendar: holidays (admin manages, everyone reads) and meetings (admin creates, invitees read) =====
+create table if not exists public.holidays (
+  id bigint generated always as identity primary key,
+  name text not null check (length(trim(name)) > 0),
+  starts_on date not null,
+  ends_on date not null,
+  kind text not null default 'Public' check (kind in ('Public','Company','Optional')),
+  notes text,
+  created_at timestamptz not null default now(),
+  check (ends_on >= starts_on)
+);
+create unique index if not exists holidays_uq on public.holidays (starts_on, lower(trim(name)));
+alter table public.holidays enable row level security;
+create policy "admin all holidays" on public.holidays for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "signed-in read holidays" on public.holidays for select to authenticated using (public.my_member_id() is not null);
+create table if not exists public.meetings (
+  id bigint generated always as identity primary key,
+  title text not null check (length(trim(title)) > 0),
+  kind text not null default 'Internal' check (kind in ('Internal','Client','Site','Online')),
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  location text,
+  link text,
+  agenda text,
+  attendees bigint[] not null default '{}',
+  attendee_names text[] not null default '{}',
+  enquiry_id bigint references public.enquiries(id) on delete set null,
+  status text not null default 'Scheduled' check (status in ('Scheduled','Completed','Cancelled')),
+  repeat text not null default 'none' check (repeat in ('none','daily','weekly','monthly')),
+  repeat_until date,
+  reminder_min integer check (reminder_min is null or reminder_min between 0 and 1440),
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  check (ends_at > starts_at)
+);
+create index if not exists meetings_start_idx on public.meetings (starts_at);
+alter table public.meetings enable row level security;
+create policy "admin all meetings" on public.meetings for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "invitee reads meeting" on public.meetings for select to authenticated using (public.my_member_id() is not null and public.my_member_id() = any (attendees));

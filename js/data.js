@@ -255,6 +255,20 @@ const Data = {
     } catch { return { ok: false, error: "Could not reach the capture service. Check your connection." }; }
   },
   // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
+  // ---- calendar: holidays and meetings ----
+  async getHolidays() { const { data, error } = await this.client.from("holidays").select("*").order("starts_on").limit(2000); return error ? [] : data || []; },
+  async holidaysCached() { if (!this._hol) this._hol = await this.getHolidays(); return this._hol; },
+  async saveHoliday(id, h) {
+    const row = { name: String(h.name || "").trim(), starts_on: h.starts_on, ends_on: h.ends_on || h.starts_on, kind: h.kind || "Public", notes: String(h.notes || "").trim() || null };
+    if (!row.name || !row.starts_on) throw new Error("Name and date are required"); if (row.ends_on < row.starts_on) throw new Error("The last day cannot be before the first day");
+    const { error } = await (id ? this.client.from("holidays").update(row).eq("id", id) : this.client.from("holidays").insert(row));
+    if (error) throw new Error(error.code === "23505" ? "A holiday with this name already starts on that date" : error.message); this._hol = null;
+  },
+  async addHolidays(rows) { let added = 0; for (const r of rows) { try { await this.saveHoliday(null, r); added++; } catch { /* already there */ } } this._hol = null; return added; },
+  async deleteHoliday(id) { const { error } = await this.client.from("holidays").delete().eq("id", id); if (error) throw error; this._hol = null; },
+  async getMeetings() { const { data, error } = await this.client.from("meetings").select("*").order("starts_at").limit(5000); return error ? [] : data || []; },
+  async saveMeeting(id, m) { const { error } = await (id ? this.client.from("meetings").update(m).eq("id", id) : this.client.from("meetings").insert(m)); if (error) throw new Error(error.message); },
+  async deleteMeeting(id) { const { error } = await this.client.from("meetings").delete().eq("id", id); if (error) throw error; },
   // ---- transferring leads to another team member (the rules are enforced in the database) ----
   async getTransferTargets() { const { data, error } = await this.client.rpc("transfer_targets"); if (error) throw new Error(error.message); return data || []; },
   async transferLeads(ids, memberId, note) { const { data, error } = await this.client.rpc("transfer_leads", { p_ids: ids, p_member_id: memberId, p_note: note || null }); if (error) throw new Error(error.message); return Number(data) || 0; },

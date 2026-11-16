@@ -62,8 +62,21 @@ window.Workflow = (() => {
       toast(msg);
       try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Keys99 CRM", { body: msg, tag: "k99-due" }); } catch { /* notices are optional */ }
     }
+    try { await meetingReminders(s); remember(s); } catch { /* reminders are optional */ }
     const n = due.followUps.filter((f) => new Date(f.follow_up) <= now).length + due.tasks.filter((t) => new Date(t.due_at) <= now).length, link = document.querySelector('.nav a[href="tasks.html"]');
     if (link) { let b = link.querySelector(".nav-n"); if (n && !b) { b = document.createElement("span"); b.className = "nav-n"; link.appendChild(b); } if (b) { b.textContent = n > 99 ? "99+" : String(n); b.hidden = !n; b.setAttribute("aria-label", n + " due"); } }
+  }
+
+  // a toast shortly before a meeting starts (admins hear about the meetings they created; invitees about theirs)
+  async function meetingReminders(seenSet) {
+    const now = new Date(), ms = await Data.getMeetings(); if (!ms.length) return;
+    ms.filter((m) => m.status === "Scheduled" && m.reminder_min !== null && m.reminder_min !== undefined && !(window.ME && window.ME.role === "admin" && m.created_by !== window.ME.uid)).forEach((m) => {
+      expandMeeting(m, now, new Date(now.getTime() + 86400000)).forEach((o) => {
+        const mins = (o.start - now) / 60000; if (mins < 0 || mins > m.reminder_min) return; const key = "m" + m.id + "@" + o.start.getTime(); if (seenSet.has(key)) return; seenSet.add(key);
+        const msg = "Meeting " + (mins < 1 ? "starting now" : "in " + Math.round(mins) + " min") + ": " + m.title + (m.location ? " · " + m.location : ""); toast(msg);
+        try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Keys99 CRM", { body: msg, tag: key }); } catch { /* optional */ }
+      });
+    });
   }
 
   function init() {
