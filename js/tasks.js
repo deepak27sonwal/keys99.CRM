@@ -8,14 +8,15 @@
   const TYPE_ICON = { "Follow-up": "phone-call", Call: "phone", WhatsApp: "message-circle", Meeting: "users", "Site Visit": "map-pin", Document: "file-text", Other: "list-checks" };
   const TABS = [["all", "All Tasks"], ["Follow-up", "Follow-ups"], ["Call", "Calls"], ["Meeting", "Meetings"], ["Site Visit", "Site Visits"], ["Document", "Documents"], ["other", "Others"]];
   const TEMPLATES = [["Send project brochure", "WhatsApp", "Medium"], ["Collect KYC documents", "Document", "Medium"], ["Follow up on booking confirmation", "Call", "High"], ["Schedule a site visit", "Site Visit", "High"], ["Price negotiation meeting", "Meeting", "High"], ["Share payment plan", "WhatsApp", "Medium"]];
-  const state = { tab: "all", who: admin ? "" : "me", status: "", prio: "", type: "", due: "", q: "", day: null, month: startOfDay(new Date()), pg: 1, sel: null, leads: [], tasks: [], visits: [], team: [], err: "" };
+  const state = { warn: "", tab: "all", who: admin ? "" : "me", status: "", prio: "", type: "", due: "", q: "", day: null, month: startOfDay(new Date()), pg: 1, sel: null, leads: [], tasks: [], visits: [], team: [], err: "" };
   const k = (s) => String(s || "").trim().toLowerCase(), slug2 = (s) => String(s).toLowerCase().replace(/[^a-z]+/g, "");
   const prioOf = (l) => (/^A/.test(l.priority) ? "High" : /^C/.test(l.priority) ? "Low" : "Medium");
 
   async function load() {
     try {
-      const [leads, tasks, visits, team] = await Promise.all([Data.getLeads(), Data.getTasks(), Data.getSiteVisits().catch(() => []), admin ? Data.getTeamCached() : Promise.resolve(me.member ? [me.member] : [])]);
-      Object.assign(state, { leads, tasks, visits, team, err: "" });
+      let warn = "";     // a failed site-visit load must not look like "no visits scheduled"
+      const [leads, tasks, visits, team] = await Promise.all([Data.getLeads(), Data.getTasks(), Data.getSiteVisits().catch((e) => { warn = "Site visits could not be loaded (" + (e.message || e) + "), so they are missing from this list."; return []; }), admin ? Data.getTeamCached() : Promise.resolve(me.member ? [me.member] : [])]);
+      Object.assign(state, { leads, tasks, visits, team, err: "", warn });
     } catch (e) { state.err = e.message || String(e); }
   }
 
@@ -67,6 +68,7 @@
         <div class="btns">${meName ? html`<button type="button" class="btn ${state.who === "me" ? "on" : ""}" id="tkMine"><i data-lucide="user"></i>My Tasks</button>` : raw("")}${admin ? html`<button type="button" class="btn ${state.who === "" ? "on" : ""}" id="tkTeam"><i data-lucide="users"></i>Team Tasks</button>` : raw("")}
           <button type="button" class="btn ${state.status === "Overdue" ? "on" : ""}" id="tkOver"><i data-lucide="alert-triangle"></i>Overdue</button><button type="button" class="btn" id="tkCal"><i data-lucide="calendar"></i>Calendar</button>
           <button type="button" class="btn gold" id="tkAdd"><i data-lucide="plus"></i>Create Task</button></div></div>
+      ${state.warn ? html`<div class="tk-warn" role="alert"><i data-lucide="alert-triangle"></i><span>${state.warn}</span><button type="button" class="btn sm" id="tkRetry">Try again</button></div>` : raw("")}
       <div class="kpis k7 tk-kpis">${kp.map(([l, v, ic, p, g]) => kpiCard([l, v, "", ic, p, g]))}</div>
       <div class="tk-grid"><section class="card tk-left">
         <div class="tabs-pill tk-tabs" role="tablist">${TABS.map(([key, l]) => html`<button type="button" role="tab" class="pill ${key === state.tab ? "active" : ""}" aria-selected="${key === state.tab}" data-tab="${key}">${l} (${cnt(key)})</button>`)}</div>
@@ -137,7 +139,7 @@
     const q = $("#fQ"); q.oninput = () => { state.q = q.value; state.pg = 1; const pos = q.selectionStart; draw(); const nq = $("#fQ"); nq.focus(); nq.setSelectionRange(pos, pos); };
     on("#tkMine", () => { state.who = "me"; state.pg = 1; draw(); }); on("#tkTeam", () => { state.who = ""; state.pg = 1; draw(); });
     on("#tkOver", () => { state.status = state.status === "Overdue" ? "" : "Overdue"; state.pg = 1; draw(); }); on("#tkCal", () => $(".tk-cal").scrollIntoView({ behavior: "smooth", block: "center" }));
-    on("#tkAdd", () => openTask(null)); on("#tkDayX", () => { state.day = null; draw(); });
+    on("#tkRetry", () => refresh()); on("#tkAdd", () => openTask(null)); on("#tkDayX", () => { state.day = null; draw(); });
     page.querySelectorAll("[data-pg]").forEach((b) => (b.onclick = () => { state.pg = Number(b.dataset.pg); draw(); }));
     page.querySelectorAll("tr.tk-row").forEach((r) => { const pick = (e) => { if (e && e.target.closest("button,a,input")) return; state.sel = r.dataset.key; draw(); }; r.onclick = pick; r.onkeydown = (e) => { if (e.key === "Enter" && e.target === r) pick(); }; });
     page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const i = find(all, b.dataset.menu); if (!i) return; popMenu(b, [["View details", "eye", () => { state.sel = i.key; draw(); }], ...(i.done ? [] : [["Mark complete", "check", () => complete(i)], ["Reschedule", "calendar-clock", () => resched(i)]]), ...(i.kind === "t" ? [["Edit", "pencil", () => openTask(i.task)]] : []), ...(i.kind === "t" && (admin || i.task.created_by === me.uid) ? [["Delete", "trash-2", () => del(i), true]] : [])]); }));
@@ -166,7 +168,7 @@
   async function del(i) { if (!confirm("Delete this task?")) return; try { await Data.deleteTask(i.task.id); toast("Task deleted"); await refresh(); } catch (e) { toast("Could not delete: " + e.message); } }
 
   // ---- forms ----
-  function leadOptions(sel) { return html`<option value="">— None —</option>${state.leads.slice(0, 400).map((l) => html`<option value="${l.dbId}" ${String(l.dbId) === String(sel) ? raw("selected") : raw("")}>${l.name} · ${l.mobile}</option>`)}`; }
+  function leadOptions(sel) { return html`<option value="">— None —</option>${state.leads.map((l) => html`<option value="${l.dbId}" ${String(l.dbId) === String(sel) ? raw("selected") : raw("")}>${l.name} · ${l.mobile}</option>`)}`; }
   function openTask(t, preset = {}) {
     const team = state.team.filter((m) => (m.status || "Active") === "Active"), v = (key, d = "") => (t ? t[key] : preset[key]) ?? d;
     const who = admin ? html`<label>Assign to *<select name="assigned_to" required><option value="">— Choose —</option>${team.map((m) => html`<option value="${m.id}" ${m.id === v("assigned_to") ? raw("selected") : raw("")}>${m.name}</option>`)}</select></label>` : html`<input type="hidden" name="assigned_to" value="${me.memberId}">`;
