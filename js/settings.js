@@ -2,8 +2,8 @@
 (async function () {
   const page = await mountShell("settings");
   if (!page) return;
-  const TABS = [["teams", "Teams", "Team", "users"], ["departments", "Departments", "Department", "briefcase"], ["cities", "Cities", "City", "building"], ["localities", "Localities", "Locality", "map-pin"]];
-  const state = { tab: "teams", q: "", city: null, m: { teams: [], departments: [], cities: [], localities: [] }, members: [], projects: [], developers: [], leads: [], err: "" };
+  const TABS = [["teams", "Teams", "Team", "users"], ["departments", "Departments", "Department", "briefcase"], ["cities", "Cities", "City", "building"], ["localities", "Localities", "Locality", "map-pin"], ["templates", "WhatsApp templates", "Template", "message-circle"]];
+  const state = { tpl: [], tab: "teams", q: "", city: null, m: { teams: [], departments: [], cities: [], localities: [] }, members: [], projects: [], developers: [], leads: [], err: "" };
   const k = (x) => String(x || "").trim().toLowerCase(), cnt = (arr, fn) => arr.filter(fn).length;
   const lastPart = (loc) => String(loc || "").split(",").map((x) => x.trim()).filter(Boolean).pop() || "";
   const headParts = (loc) => String(loc || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, -1).join(", ");
@@ -11,7 +11,7 @@
   async function load() {
     try {
       const [m, members, projects, developers, leads] = await Promise.all([Data.getMasters(), Data.getTeam(), Data.getProjects().catch(() => []), Data.getDevelopers().catch(() => []), Data.getLeads().catch(() => [])]);
-      Object.assign(state, { m, members, projects, developers, leads, err: "" });
+      Object.assign(state, { m, members, projects, developers, leads, err: "" }); state.tpl = await Data.getTemplates();
       if (!state.city || !m.cities.some((c) => c.id === state.city)) state.city = m.cities.length ? m.cities[0].id : null;
     } catch (e) { state.err = e.message || String(e); }
   }
@@ -37,10 +37,11 @@
 
   function draw() {
     if (state.err) { page.innerHTML = '<div class="card empty">Could not load settings: ' + esc(state.err) + "</div>"; return; }
+    if (state.tab === "templates") return drawTemplates();
     const [, label, noun, icon] = TABS.find((t) => t[0] === state.tab), list = rows(), loc = state.tab === "localities", noCity = loc && !state.m.cities.length;
     render(page, html`
       <div class="page-head"><div><h1>Settings</h1><p class="sub">The lists below fill the dropdowns across the CRM (team members, leads, projects), so names stay the same everywhere.</p></div></div>
-      <div class="tabs-pill" role="tablist">${TABS.map(([key, l, , ic]) => html`<button type="button" role="tab" class="pill ${key === state.tab ? "active" : ""}" aria-selected="${key === state.tab}" data-tab="${key}">${l} (${state.m[key].length})</button>`)}</div>
+      <div class="tabs-pill" role="tablist">${TABS.map(([key, l, , ic]) => html`<button type="button" role="tab" class="pill ${key === state.tab ? "active" : ""}" aria-selected="${key === state.tab}" data-tab="${key}">${l} (${key === "templates" ? state.tpl.length : state.m[key].length})</button>`)}</div>
       <section class="card p st-card">
         <div class="st-bar">
           ${loc && state.m.cities.length ? html`<label class="st-city">City<select class="select" id="stCity" aria-label="City">${state.m.cities.map((c) => html`<option value="${c.id}" ${c.id === state.city ? raw("selected") : raw("")}>${c.name}</option>`)}</select></label>` : raw("")}
@@ -54,6 +55,26 @@
       </section>`);
     wire();
   }
+  // ---- WhatsApp message templates: ready messages employees pick when they press WhatsApp on a lead ----
+  function drawTemplates() {
+    render(page, html`
+      <div class="page-head"><div><h1>Settings</h1><p class="sub">The lists below fill the dropdowns across the CRM (team members, leads, projects), so names stay the same everywhere.</p></div></div>
+      <div class="tabs-pill" role="tablist">${TABS.map(([key, l]) => html`<button type="button" role="tab" class="pill ${key === state.tab ? "active" : ""}" aria-selected="${key === state.tab}" data-tab="${key}">${l} (${key === "templates" ? state.tpl.length : state.m[key].length})</button>`)}</div>
+      <section class="card p st-card"><div class="st-bar"><p class="sub" style="flex:1;margin:0">Ready messages for WhatsApp. Use <code>{name}</code>, <code>{project}</code>, <code>{agent}</code> and <code>{phone}</code>; they are filled in for each lead.</p><button type="button" class="btn gold" id="tpAdd"><i data-lucide="plus"></i>Add template</button></div>
+        ${state.tpl.length ? html`<ul class="st-list">${state.tpl.map((t) => html`<li><i data-lucide="message-circle" class="st-ic"></i><div class="st-main"><b>${t.title}</b><small class="tp-body">${t.body}</small></div>
+          <button type="button" class="icon-btn" data-tedit="${t.id}" aria-label="Edit ${t.title}"><i data-lucide="pencil"></i></button><button type="button" class="icon-btn" data-tdel="${t.id}" aria-label="Delete ${t.title}"><i data-lucide="trash-2"></i></button></li>`)}</ul>`
+          : html`<div class="empty-sm">No templates yet. Employees will open WhatsApp directly.</div>`}</section>`);
+    page.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; state.q = ""; draw(); }));
+    page.querySelector("#tpAdd").onclick = () => openTemplate(null);
+    page.querySelectorAll("[data-tedit]").forEach((b) => (b.onclick = () => openTemplate(state.tpl.find((t) => t.id === Number(b.dataset.tedit)))));
+    page.querySelectorAll("[data-tdel]").forEach((b) => (b.onclick = async () => { const t = state.tpl.find((x) => x.id === Number(b.dataset.tdel)); if (!t || !confirm('Delete the template "' + t.title + '"?')) return; try { await Data.deleteTemplate(t.id); toast("Deleted"); await refresh(); } catch (e) { alert("Could not delete: " + e.message); } }));
+  }
+  function openTemplate(t) {
+    openModal(t ? "Edit template" : "Add template", html`<div class="form">${field("Title *", "title", t ? t.title : "", "text", 'required maxlength="60" placeholder="e.g. Site visit invite"', "full")}
+      <label class="full">Message * <small class="muted">({name} {project} {agent} {phone})</small><textarea name="body" rows="5" required maxlength="900" placeholder="Hi {name}, thank you for your interest in {project}…">${t ? t.body : ""}</textarea></label></div>`,
+      async (f) => { await Data.saveTemplate(t ? t.id : null, f); toast("Saved"); await refresh(); }, "Save");
+  }
+
   const refresh = async () => { await load(); draw(); };
   const table = () => state.tab;                // table name equals the tab key
 

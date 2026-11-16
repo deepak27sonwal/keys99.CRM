@@ -116,3 +116,7 @@ async function copyText(text, okMsg = "Copied") {
   try { await navigator.clipboard.writeText(text); toast(okMsg); }
   catch { prompt("Copy this value:", text); }
 }
+
+// "Waiting 25 min" / "2 h" / "3 d" for a lead nobody has touched yet
+function fmtWait(min) { return min < 60 ? Math.floor(min) + " min" : min < 1440 ? Math.floor(min / 60) + " h" : Math.floor(min / 1440) + " d"; }
+const WAIT_ALERT_MIN = 15;
