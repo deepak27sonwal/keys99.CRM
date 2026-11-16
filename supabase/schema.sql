@@ -521,3 +521,120 @@ begin
 end $$;
 revoke all on function public.count_unrouted(text[], text[]), public.connect_apply_existing(bigint) from public, anon;
 grant execute on function public.count_unrouted(text[], text[]), public.connect_apply_existing(bigint) to authenticated;
+
+-- ===== Employee logins: roles, own-lead access (RLS), tasks =====
+create table if not exists public.app_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'employee' check (role in ('admin','employee')),
+  member_id bigint unique references public.team_members(id) on delete set null,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.app_users enable row level security;
+-- everybody who is signed in today is an admin, so nobody is locked out when the new rules start
+insert into public.app_users (user_id, role) select id, 'admin' from auth.users on conflict do nothing;
+
+create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = '' as
+$$ select exists (select 1 from public.app_users u where u.user_id = auth.uid() and u.role = 'admin' and u.active) $$;
+create or replace function public.my_member_id() returns bigint language sql stable security definer set search_path = '' as
+$$ select u.member_id from public.app_users u where u.user_id = auth.uid() and u.role = 'employee' and u.active $$;
+-- true when a lead's owner (name or email) is the signed-in employee
+create or replace function public.is_mine(p_name jsonb, p_email jsonb) returns boolean language sql stable security definer set search_path = '' as
+$$ select exists (select 1 from public.app_users u join public.team_members t on t.id = u.member_id
+    where u.user_id = auth.uid() and u.role = 'employee' and u.active
+      and ((nullif(trim(p_name #>> '{}'), '') is not null and lower(trim(p_name #>> '{}')) = lower(trim(t.name)))
+        or (nullif(trim(p_email #>> '{}'), '') is not null and lower(trim(p_email #>> '{}')) = lower(trim(t.email))))) $$;
+
+drop policy if exists "own app user" on public.app_users;
+create policy "own app user" on public.app_users for select to authenticated using (user_id = auth.uid() or public.is_admin());
+drop policy if exists "admins manage app users" on public.app_users;
+create policy "admins manage app users" on public.app_users for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- enquiries: admin everything; employee only their own leads, cannot hand them to someone else
+drop policy if exists "CRM users can insert enquiries" on public.enquiries;
+drop policy if exists "CRM users can read enquiries" on public.enquiries;
+drop policy if exists "CRM users can update enquiries" on public.enquiries;
+create policy "admin all enquiries" on public.enquiries for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read own enquiries" on public.enquiries for select to authenticated using (public.is_mine(manager_name, manager_email));
+create policy "employee update own enquiries" on public.enquiries for update to authenticated using (public.is_mine(manager_name, manager_email)) with check (public.is_mine(manager_name, manager_email));
+create policy "employee add own enquiries" on public.enquiries for insert to authenticated with check (public.is_mine(manager_name, manager_email));
+
+-- visits and bookings follow the lead (the sub-select runs under the enquiries rules above); employees cannot delete
+drop policy if exists "CRM users full access" on public.site_visits;
+drop policy if exists "CRM users full access" on public.bookings;
+create policy "admin all visits" on public.site_visits for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read visits" on public.site_visits for select to authenticated using (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+create policy "employee add visits" on public.site_visits for insert to authenticated with check (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+create policy "employee update visits" on public.site_visits for update to authenticated using (exists (select 1 from public.enquiries e where e.id = enquiry_id)) with check (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+create policy "admin all bookings" on public.bookings for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read bookings" on public.bookings for select to authenticated using (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+create policy "employee add bookings" on public.bookings for insert to authenticated with check (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+create policy "employee update bookings" on public.bookings for update to authenticated using (exists (select 1 from public.enquiries e where e.id = enquiry_id)) with check (exists (select 1 from public.enquiries e where e.id = enquiry_id));
+
+-- team: an employee sees only their own row
+drop policy if exists "CRM users manage team members" on public.team_members;
+create policy "admin all team" on public.team_members for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee own team row" on public.team_members for select to authenticated using (id = public.my_member_id());
+
+-- admin only: settings, integrations, forms, project distribution, legacy tables
+drop policy if exists "CRM users manage settings" on public.app_settings;
+create policy "admin all settings" on public.app_settings for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "CRM users manage integrations" on public.integrations;
+create policy "admin all integrations" on public.integrations for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "CRM users read integration events" on public.integration_events;
+create policy "admin read integration events" on public.integration_events for select to authenticated using (public.is_admin());
+drop policy if exists "CRM users manage meta forms" on public.meta_forms;
+create policy "admin all meta forms" on public.meta_forms for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "CRM users manage project members" on public.project_members;
+create policy "admin all project members" on public.project_members for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "CRM users manage project sources" on public.project_sources;
+create policy "admin all project sources" on public.project_sources for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "authenticated full access" on public.leads;
+create policy "admin all legacy leads" on public.leads for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "authenticated full access" on public.activities;
+create policy "admin all legacy activities" on public.activities for all to authenticated using (public.is_admin()) with check (public.is_admin());
+-- project and developer names are not sensitive: employees may read them (suggestions in forms), only admins change them
+drop policy if exists "CRM users manage projects" on public.projects;
+create policy "admin all projects" on public.projects for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read projects" on public.projects for select to authenticated using (public.my_member_id() is not null);
+drop policy if exists "CRM users manage developers" on public.developers;
+create policy "admin all developers" on public.developers for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read developers" on public.developers for select to authenticated using (public.my_member_id() is not null);
+
+-- tasks
+create table if not exists public.tasks (
+  id bigint generated always as identity primary key,
+  title text not null check (length(trim(title)) > 0),
+  notes text,
+  due_at timestamptz,
+  done_at timestamptz,
+  assigned_to bigint references public.team_members(id) on delete set null,
+  enquiry_id bigint references public.enquiries(id) on delete set null,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create index if not exists tasks_assigned_idx on public.tasks (assigned_to, done_at, due_at);
+alter table public.tasks enable row level security;
+create policy "admin all tasks" on public.tasks for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read own tasks" on public.tasks for select to authenticated using (assigned_to = public.my_member_id());
+create policy "employee add own tasks" on public.tasks for insert to authenticated with check (assigned_to = public.my_member_id());
+create policy "employee update own tasks" on public.tasks for update to authenticated using (assigned_to = public.my_member_id()) with check (assigned_to = public.my_member_id());
+create policy "employee delete own tasks" on public.tasks for delete to authenticated using (assigned_to = public.my_member_id() and created_by = auth.uid());
+
+-- admin-only helpers
+create or replace function public.connect_apply_existing(p_project_id bigint) returns integer language plpgsql security definer set search_path = '' as $f$
+declare p record; n integer;
+begin
+  if not public.is_admin() then raise exception 'admins only'; end if;
+  select * into p from public.projects where projects.id = p_project_id; if not found then return 0; end if;
+  update public.enquiries e set project = p.name, developer = coalesce(nullif(trim(e.developer), ''), p.developer)
+   where (e.project is null or length(trim(e.project)) = 0)
+     and exists (select 1 from public.project_sources s where s.project_id = p_project_id
+                  and ((s.kind = 'meta_form' and s.ref_id = e.meta_form_id) or (s.kind = 'meta_campaign' and s.ref_id = e.meta_campaign_id)));
+  get diagnostics n = row_count; return n;
+end $f$;
+create or replace function public.count_unrouted(p_forms text[], p_campaigns text[]) returns integer language sql stable security definer set search_path = '' as $f$
+  select count(*)::integer from public.enquiries e
+  where public.is_admin() and (e.project is null or length(trim(e.project)) = 0)
+    and ((e.meta_form_id is not null and e.meta_form_id = any (coalesce(p_forms, '{}')))
+      or (e.meta_campaign_id is not null and e.meta_campaign_id = any (coalesce(p_campaigns, '{}')))) $f$;

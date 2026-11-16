@@ -7,6 +7,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import * as L from "./lib.js";
+import { pushRecipients } from "./recipients.js";
 
 const sb = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, x-enquiry-secret, apikey", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
@@ -51,6 +52,12 @@ Deno.serve(async (req) => {
     const { data: row } = await sb.from("enquiries").select("id,name,project,source,manager_name").eq("id", id).maybeSingle();
     if (!row) return json({ ok: false, error: "Enquiry not found" }, 404);
     payload = L.buildPayload(row);
+    // only admins and the lead's owner are told (employees must not hear about other people's leads)
+    const [{ data: us }, { data: ms }] = await Promise.all([sb.from("app_users").select("user_id,role,member_id,active"), sb.from("team_members").select("id,name")]);
+    const owner = Array.isArray(row.manager_name) ? row.manager_name[0] : row.manager_name;
+    const ids = pushRecipients(us || [], ms || [], typeof owner === "string" ? owner : "");
+    if (!ids.length) return json({ ok: true, sent: 0, removed: 0, note: "No recipients" });
+    subsQuery = subsQuery.in("user_id", ids);
   } else { payload = L.testPayload(); subsQuery = subsQuery.eq("user_id", user.id); }
 
   const { data: subs } = await subsQuery;

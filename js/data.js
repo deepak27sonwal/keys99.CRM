@@ -111,6 +111,7 @@ const Data = {
     const { error } = await this.client.from("enquiries").insert({
       name: f.name, phone: f.mobile, email: f.email || null, interest: f.requirement || null, budget: f.budget || null,
       project: f.project || null, developer: f.developer || null, location: f.location || null, property_type: f.property_type || null, bhk: f.bhk || null, source: f.source || null, status: f.status || "New Leads",
+      ...(window.ME && window.ME.role === "employee" && window.ME.member ? { manager_name: window.ME.member.name, manager_email: window.ME.member.email || null } : {}),   // an employee's new lead is always theirs
     });
     if (error) throw error;
   },
@@ -161,6 +162,33 @@ const Data = {
     return Object.fromEntries(data.filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
   },
   // ---- social media integrations (leads arrive via the capture-lead Edge Function) ----
+  // ---- who is signed in, logins and tasks ----
+  // null = signed in but no access row yet. role is "admin" or "employee"; employees carry their team-member row.
+  async getMe(sess) {
+    const { data: au, error } = await this.client.from("app_users").select("role,member_id,active").eq("user_id", sess.user.id).maybeSingle();
+    if (error) throw error;
+    if (!au) return null;
+    let member = null;
+    if (au.member_id) { const { data } = await this.client.from("team_members").select("*").eq("id", au.member_id).maybeSingle(); member = data || null; }
+    return { role: au.role, active: au.active !== false, memberId: au.member_id, member, mustChange: !!(sess.user.user_metadata && sess.user.user_metadata.must_change_password) };
+  },
+  async changePassword(pw) { const { error } = await this.client.auth.updateUser({ password: pw, data: { must_change_password: false } }); if (error) throw error; },
+  async getLogins() { const { data, error } = await this.client.from("app_users").select("user_id,role,member_id,active").limit(2000); if (error) throw error; return data || []; },
+  // Create / reset / disable / enable / remove a team member's login (runs on the server and only for admins).
+  async loginAdmin(body) {
+    const s = await this.session(); if (!s) throw new Error("Sign in first");
+    const r = await fetch(`${CFG.SUPABASE_URL}/functions/v1/employee-admin`, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + s.access_token, apikey: CFG.SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
+    let j = {}; try { j = await r.json(); } catch { /* not json */ }
+    if (!r.ok || !j.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+    return j;
+  },
+  async getTasks() { return this.fetchAll("tasks"); },
+  async addTask(t) {
+    const { error } = await this.client.from("tasks").insert({ title: t.title, notes: t.notes || null, due_at: t.due_at || null, assigned_to: t.assigned_to, enquiry_id: t.enquiry_id || null });
+    if (error) throw error;
+  },
+  async updateTask(id, patch) { const { error } = await this.client.from("tasks").update(patch).eq("id", id); if (error) throw error; },
+  async deleteTask(id) { const { error } = await this.client.from("tasks").delete().eq("id", id); if (error) throw error; },
   async getIntegrations() {
     const { data, error } = await this.client.from("integrations").select("*").order("created_at");
     if (error) throw error;
