@@ -43,6 +43,7 @@ const Data = {
       location: r.location || "", agent, status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
       source: r.source || "Website", propertyType: r.property_type || "", bhk: r.bhk || "", priority: r.priority || "",
       notes: r.notes || "", lostReason: r.lost_reason || "", createdAt: r.created_at, acts: Array.isArray(r.activities) ? r.activities : [],
+      touched: (r.status && r.status !== "New Leads") || !!r.follow_up || (Array.isArray(r.activities) && r.activities.some((a) => a && /@/.test(a.by || ""))),   // someone has worked on it (status moved, follow-up set, or a person logged something)
       src: { platform: r.meta_platform || "", page: r.meta_page_name || "", form: r.meta_form_name || "", formId: r.meta_form_id || "", campaignId: r.meta_campaign_id || "", campaign: r.meta_campaign_name || "", adset: r.meta_adset_name || "", ad: r.meta_ad_name || "",
         answers: r.meta_raw_data && Array.isArray(r.meta_raw_data.answers) ? r.meta_raw_data.answers.filter((x) => x && x.q && x.a) : [] },
     };
@@ -189,6 +190,29 @@ const Data = {
   },
   async updateTask(id, patch) { const { error } = await this.client.from("tasks").update(patch).eq("id", id); if (error) throw error; },
   async deleteTask(id) { const { error } = await this.client.from("tasks").delete().eq("id", id); if (error) throw error; },
+  // ---- daily workflow: waiting time, repeat enquiries, call logging, WhatsApp templates ----
+  // minutes a brand-new lead has gone untouched (null when someone already worked on it)
+  waiting(l) { return l.status === "New Leads" && !l.touched ? Math.max(0, (Date.now() - new Date(l.createdAt)) / 60000) : null; },
+  async findLeadByPhone(phone) {
+    const d = digits(phone).slice(-10); if (d.length < 10) return null;
+    const { data, error } = await this.client.from("enquiries").select("*").ilike("phone", "%" + d + "%").order("created_at", { ascending: false }).limit(5);
+    if (error || !data || !data.length) return null;
+    return this.fromRow(data.find((r) => digits(r.phone).slice(-10) === d) || data[0]);
+  },
+  async phoneMatches(phone) { const { data, error } = await this.client.rpc("phone_matches", { p_phone: phone }); if (error) throw error; return (data && data[0]) || null; },
+  async getTemplates() { const { data, error } = await this.client.from("message_templates").select("*").order("id").limit(200); if (error) return []; return data || []; },
+  async saveTemplate(id, t) {
+    const row = { title: String(t.title || "").trim(), body: String(t.body || "").trim() }; if (!row.title || !row.body) throw new Error("Title and message are required");
+    const { error } = await (id ? this.client.from("message_templates").update(row).eq("id", id) : this.client.from("message_templates").insert(row)); if (error) throw error; this._tpl = null;
+  },
+  async deleteTemplate(id) { const { error } = await this.client.from("message_templates").delete().eq("id", id); if (error) throw error; this._tpl = null; },
+  async templatesCached() { if (!this._tpl) this._tpl = await this.getTemplates(); return this._tpl; },
+  // follow-ups and tasks that are due (for reminders and the sidebar badge)
+  async getDue(untilIso) {
+    const f = await this.client.from("enquiries").select("id,name,follow_up,status").not("follow_up", "is", null).lte("follow_up", untilIso).not("status", "in", "(Spam,Booking Done,Post Sale)").order("follow_up").limit(100);
+    const t = await this.client.from("tasks").select("id,title,due_at").is("done_at", null).not("due_at", "is", null).lte("due_at", untilIso).order("due_at").limit(100);
+    return { followUps: f.error ? [] : f.data || [], tasks: t.error ? [] : t.data || [] };
+  },
   async getIntegrations() {
     const { data, error } = await this.client.from("integrations").select("*").order("created_at");
     if (error) throw error;

@@ -705,3 +705,33 @@ revoke all on function public.assignee_detail(text) from public, anon;
 revoke all on function public.assignee_for(text) from public, anon;
 grant execute on function public.assignee_detail(text) to authenticated;
 grant execute on function public.assignee_for(text) to authenticated;
+
+-- ===== Daily workflow: WhatsApp message templates + repeat-enquiry check =====
+create table if not exists public.message_templates (
+  id bigint generated always as identity primary key,
+  title text not null check (length(trim(title)) > 0),
+  body text not null check (length(trim(body)) > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.message_templates enable row level security;
+create policy "admin all templates" on public.message_templates for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "signed-in read templates" on public.message_templates for select to authenticated using (public.is_admin() or public.my_member_id() is not null);
+insert into public.message_templates (title, body)
+select * from (values
+ ('Brochure & details', 'Hello {name}, thank you for your interest in {project}. Sharing the brochure and details here. Please let me know a good time to talk. – {agent}'),
+ ('Site visit invite', 'Hi {name}, would you like to visit {project} this weekend? I can arrange a site visit and pickup. Let me know your preferred time. – {agent}'),
+ ('Follow-up', 'Hi {name}, just following up on {project}. Do you have any questions I can help with? – {agent}'),
+ ('Thank you after visit', 'Hi {name}, thank you for visiting {project}. Please share your feedback and let me know the next step. – {agent}')
+) v(t, b) where not exists (select 1 from public.message_templates);
+-- repeat-enquiry check for the Add Lead form: counts every enquiry with this phone number, even ones the caller cannot open (no contact details are returned)
+create or replace function public.phone_matches(p_phone text)
+returns table(cnt integer, last_at timestamptz, owner text, project text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d),
+  m as (select e.created_at, e.project, case when jsonb_typeof(e.manager_name) = 'string' then e.manager_name #>> '{}' end as owner
+        from public.enquiries e, k where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d)
+  select (select count(*) from m)::integer, (select max(created_at) from m),
+         (select m2.owner from m m2 order by m2.created_at desc limit 1), (select m3.project from m m3 order by m3.created_at desc limit 1)
+  where auth.uid() is not null and (select count(*) from m) > 0 $f$;
+revoke all on function public.phone_matches(text) from public, anon;
+grant execute on function public.phone_matches(text) to authenticated;

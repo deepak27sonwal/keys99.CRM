@@ -199,7 +199,20 @@ async function openAddLead(done, preset = {}) {
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
     ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
     async (f) => { if ("city" in f) f.location = joinLocation(f); if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
-  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m);
+  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m); wireDuplicateCheck(mod);
+}
+// Warns while typing a mobile number that has enquired before (counts every enquiry, including other people's; no contact details are shown).
+function wireDuplicateCheck(root) {
+  const mob = root.querySelector('[name="mobile"]'); if (!mob || !mob.closest("label")) return;
+  const note = document.createElement("div"); note.className = "dup-note full"; note.setAttribute("role", "status"); note.hidden = true; mob.closest("label").after(note);
+  let timer, last = "";
+  const check = async () => {
+    const d = digits(mob.value).slice(-10); if (d.length < 10) { note.hidden = true; last = ""; return; } if (d === last) return; last = d;
+    try { const r = await Data.phoneMatches(mob.value); if (!r) { note.hidden = true; return; }
+      note.innerHTML = `<b>Already in the CRM:</b> this number has enquired ${esc(r.cnt)} time${r.cnt === 1 ? "" : "s"}, last on ${esc(fmtDay(r.last_at))}${r.owner ? ", with " + esc(r.owner) : ""}${r.project ? " for " + esc(r.project) : ""}. You can still add it.`; note.hidden = false;
+    } catch { note.hidden = true; }
+  };
+  mob.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(check, 350); }); mob.addEventListener("blur", check);
 }
 async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
