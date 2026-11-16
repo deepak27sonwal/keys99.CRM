@@ -889,3 +889,23 @@ create index if not exists meetings_start_idx on public.meetings (starts_at);
 alter table public.meetings enable row level security;
 create policy "admin all meetings" on public.meetings for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy "invitee reads meeting" on public.meetings for select to authenticated using (public.my_member_id() is not null and public.my_member_id() = any (attendees));
+
+-- repeat_owner: also recognise the earlier owner by email when the team member was renamed (leads keep the old name)
+create or replace function public.repeat_owner(p_phone text)
+returns table(name text, email text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d)
+  select t.name, t.email
+  from k
+  cross join lateral (
+    select e.manager_name #>> '{}' as owner,
+           case when jsonb_typeof(e.manager_email) = 'string' then nullif(lower(trim(e.manager_email #>> '{}')), '') end as owner_email
+    from public.enquiries e
+    where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d
+      and jsonb_typeof(e.manager_name) = 'string' and nullif(trim(e.manager_name #>> '{}'), '') is not null
+    order by e.created_at desc limit 1) o
+  join public.team_members t on t.status = 'Active'
+    and (lower(trim(t.name)) = lower(trim(o.owner)) or (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email))
+  order by (lower(trim(t.name)) = lower(trim(o.owner))) desc
+  limit 1 $f$;
+revoke all on function public.repeat_owner(text) from public, anon, authenticated;
