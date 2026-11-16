@@ -256,7 +256,7 @@ const Data = {
   },
   // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
   // ---- calendar: holidays and meetings ----
-  async getHolidays() { const { data, error } = await this.client.from("holidays").select("*").order("starts_on").limit(2000); return error ? [] : data || []; },
+  async getHolidays() { try { return (await this.fetchAll("holidays")).sort((a, b) => a.starts_on.localeCompare(b.starts_on)); } catch { return []; } },     // paged: PostgREST returns at most 1000 rows per request
   async holidaysCached() { if (!this._hol) this._hol = await this.getHolidays(); return this._hol; },
   async saveHoliday(id, h) {
     const row = { name: String(h.name || "").trim(), starts_on: h.starts_on, ends_on: h.ends_on || h.starts_on, kind: h.kind || "Public", notes: String(h.notes || "").trim() || null };
@@ -266,7 +266,7 @@ const Data = {
   },
   async addHolidays(rows) { let added = 0; for (const r of rows) { try { await this.saveHoliday(null, r); added++; } catch { /* already there */ } } this._hol = null; return added; },
   async deleteHoliday(id) { const { error } = await this.client.from("holidays").delete().eq("id", id); if (error) throw error; this._hol = null; },
-  async getMeetings() { const { data, error } = await this.client.from("meetings").select("*").order("starts_at").limit(5000); return error ? [] : data || []; },
+  async getMeetings() { try { return (await this.fetchAll("meetings")).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at)); } catch { return []; } },
   async saveMeeting(id, m) { const { error } = await (id ? this.client.from("meetings").update(m).eq("id", id) : this.client.from("meetings").insert(m)); if (error) throw new Error(error.message); },
   async deleteMeeting(id) { const { error } = await this.client.from("meetings").delete().eq("id", id); if (error) throw error; },
   // ---- transferring leads to another team member (the rules are enforced in the database) ----
