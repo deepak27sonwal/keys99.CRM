@@ -185,7 +185,7 @@ const Data = {
   },
   async getTasks() { return this.fetchAll("tasks"); },
   async addTask(t) {
-    const { error } = await this.client.from("tasks").insert({ title: t.title, notes: t.notes || null, due_at: t.due_at || null, assigned_to: t.assigned_to, enquiry_id: t.enquiry_id || null });
+    const { error } = await this.client.from("tasks").insert({ title: t.title, notes: t.notes || null, due_at: t.due_at || null, assigned_to: t.assigned_to, enquiry_id: t.enquiry_id || null, type: t.type || "Other", priority: t.priority || "Medium" });
     if (error) throw error;
   },
   async updateTask(id, patch) { const { error } = await this.client.from("tasks").update(patch).eq("id", id); if (error) throw error; },
