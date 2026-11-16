@@ -72,7 +72,9 @@ window.Workflow = (() => {
     const now = new Date(), ms = await Data.getMeetings(); if (!ms.length) return;
     ms.filter((m) => m.status === "Scheduled" && m.reminder_min !== null && m.reminder_min !== undefined && !(window.ME && window.ME.role === "admin" && m.created_by !== window.ME.uid)).forEach((m) => {
       expandMeeting(m, now, new Date(now.getTime() + 86400000)).forEach((o) => {
-        const mins = (o.start - now) / 60000; if (mins < -2 || mins > m.reminder_min) return;      // a short grace after the start, because the check runs once a minute const key = "m" + m.id + "@" + o.start.getTime(); if (seenSet.has(key)) return; seenSet.add(key);
+        const mins = (o.start - now) / 60000;
+        if (mins < -2 || mins > m.reminder_min) return;      // a short grace after the start, because the check runs once a minute
+        const key = "m" + m.id + "@" + o.start.getTime(); if (seenSet.has(key)) return; seenSet.add(key);
         const msg = "Meeting " + (mins < 1 ? "starting now" : "in " + Math.round(mins) + " min") + ": " + m.title + (m.location ? " · " + m.location : ""); toast(msg);
         try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Keys99 CRM", { body: msg, tag: key }); } catch { /* optional */ }
       });
