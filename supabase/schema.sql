@@ -736,6 +736,9 @@ language sql stable security definer set search_path = '' as $f$
 revoke all on function public.phone_matches(text) from public, anon;
 grant execute on function public.phone_matches(text) to authenticated;
 
+-- ===== Tasks: type and priority (Tasks & Follow-ups page) =====
+alter table public.tasks add column if not exists type text not null default 'Other' check (type in ('Call','WhatsApp','Meeting','Site Visit','Document','Other'));
+alter table public.tasks add column if not exists priority text not null default 'Medium' check (priority in ('High','Medium','Low'));
 -- ===== Designations belong to a department (Settings); the team-member form offers the chosen department's designations =====
 create table if not exists public.designations (
   id bigint generated always as identity primary key,
