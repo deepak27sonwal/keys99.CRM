@@ -47,7 +47,7 @@
         <div class="box-b"><h4>Lead Progress</h4>${stepper(l.status)}</div>
         <div class="box-b"><h4>Notes</h4><div class="note"><i data-lucide="sticky-note" class="gold-t"></i><div>${lastNote ? lastNote.description : l.notes || "No notes yet."}${lastNote ? html`<div class="muted" style="font-size:12px;margin-top:4px">${fmtDate(lastNote.at)}${lastNote.by ? " • " + lastNote.by : ""}</div>` : raw("")}</div></div></div>
         <a class="btn brand" style="width:100%;justify-content:center" href="customer.html?id=${encodeURIComponent(l.id)}"><i data-lucide="user"></i>View Full Profile</a></div>
-      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button><button class="btn outline" id="dHist"><i data-lucide="history"></i>History</button></div></aside>`;
+      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button><button class="btn outline" id="dHist"><i data-lucide="history"></i>History</button><button class="btn outline" id="dTransfer"><i data-lucide="send"></i>Transfer</button></div></aside>`;
   }
 
   // Follow-up chip: flags overdue / due-today follow-ups on open leads.
@@ -81,7 +81,7 @@
     render(page, html`
       <div class="split"><div class="left">
         <div class="page-head"><div><h1>Leads Management</h1><p class="sub">Capture, track and convert your property enquiries.</p></div>
-          <div class="btns"><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
+          <div class="btns"><button class="btn" id="transferSel" aria-label="Transfer the ticked leads"><i data-lucide="send"></i>Transfer${state.checked.size ? " (" + state.checked.size + ")" : ""}</button><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
         <div class="kpis k6">${kpis.map(kpiCard)}</div>
         <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === "All Leads" ? "" : "has-stage s-" + slug(t)} ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
         <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${window.ME && window.ME.role === "employee" ? "" : sel("agent", "Agent")}
@@ -121,13 +121,16 @@
       if (e.target.closest("input,a,button")) return;
       state.selected = state.leads.find((l) => l.dbId === Number(r.dataset.id)); draw();
     }));
-    page.querySelectorAll("[data-check]").forEach((c) => (c.onchange = () => { const id = Number(c.dataset.check); c.checked ? state.checked.add(id) : state.checked.delete(id); }));
+    page.querySelectorAll("[data-check]").forEach((c) => (c.onchange = () => { const id = Number(c.dataset.check); c.checked ? state.checked.add(id) : state.checked.delete(id); const tb = page.querySelector("#transferSel"); if (tb) tb.lastChild.textContent = "Transfer" + (state.checked.size ? " (" + state.checked.size + ")" : ""); }));
     page.querySelectorAll("[data-edit]").forEach((x) => (x.onclick = () => openEditLead(state.leads.find((l) => l.dbId === Number(x.dataset.edit)), refresh)));
     const all = page.querySelector("#checkAll");
     all.onchange = () => { state.checked = new Set(all.checked ? filtered.map((l) => l.dbId) : []); draw(); };
     const close = page.querySelector("#closeDrawer"); if (close) close.onclick = () => { state.selected = null; draw(); };
     page.querySelectorAll("[data-hist]").forEach((x) => (x.onclick = (e) => { e.stopPropagation(); openHistory(state.leads.find((l) => l.dbId === Number(x.dataset.hist))); }));
     const dh = page.querySelector("#dHist"); if (dh) dh.onclick = () => openHistory(state.selected);
+    const afterTransfer = async () => { state.checked.clear(); state.selected = null; await refresh(); };
+    const dt = page.querySelector("#dTransfer"); if (dt) dt.onclick = () => openTransfer(state.selected, afterTransfer);
+    page.querySelector("#transferSel").onclick = () => openTransfer(state.leads.filter((l) => state.checked.has(l.dbId)), afterTransfer);
     const dn = page.querySelector("#dNote"); if (dn) dn.onclick = () => openNote(state.selected, refresh);
     const df = page.querySelector("#dFollow"); if (df) df.onclick = () => openFollowUp(state.selected, refresh);
     page.querySelector("#addLead").onclick = () => openAddLead(refresh);

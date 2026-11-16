@@ -968,6 +968,13 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 }
 .tk-warn{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px}.tk-warn span{flex:1;min-width:200px}
 
+/* leads list on phones: a tick box on each card so several leads can be transferred or exported together */
+@media(max-width:900px){
+  .leads-t td[data-label="Select"]{display:block;position:absolute;top:7px;left:11px;z-index:2;padding:0;width:auto}
+  .leads-t td[data-label="Select"] input{width:18px;height:18px}
+  .leads-t td[data-label="Lead ID"]{padding-left:32px}
+}
+
 @media(max-width:600px){
   .kpis.k7.tk-kpis{grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}
   /* compact chips: the first four (Total, Completed, Pending, Overdue) share one row, the other three the next */

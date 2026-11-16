@@ -66,7 +66,7 @@
     render(page, html`
       <div class="page-head"><div><div class="crumb">Customers <i data-lucide="chevron-right" style="width:14px;height:14px"></i><b>${lead.name}</b></div><h1>Customer Profile</h1>
         <p class="sub">Complete customer view with requirements, interactions, site visits and deal history.</p></div>
-        <div class="btns"><a class="btn brand" href="leads.html"><i data-lucide="arrow-left"></i>Back</a><button class="btn" id="editBtn"><i data-lucide="pencil"></i>Edit Profile</button>
+        <div class="btns"><a class="btn brand" href="leads.html"><i data-lucide="arrow-left"></i>Back</a><button class="btn" id="editBtn"><i data-lucide="pencil"></i>Edit Profile</button><button class="btn" id="transferBtn"><i data-lucide="send"></i>Transfer</button>
           <button class="btn gold" id="dealBtn"><i data-lucide="handshake"></i>Convert to Deal</button><button class="btn" id="visitBtn"><i data-lucide="calendar"></i>Schedule Visit</button></div></div>
       <div class="top-row">
         <section class="card p id-card">${avatar(lead.name, 110)}<div class="info"><div class="row" style="flex-wrap:wrap"><h2>${lead.name}</h2><span class="st-prio">${badge(lead.status)}${priorityChip(lead)}</span></div>
@@ -85,6 +85,7 @@
 
     const on = (sel, fn) => { const el = page.querySelector(sel); if (el) el.onclick = fn; };
     page.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; draw(); }));
+    on("#transferBtn", () => openTransfer(lead, async (n) => { if (window.ME && window.ME.role === "employee" && n) location.href = "leads.html"; else await done(); }));
     on("#editBtn", () => openEditLead(lead, done)); on("#editBtn2", () => openEditLead(lead, done)); on("#followBtn", () => openFollowUp(lead, done));
     on("#dealBtn", () => openBooking(lead, done)); on("#visitBtn", () => openSiteVisit(lead, done)); on("#visitBtn2", () => openSiteVisit(lead, done)); on("#noteBtn2", () => openNote(lead, done));
     on("#keep", () => toast("Lead stays active")); on("#spam", () => openSpam(lead, done));

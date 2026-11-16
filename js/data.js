@@ -255,6 +255,9 @@ const Data = {
     } catch { return { ok: false, error: "Could not reach the capture service. Check your connection." }; }
   },
   // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
+  // ---- transferring leads to another team member (the rules are enforced in the database) ----
+  async getTransferTargets() { const { data, error } = await this.client.rpc("transfer_targets"); if (error) throw new Error(error.message); return data || []; },
+  async transferLeads(ids, memberId, note) { const { data, error } = await this.client.rpc("transfer_leads", { p_ids: ids, p_member_id: memberId, p_note: note || null }); if (error) throw new Error(error.message); return Number(data) || 0; },
   // ---- master lists (Settings): teams, departments, cities, localities ----
   async getMasters() {
     const get = async (t) => { const { data, error } = await this.client.from(t).select("*").order("name").limit(5000); return error ? [] : data || []; };   // a missing table or no access just means "no list yet"
