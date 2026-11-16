@@ -181,6 +181,21 @@ function wireLocations(root, m, cityName = "city", locName = "locality") {
   };
   city.addEventListener("change", fill);
 }
+// Designation depends on the Department: the dropdown lists that department's designations. With no designations set up yet it stays free text.
+function designationPicker(m, { department = "", value = "", placeholder = "" }) {
+  const dep = m.departments.find((d) => kn(d.name) === kn(department)), list = dep ? m.designations.filter((x) => x.department_id === dep.id).map((x) => x.name) : [];
+  if (!m.departments.length || !m.designations.length) return field("Designation", "designation", value, "text", 'placeholder="' + esc(placeholder) + '"');
+  return html`<label>Designation<select name="designation" data-placeholder="${dep ? "— None —" : "Choose a department first"}"><option value="">— None —</option>${list.map((o) => html`<option value="${o}" ${kn(o) === kn(value) ? raw("selected") : raw("")}>${o}</option>`)}${value && !list.some((o) => kn(o) === kn(value)) ? html`<option value="${value}" selected>${value} (not in list)</option>` : raw("")}</select></label>`;
+}
+function wireDesignations(root, m) {
+  const dep = root.querySelector('[name="department"]'), des = root.querySelector('select[name="designation"]'); if (!dep || !des) return;
+  dep.addEventListener("change", () => {
+    const d = m.departments.find((x) => kn(x.name) === kn(dep.value)), keep = des.value, list = d ? m.designations.filter((x) => x.department_id === d.id).map((x) => x.name) : [];
+    des.innerHTML = '<option value="">— None —</option>' + list.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join("");
+    if (keep && list.some((o) => kn(o) === kn(keep))) des.value = list.find((o) => kn(o) === kn(keep));
+    des.dataset.placeholder = d ? "— None —" : "Choose a department first"; if (des._dd) des._dd.refresh();
+  });
+}
 // "Wakad, Pune" -> { city: "Pune", locality: "Wakad" } when the last part is a known city; anything else stays as it is, in the City box
 function splitLocation(loc, m) {
   const parts = String(loc || "").split(",").map((x) => x.trim()).filter(Boolean), c = parts.length && m.cities.find((x) => kn(x.name) === kn(parts[parts.length - 1]));
@@ -189,7 +204,7 @@ function splitLocation(loc, m) {
 const joinLocation = (f) => [f.locality, f.city].filter(Boolean).join(", ");
 
 async function openAddLead(done, preset = {}) {
-  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] }));
+  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] }));
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
@@ -218,7 +233,7 @@ async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
   let team = []; try { team = await Data.getTeamCached(); } catch { team = []; }
   const emp = !!(window.ME && window.ME.role === "employee");     // employees work their own leads: no reassigning
-  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] })), at = splitLocation(lead.location, m);
+  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] })), at = splitLocation(lead.location, m);
   const k = (n) => String(n || "").trim().toLowerCase(), cur = lead.agent || "", match = team.find((m) => k(m.name) === k(cur));
   const KINDS = { agent: "Agent", rm: "Relationship Manager" };
   const agentField = emp ? raw("") : team.length

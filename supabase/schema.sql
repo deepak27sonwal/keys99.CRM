@@ -735,3 +735,14 @@ language sql stable security definer set search_path = '' as $f$
   where auth.uid() is not null and (select count(*) from m) > 0 $f$;
 revoke all on function public.phone_matches(text) from public, anon;
 grant execute on function public.phone_matches(text) to authenticated;
+
+-- ===== Designations belong to a department (Settings); the team-member form offers the chosen department's designations =====
+create table if not exists public.designations (
+  id bigint generated always as identity primary key,
+  department_id bigint not null references public.departments(id) on delete cascade,
+  name text not null check (length(trim(name)) > 0),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists designations_name_uq on public.designations (department_id, lower(trim(name)));
+alter table public.designations enable row level security;
+create policy "admin all designations" on public.designations for all to authenticated using (public.is_admin()) with check (public.is_admin());

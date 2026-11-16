@@ -158,7 +158,7 @@ async function mountPropertyPage(kind) {
   }
   // Add / edit a project or developer. Editing a name does not rename the leads that already use it.
   async function openForm(e) {
-    const ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] }));
+    const ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] }));
     const r = (e && e.reg) || {}, seed = !e ? {} : e.reg ? {} : { name: e.name };
     const v = (k) => r[k] || seed[k] || "";
     const devNames = [...new Set([...state.regDev.map((d) => d.name), ...state.regProj.map((x) => x.developer), ...state.leads.map((l) => String(l.developer || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
