@@ -216,6 +216,26 @@ async function openAddLead(done, preset = {}) {
     async (f) => { if ("city" in f) f.location = joinLocation(f); if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
   const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m); wireDuplicateCheck(mod);
 }
+// Transfer one or many leads to another team member. Admins can pick anyone; employees can pick other employees that have a login (the database decides).
+async function openTransfer(leads, done) {
+  leads = (Array.isArray(leads) ? leads : [leads]).filter(Boolean);
+  if (!leads.length) return toast("Tick the leads you want to transfer first");
+  const emp = !!(window.ME && window.ME.role === "employee"); let targets;
+  try { targets = await Data.getTransferTargets(); } catch (e) { return toast("Could not load the team: " + e.message); }
+  const owners = new Set(leads.map((l) => String(l.agent || "").trim().toLowerCase())), list = leads.length === 1 && owners.size === 1 ? targets.filter((t) => t.name.trim().toLowerCase() !== [...owners][0]) : targets;
+  if (!list.length) return toast(emp ? "There is no other team member with a login to transfer to yet. Ask an admin to create one." : "Add team members first in Agents & Teams.");
+  const n = leads.length, who = n === 1 ? leads[0].name + " (" + leads[0].id + ")" : n + " leads" + (n <= 3 ? ": " + leads.map((l) => l.name).join(", ") : "");
+  openModal("Transfer " + (n === 1 ? "lead" : n + " leads"), html`<div class="form"><p class="sub full">${who}</p>
+    <label class="full">Transfer to *<select name="to" required data-placeholder="— Choose —"><option value="">— Choose —</option>${list.map((t) => html`<option value="${t.id}">${t.name}${[t.designation, t.department].filter(Boolean).length ? " · " + [t.designation, t.department].filter(Boolean).join(", ") : ""}</option>`)}</select></label>
+    <label class="full">Note (optional)<textarea name="note" rows="2" maxlength="300" placeholder="e.g. Client prefers Hindi, site visit is fixed for Saturday"></textarea></label>
+    <p class="sub full">${emp ? "After the transfer you will no longer see " + (n === 1 ? "this lead" : "these leads") + ". The new owner is told on the lead's timeline." : "The new owner also becomes the contact for the lead's email alerts, and the move is written on its timeline."}</p></div>`,
+    async (f) => {
+      const to = Number(f.to); if (!to) throw new Error("Choose who to transfer to");
+      const moved = await Data.transferLeads(leads.map((l) => l.dbId), to, f.note), name = (list.find((t) => t.id === to) || {}).name || "them";
+      toast(moved ? moved + " lead" + (moved === 1 ? "" : "s") + " transferred to " + name + (moved < n ? " (" + (n - moved) + " skipped)" : "") : "Nothing was transferred (already with " + name + ")");
+      if (done) await done(moved);
+    }, "Transfer");
+}
 // Warns while typing a mobile number that has enquired before (counts every enquiry, including other people's; no contact details are shown).
 function wireDuplicateCheck(root) {
   const mob = root.querySelector('[name="mobile"]'); if (!mob || !mob.closest("label")) return;

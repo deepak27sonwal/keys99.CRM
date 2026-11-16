@@ -749,3 +749,44 @@ create table if not exists public.designations (
 create unique index if not exists designations_name_uq on public.designations (department_id, lower(trim(name)));
 alter table public.designations enable row level security;
 create policy "admin all designations" on public.designations for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- ===== Transfer leads (single or bulk) to another team member =====
+-- who a lead can be transferred to: admins see every active team member; employees see the other active employees that have a login (names and roles only)
+create or replace function public.transfer_targets()
+returns table(id bigint, name text, designation text, department text, kind text)
+language sql stable security definer set search_path = '' as $f$
+  select t.id, t.name, t.designation, t.department, t.kind from public.team_members t
+  where auth.uid() is not null and t.status = 'Active' and (
+    public.is_admin()
+    or (public.my_member_id() is not null and t.id <> public.my_member_id()
+        and exists (select 1 from public.app_users u where u.member_id = t.id and u.role = 'employee' and u.active)))
+  order by t.name $f$;
+-- moves leads to another team member (admin: any lead; employee: only their own, to another employee with a login) and writes it on the lead's timeline
+create or replace function public.transfer_leads(p_ids bigint[], p_member_id bigint, p_note text default null)
+returns integer language plpgsql security definer set search_path = '' as $f$
+declare tgt record; me_id bigint := public.my_member_id(); n integer; uemail text := coalesce(auth.jwt() ->> 'email', ''); adm boolean := public.is_admin();
+begin
+  if auth.uid() is null or not (adm or me_id is not null) then raise exception 'You are not allowed to transfer leads'; end if;
+  if coalesce(array_length(p_ids, 1), 0) = 0 then return 0; end if;
+  if array_length(p_ids, 1) > 500 then raise exception 'Transfer at most 500 leads at a time'; end if;
+  select * into tgt from public.team_members where team_members.id = p_member_id and status = 'Active';
+  if not found then raise exception 'That team member is not available'; end if;
+  if not adm then
+    if tgt.id = me_id then raise exception 'Choose someone other than yourself'; end if;
+    if not exists (select 1 from public.app_users u where u.member_id = tgt.id and u.role = 'employee' and u.active) then raise exception 'You can only transfer to a team member who has a login'; end if;
+  end if;
+  update public.enquiries e set
+    manager_name = to_jsonb(tgt.name),
+    manager_email = case when coalesce(tgt.email, '') = '' then null else to_jsonb(tgt.email) end,
+    activities = coalesce(e.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', uemail, 'type', 'doc', 'title', 'Transferred',
+      'description', 'Transferred from ' || coalesce(nullif(e.manager_name #>> '{}', ''), 'Unassigned') || ' to ' || tgt.name || coalesce(' · ' || nullif(trim(p_note), ''), '')))
+  where e.id = any (p_ids)
+    and (adm or public.is_mine(e.manager_name, e.manager_email))
+    and not (jsonb_typeof(e.manager_name) = 'string' and lower(trim(e.manager_name #>> '{}')) = lower(trim(tgt.name)));
+  get diagnostics n = row_count;
+  return n;
+end $f$;
+revoke all on function public.transfer_targets() from public, anon;
+revoke all on function public.transfer_leads(bigint[], bigint, text) from public, anon;
+grant execute on function public.transfer_targets() to authenticated;
+grant execute on function public.transfer_leads(bigint[], bigint, text) to authenticated;
