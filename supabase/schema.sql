@@ -657,3 +657,45 @@ create policy "employee read cities" on public.cities for select to authenticate
 create policy "employee read localities" on public.localities for select to authenticated using (public.my_member_id() is not null);
 alter table public.team_members add column if not exists department text;
 alter table public.team_members add column if not exists locality text;
+
+-- ===== Codex review fixes for employee logins =====
+-- visit files: admins everything; employees only files of visits they can see (path visits/<visit id>/...)
+drop policy if exists "CRM users manage visit files" on storage.objects;
+create policy "admin manage visit files" on storage.objects for all to authenticated
+  using (bucket_id = 'visit-files' and public.is_admin()) with check (bucket_id = 'visit-files' and public.is_admin());
+create policy "employee own visit files" on storage.objects for all to authenticated
+  using (bucket_id = 'visit-files' and (storage.foldername(name))[1] = 'visits' and exists (select 1 from public.site_visits v where v.id::text = (storage.foldername(name))[2]))
+  with check (bucket_id = 'visit-files' and (storage.foldername(name))[1] = 'visits' and exists (select 1 from public.site_visits v where v.id::text = (storage.foldername(name))[2]));
+-- an employee adding their own lead keeps it: auto-assign steps aside for them (body otherwise unchanged)
+create or replace function public.auto_assign_enquiry() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare on_ boolean; a record; has_mgr boolean;
+begin
+  select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
+  if not coalesce(on_, false) then return new; end if;
+  if public.my_member_id() is not null then return new; end if;
+  perform pg_advisory_xact_lock(727001);
+  select * into a from public.assignee_detail(new.project);
+  if a.id is null then return new; end if;
+  has_mgr := new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb);
+  if not a.matched and has_mgr then return new; end if;
+  new.manager_name := to_jsonb(a.name);
+  new.manager_email := case when a.email is null then null else to_jsonb(a.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
+    'description', 'Assigned to ' || a.name || ' · ' || a.reason));
+  update public.team_members set last_assigned_at = clock_timestamp() where team_members.id = a.id;
+  return new;
+exception when others then
+  raise warning 'auto_assign_enquiry failed: %', sqlerrm;
+  return new;
+end $f$;
+-- who-gets-next preview: admins and system triggers (no signed-in user) only
+alter function public.assignee_detail(text) rename to assignee_detail_core;
+revoke all on function public.assignee_detail_core(text) from public, anon, authenticated;
+create or replace function public.assignee_detail(p_project text)
+returns table(id bigint, name text, email text, matched boolean, reason text)
+language plpgsql stable security definer set search_path = '' as $f$
+begin
+  if auth.uid() is not null and not public.is_admin() then return; end if;
+  return query select * from public.assignee_detail_core(p_project);
+end $f$;
