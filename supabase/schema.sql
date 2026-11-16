@@ -739,3 +739,13 @@ grant execute on function public.phone_matches(text) to authenticated;
 -- ===== Tasks: type and priority (Tasks & Follow-ups page) =====
 alter table public.tasks add column if not exists type text not null default 'Other' check (type in ('Call','WhatsApp','Meeting','Site Visit','Document','Other'));
 alter table public.tasks add column if not exists priority text not null default 'Medium' check (priority in ('High','Medium','Low'));
+-- ===== Designations belong to a department (Settings); the team-member form offers the chosen department's designations =====
+create table if not exists public.designations (
+  id bigint generated always as identity primary key,
+  department_id bigint not null references public.departments(id) on delete cascade,
+  name text not null check (length(trim(name)) > 0),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists designations_name_uq on public.designations (department_id, lower(trim(name)));
+alter table public.designations enable row level security;
+create policy "admin all designations" on public.designations for all to authenticated using (public.is_admin()) with check (public.is_admin());

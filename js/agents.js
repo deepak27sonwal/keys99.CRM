@@ -261,12 +261,12 @@
 
   // ---------- add / edit ----------
   async function openMember(m, kind, done) {
-    const k = m ? m.kind : kind, ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] }));
+    const k = m ? m.kind : kind, ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] }));
     openModal(m ? "Edit " + m.name : k === "rm" ? "Add Relationship Manager" : "Add Agent", html`<div class="form">
       ${selectField("Type", "kind_label", ["Agent", "Relationship Manager"], KIND[k])}${selectField("Status", "status", ["Active", "Inactive"], m ? m.status : "Active")}
       ${field("Name *", "name", m ? m.name : "", "text", "required maxlength=\"120\"")}${field("Mobile * (10 digits)", "phone", m ? m.phone || "" : "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
-      ${field("Email", "email", m ? m.email || "" : "", "email")}${field("Designation", "designation", m ? m.designation || "" : "", "text", 'placeholder="' + (k === "rm" ? "Relationship Manager" : "Sales Executive") + '"')}
-      ${masterSelect("Team", "team", ms.teams.map((x) => x.name), m ? m.team || "" : "")}${masterSelect("Department", "department", ms.departments.map((x) => x.name), m ? m.department || "" : "")}
+      ${field("Email", "email", m ? m.email || "" : "", "email")}${masterSelect("Team", "team", ms.teams.map((x) => x.name), m ? m.team || "" : "")}
+      ${masterSelect("Department", "department", ms.departments.map((x) => x.name), m ? m.department || "" : "")}${designationPicker(ms, { department: m ? m.department || "" : "", value: m ? m.designation || "" : "", placeholder: k === "rm" ? "Relationship Manager" : "Sales Executive" })}
       ${locPicker(ms, { city: m ? m.location || "" : "", locality: m ? m.locality || "" : "", cityName: "location", locName: "locality", fallback: html`${field("Location", "location", m ? m.location || "" : "", "text", 'placeholder="e.g. Pune"')}<input type="hidden" name="locality" value="${m ? m.locality || "" : ""}">` })}
       ${field("Monthly target (₹)", "monthly_target", m ? m.monthly_target || "" : "", "number", 'min="0" step="1000" placeholder="e.g. 10000000"')}${field("Daily lead limit", "daily_cap", m ? m.daily_cap || "" : "", "number", 'min="1" step="1" placeholder="No limit"')}${field("Joined on", "joined_on", m ? m.joined_on || "" : new Date().toISOString().slice(0, 10), "date")}
       <div class="full proj-picker"><label>Projects (new leads for these go to this person)</label><div class="chips" data-chips></div>
@@ -274,7 +274,7 @@
         <input type="hidden" name="projects" value="${JSON.stringify((m && m.projects) || [])}"></div>
       ${m ? html`<p class="sub full" style="margin:0">Leads are matched to a person by name. If you rename them, leads already assigned keep the old name until you change them.</p>` : raw("")}</div>`,
       async (f) => { f.kind = f.kind_label === "Relationship Manager" ? "rm" : "agent"; try { f.projects = JSON.parse(f.projects || "[]"); } catch { f.projects = []; } await Data.saveMember(m ? m.id : null, f); toast(m ? "Saved" : (f.kind === "rm" ? "Relationship manager added" : "Agent added")); done && (await done()); });
-    setupPicker(); wireLocations(document.querySelector(".overlay.open .modal") || document, ms, "location", "locality");
+    setupPicker(); { const mod = document.querySelector(".overlay.open .modal") || document; wireLocations(mod, ms, "location", "locality"); wireDesignations(mod, ms); }
   }
   function setupPicker() {
     const box = document.querySelector(".overlay .proj-picker"); if (!box) return;
