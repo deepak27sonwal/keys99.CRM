@@ -182,6 +182,7 @@
         if (t) await Data.updateTask(t.id, { ...row, notes: row.notes || null }); else await Data.addTask(row);
         toast(t ? "Task updated" : "Task created"); await refresh();
       }, t ? "Save" : "Create task");
+  wireHolidayNote(document.querySelector(".overlay.open .modal"), "due");
   }
   function pickLead(title, cta, next) {
     openModal(title, html`<div class="form"><label class="full">Lead *<select name="lead" required>${leadOptions("")}</select></label>${cta.date ? field("Date & time *", "when", toLocalInput(new Date(Date.now() + 86400000).toISOString()), "datetime-local", "required", "full") : raw("")}${cta.note ? html`<label class="full">Note (optional)<textarea name="note" rows="2"></textarea></label>` : raw("")}</div>`,

@@ -4,6 +4,8 @@
   let leads, visits, bookings;
   try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); }
   catch (e) { page.innerHTML = '<div class="card empty">Could not load data: ' + esc(e.message) + "</div>"; return; }
+  let hols = [], meets = [];
+  try { [hols, meets] = await Promise.all([Data.getHolidays(), Data.getMeetings()]); } catch { /* the calendar strip is optional */ }
   const byId = new Map(leads.map((l) => [l.dbId, l]));
   const RANGES = { "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time" };
   const state = { range: "30d" };
@@ -109,6 +111,12 @@
     // needs attention now: brand-new leads nobody has touched, and follow-ups that are already due
     const waitingL = leads.filter((l) => { const w = Data.waiting(l); return w !== null && w >= WAIT_ALERT_MIN; }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     const dueL = leads.filter((l) => l.followUpTs && new Date(l.followUpTs) <= now && !CLOSED.includes(l.status)).sort((a, b) => new Date(a.followUpTs) - new Date(b.followUpTs));
+    // calendar strip: a holiday today or tomorrow, and the next meetings
+    const ahead = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d; }, hToday = holidayOn(hols, new Date()), hTom = holidayOn(hols, ahead(1));
+    const nextMeet = meets.filter((m) => m.status === "Scheduled").flatMap((m) => expandMeeting(m, new Date(), ahead(14)).map((o) => ({ o, m }))).sort((a, b) => a.o.start - b.o.start).slice(0, 3);
+    const calStrip = hToday || hTom || nextMeet.length ? html`<section class="card p cal-strip" aria-label="Calendar"><div class="ch"><i data-lucide="calendar-days"></i><h3>Calendar</h3><a class="more" href="calendar.html">Open calendar<i data-lucide="arrow-right"></i></a></div>
+      ${hToday ? html`<div class="cal-agh"><i data-lucide="party-popper"></i><b>Today is a holiday: ${hToday.name}</b></div>` : hTom ? html`<div class="cal-agh"><i data-lucide="party-popper"></i><b>Tomorrow is a holiday: ${hTom.name}</b></div>` : raw("")}
+      ${nextMeet.length ? html`<ul class="cal-up">${nextMeet.map(({ o, m }) => html`<li><a href="calendar.html"><b>${m.title}</b><small>${sameDay(o.start, new Date()) ? "Today" : fmtLongDay(o.start)} · ${fmtTime(o.start)}${m.location ? " · " + m.location : ""}</small></a></li>`)}</ul>` : raw("")}</section>` : raw("");
     const attRow = (l, note) => html`<li><span class="avatar" style="width:32px;height:32px;background:#fdecec;color:#b91c1c;font-size:11px">${l.name.split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase()}</span><div class="grow"><b>${l.name}</b><small>${note}${l.project ? " · " + l.project : ""}</small></div><a class="icon-btn" href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="icon-btn" href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></li>`;
     const attention = (waitingL.length || dueL.length) ? html`<section class="card p attn" aria-label="Needs attention now"><div class="ch"><i data-lucide="alarm-clock"></i><h3>Needs attention now</h3></div>
       <div class="attn-cols"><div><h4>New leads waiting (${waitingL.length})</h4>${waitingL.length ? html`<ul class="list">${waitingL.slice(0, 5).map((l) => attRow(l, "Waiting " + fmtWait(Data.waiting(l))))}</ul>${waitingL.length > 5 ? html`<a class="more" href="leads.html">View all ${waitingL.length}</a>` : raw("")}` : html`<p class="muted">Everyone has been contacted.</p>`}</div>
@@ -123,6 +131,7 @@
     render(page, html`
       <div class="page-head"><div><h1>${greet}! 👋</h1><p class="sub">Here's your Keys99 business overview · ${RANGES[state.range]}.</p></div>
         <select class="select" id="range" aria-label="Date range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
+      ${calStrip}
       ${attention}
       <div class="kpis k7">${kpis.map(kpiCard)}</div>
       <div class="grid g-top">

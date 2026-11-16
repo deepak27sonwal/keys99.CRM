@@ -4,7 +4,7 @@ const NAV = [
   ["Dashboard", "index.html", "layout-dashboard", "dashboard"],
   { group: "Sales", id: "sales", icon: "trending-up", items: [
     ["Leads Management", "leads.html", "user-search", "leads"], ["Customers", "customer.html", "users", "customer"], ["Sales Pipeline", "pipeline.html", "filter", "pipeline"],
-    ["Site Visits", "site-visits.html", "map-pin", "visits"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "tasks.html", "list-checks", "tasks"], ["Commissions", "#", "wallet"]] },
+    ["Site Visits", "site-visits.html", "map-pin", "visits"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "tasks.html", "list-checks", "tasks"], ["Calendar", "calendar.html", "calendar-days", "calendar"], ["Commissions", "#", "wallet"]] },
   { group: "Property", id: "property", icon: "building-2", items: [["Developers", "developers.html", "building-2", "developers"], ["Projects", "projects.html", "landmark", "projects"]] },
   { group: "Manage", id: "manage", icon: "briefcase", items: [
     ["Agents & Teams", "agents.html", "users-round", "agents"], ["Marketing & Campaigns", "#", "megaphone"], ["Integrations", "integrations.html", "plug-zap", "integrations"],
@@ -12,7 +12,7 @@ const NAV = [
   ["Settings", "settings.html", "settings", "settings"],
 ];
 const navLink = ([label, href, icon, key], active) => html`<a href="${href}" class="${key && key === active ? "active" : ""}" ${key && key === active ? raw('aria-current="page"') : raw("")}><i data-lucide="${icon}"></i>${label}</a>`;
-const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
+const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks", "calendar"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
 // employees only get the pages that work on their own leads; everything else is hidden (and blocked by the database anyway)
 const navFor = (role) => role === "employee"
   ? NAV.map((n) => (Array.isArray(n) ? (EMP_KEYS.includes(n[3]) ? n : null) : { ...n, items: n.items.filter((it) => EMP_KEYS.includes(it[3])) })).filter((n) => n && (Array.isArray(n) || n.items.length))
@@ -59,7 +59,7 @@ async function mountShell(active) {
           <div class="top-actions">
             <div class="bell-wrap"><button type="button" class="bell" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button></div>
             <i data-lucide="message-circle" class="wa"></i>
-            <i data-lucide="calendar-days" class="cal"></i>
+            <a href="calendar.html" class="cal-link" aria-label="Open the calendar" title="Calendar"><i data-lucide="calendar-days" class="cal"></i></a>
             <button class="user" id="userBtn" title="Your profile" aria-haspopup="dialog" aria-expanded="false">
               ${avatar(email, 40)}<span class="who"><b>${email}</b><span>${role}</span></span>
             </button>

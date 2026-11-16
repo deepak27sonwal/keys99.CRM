@@ -236,6 +236,17 @@ async function openTransfer(leads, done) {
       if (done) await done(moved);
     }, "Transfer");
 }
+// Warns under a date field when the chosen day is a holiday or the weekly off (Sunday). It never blocks saving.
+function wireHolidayNote(root, name) {
+  const inp = root && root.querySelector(`[name="${name}"]`), lab = inp && inp.closest("label"); if (!lab) return;
+  const note = document.createElement("div"); note.className = "hol-note full"; note.setAttribute("role", "status"); note.hidden = true; lab.after(note);
+  const check = async () => {
+    const d = inp.value ? new Date(inp.value) : null; if (!d || isNaN(d)) { note.hidden = true; return; }
+    const h = holidayOn(await Data.holidaysCached().catch(() => []), d), msg = h ? "That day is a holiday: " + h.name + "." : d.getDay() === 0 ? "That day is a Sunday (weekly off)." : "";
+    note.textContent = msg ? "⚠ " + msg + " You can still save it." : ""; note.hidden = !msg;
+  };
+  inp.addEventListener("change", check); inp.addEventListener("input", check); check();
+}
 // Warns while typing a mobile number that has enquired before (counts every enquiry, including other people's; no contact details are shown).
 function wireDuplicateCheck(root) {
   const mob = root.querySelector('[name="mobile"]'); if (!mob || !mob.closest("label")) return;
@@ -285,6 +296,7 @@ function openFollowUp(lead, done) {
   openModal("Schedule Follow-up", html`<div class="form">${field("Date & time *", "follow_up", toLocalInput(lead.followUpTs), "datetime-local", "required", "full")}
     <label class="full">Follow-up note (optional)<textarea name="note" rows="3" placeholder="e.g. Share pricing and book a site visit"></textarea></label></div>`,
     async (f) => { await Data.scheduleFollowUp(lead, fromLocalInput(f.follow_up), (f.note || "").trim()); toast("Follow-up scheduled"); done && done(); });
+  wireHolidayNote(document.querySelector(".overlay.open .modal"), "follow_up");
 }
 function openSiteVisit(lead, done) {
   openModal("Schedule Site Visit", html`<div class="form">
@@ -295,6 +307,7 @@ function openSiteVisit(lead, done) {
       if (["New Leads", "Contacted", "Interested"].includes(lead.status)) await Data.updateLead(lead.dbId, { status: "Visit Scheduled" });
       toast("Site visit scheduled"); done && done();
     });
+  wireHolidayNote(document.querySelector(".overlay.open .modal"), "visit_at");
 }
 function openBooking(lead, done) {
   openModal("Convert to Deal", html`<div class="form">

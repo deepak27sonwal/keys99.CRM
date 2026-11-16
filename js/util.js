@@ -120,3 +120,21 @@ async function copyText(text, okMsg = "Copied") {
 // "Waiting 25 min" / "2 h" / "3 d" for a lead nobody has touched yet
 function fmtWait(min) { return min < 60 ? Math.floor(min) + " min" : min < 1440 ? Math.floor(min / 60) + " h" : Math.floor(min / 1440) + " d"; }
 const WAIT_ALERT_MIN = 15;
+
+// ---- calendar helpers ----
+// the holiday (if any) that covers a day; holiday dates are "yyyy-mm-dd" strings
+const holidayOn = (list, d) => { const k = dayKey(d); return (list || []).find((h) => h.starts_on <= k && k <= h.ends_on) || null; };
+// occurrences of a (possibly repeating) meeting that overlap [from, to)
+function expandMeeting(m, from, to) {
+  const s = new Date(m.starts_at), e = new Date(m.ends_at), dur = e - s, out = [];
+  if (!m.repeat || m.repeat === "none") { if (e > from && s < to) out.push({ start: s, end: e }); return out; }
+  const until = m.repeat_until ? new Date(m.repeat_until + "T23:59:59") : new Date(to.getTime());
+  let cur = new Date(s), n = 0;
+  while (cur <= until && cur < to && n++ < 1500) {
+    const en = new Date(cur.getTime() + dur); if (en > from) out.push({ start: new Date(cur), end: en });
+    if (m.repeat === "daily") cur.setDate(cur.getDate() + 1);
+    else if (m.repeat === "weekly") cur.setDate(cur.getDate() + 7);
+    else { const day = s.getDate(); cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1, s.getHours(), s.getMinutes()); cur.setDate(Math.min(day, new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate())); }
+  }
+  return out;
+}
