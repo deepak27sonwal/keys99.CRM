@@ -699,3 +699,9 @@ begin
   if auth.uid() is not null and not public.is_admin() then return; end if;
   return query select * from public.assignee_detail_core(p_project);
 end $f$;
+
+-- the who-gets-next functions are for signed-in users only (anonymous visitors cannot call them; the lead-form trigger runs as the owner and is unaffected)
+revoke all on function public.assignee_detail(text) from public, anon;
+revoke all on function public.assignee_for(text) from public, anon;
+grant execute on function public.assignee_detail(text) to authenticated;
+grant execute on function public.assignee_for(text) to authenticated;
