@@ -790,3 +790,62 @@ revoke all on function public.transfer_targets() from public, anon;
 revoke all on function public.transfer_leads(bigint[], bigint, text) from public, anon;
 grant execute on function public.transfer_targets() to authenticated;
 grant execute on function public.transfer_leads(bigint[], bigint, text) to authenticated;
+
+-- ===== A repeat enquiry stays with the customer's existing owner instead of being distributed again =====
+-- the current owner of a customer's earlier enquiry (same phone number, any formatting), if that person is still an active team member
+create or replace function public.repeat_owner(p_phone text)
+returns table(name text, email text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d)
+  select t.name, t.email
+  from k
+  cross join lateral (
+    select e.manager_name #>> '{}' as owner from public.enquiries e
+    where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d
+      and jsonb_typeof(e.manager_name) = 'string' and nullif(trim(e.manager_name #>> '{}'), '') is not null
+    order by e.created_at desc limit 1) o
+  join public.team_members t on lower(trim(t.name)) = lower(trim(o.owner)) and t.status = 'Active'
+  limit 1 $f$;
+revoke all on function public.repeat_owner(text) from public, anon, authenticated;
+-- a repeat enquiry that arrives from a form / webhook (no signed-in person) stays with the customer's existing owner instead of being distributed again
+create or replace function public.keep_repeat_with_owner() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare o record;
+begin
+  if auth.uid() is not null then return new; end if;          -- someone adding a lead by hand decides the owner themselves
+  select * into o from public.repeat_owner(new.phone);
+  if o.name is null then return new; end if;
+  new.manager_name := to_jsonb(o.name);
+  new.manager_email := case when coalesce(o.email, '') = '' then null else to_jsonb(o.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat enquiry', 'type', 'doc', 'title', 'Repeat enquiry',
+    'description', 'This number enquired before, so the lead stays with ' || o.name));
+  return new;
+exception when others then
+  raise warning 'keep_repeat_with_owner failed: %', sqlerrm;
+  return new;
+end $f$;
+drop trigger if exists enquiries_a_repeat_owner on public.enquiries;
+create trigger enquiries_a_repeat_owner before insert on public.enquiries for each row execute function public.keep_repeat_with_owner();   -- sorts before enquiries_a_source_project and enquiries_auto_assign
+-- auto-assign steps aside for those repeat enquiries
+create or replace function public.auto_assign_enquiry() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare on_ boolean; a record; has_mgr boolean;
+begin
+  select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
+  if not coalesce(on_, false) then return new; end if;
+  if public.my_member_id() is not null then return new; end if;
+  if auth.uid() is null and exists (select 1 from public.repeat_owner(new.phone)) then return new; end if;
+  perform pg_advisory_xact_lock(727001);
+  select * into a from public.assignee_detail(new.project);
+  if a.id is null then return new; end if;
+  has_mgr := new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb);
+  if not a.matched and has_mgr then return new; end if;
+  new.manager_name := to_jsonb(a.name);
+  new.manager_email := case when a.email is null then null else to_jsonb(a.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
+    'description', 'Assigned to ' || a.name || ' · ' || a.reason));
+  update public.team_members set last_assigned_at = clock_timestamp() where team_members.id = a.id;
+  return new;
+exception when others then
+  raise warning 'auto_assign_enquiry failed: %', sqlerrm;
+  return new;
+end $f$;
