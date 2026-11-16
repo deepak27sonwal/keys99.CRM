@@ -258,8 +258,8 @@ const Data = {
   // ---- master lists (Settings): teams, departments, cities, localities ----
   async getMasters() {
     const get = async (t) => { const { data, error } = await this.client.from(t).select("*").order("name").limit(5000); return error ? [] : data || []; };   // a missing table or no access just means "no list yet"
-    const [teams, departments, cities, localities] = await Promise.all(["teams", "departments", "cities", "localities"].map(get));
-    return (this._masters = { teams, departments, cities, localities });
+    const [teams, departments, cities, localities, designations] = await Promise.all(["teams", "departments", "cities", "localities", "designations"].map(get));
+    return (this._masters = { teams, departments, cities, localities, designations });
   },
   async mastersCached() { return this._masters || this.getMasters(); },
   // rows: [{ name, city_id? }]; the database refuses duplicates (ignoring case), those are reported back instead of failing the batch
