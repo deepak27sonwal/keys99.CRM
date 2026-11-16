@@ -153,22 +153,59 @@ function wireConfigs(root) {
   };
   type.addEventListener("change", build); build();
 }
-function openAddLead(done, preset = {}) {
+// ---- master lists from Settings (teams, departments, cities, localities) ----
+const kn = (x) => String(x || "").trim().toLowerCase();
+// A pick from a master list. A stored value that is not in the list is kept (shown as "not in list"); with an empty list the field stays free text.
+const masterSelect = (label, name, list, value = "", cls = "") => list.length
+  ? html`<label class="${cls}">${label}<select name="${name}" data-placeholder="— None —"><option value="">— None —</option>${list.map((o) => html`<option value="${o}" ${kn(o) === kn(value) ? raw("selected") : raw("")}>${o}</option>`)}
+      ${value && !list.some((o) => kn(o) === kn(value)) ? html`<option value="${value}" selected>${value} (not in list)</option>` : raw("")}</select></label>`
+  : field(label, name, value, "text", "", cls);
+// City + dependent Locality. With no cities set up yet, `fallback` (the old free-text field) is shown instead.
+function locPicker(m, { city = "", locality = "", cityName = "city", locName = "locality", cityLabel = "City", locLabel = "Locality", fallback }) {
+  if (!m.cities.length) return fallback;
+  const c = m.cities.find((x) => kn(x.name) === kn(city)), locs = c ? m.localities.filter((l) => l.city_id === c.id).map((l) => l.name) : [];
+  return html`${masterSelect(cityLabel, cityName, m.cities.map((x) => x.name), city)}
+    <label>${locLabel}<select name="${locName}" data-placeholder="${c ? "— None —" : "Choose a city first"}" ${c || locality ? raw("") : raw("disabled")}><option value="">— None —</option>
+      ${locs.map((o) => html`<option value="${o}" ${kn(o) === kn(locality) ? raw("selected") : raw("")}>${o}</option>`)}${locality && !locs.some((o) => kn(o) === kn(locality)) ? html`<option value="${locality}" selected>${locality} (not in list)</option>` : raw("")}</select></label>`;
+}
+// Keeps the Locality list in step with the chosen City inside an open form.
+function wireLocations(root, m, cityName = "city", locName = "locality") {
+  const city = root.querySelector(`select[name="${cityName}"]`), loc = root.querySelector(`select[name="${locName}"]`);
+  if (!city || !loc) return;
+  const fill = () => {
+    const c = m.cities.find((x) => kn(x.name) === kn(city.value)), keep = loc.value, locs = c ? m.localities.filter((l) => l.city_id === c.id).map((l) => l.name) : [];
+    loc.innerHTML = '<option value="">— None —</option>' + locs.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join("");
+    if (keep && locs.some((o) => kn(o) === kn(keep))) loc.value = locs.find((o) => kn(o) === kn(keep));
+    loc.disabled = !c; loc.dataset.placeholder = c ? "— None —" : "Choose a city first";
+    if (loc._dd) loc._dd.refresh();
+  };
+  city.addEventListener("change", fill);
+}
+// "Wakad, Pune" -> { city: "Pune", locality: "Wakad" } when the last part is a known city; anything else stays as it is, in the City box
+function splitLocation(loc, m) {
+  const parts = String(loc || "").split(",").map((x) => x.trim()).filter(Boolean), c = parts.length && m.cities.find((x) => kn(x.name) === kn(parts[parts.length - 1]));
+  return c ? { city: c.name, locality: parts.slice(0, -1).join(", ") } : { city: String(loc || "").trim(), locality: "" };
+}
+const joinLocation = (f) => [f.locality, f.city].filter(Boolean).join(", ");
+
+async function openAddLead(done, preset = {}) {
+  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] }));
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
     ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${configPicker()}
     ${field("Project", "project", preset.project || "")}
-    ${field("Developer", "developer", preset.developer || "")}${field("Location", "location")}
+    ${field("Developer", "developer", preset.developer || "")}${locPicker(m, { fallback: field("Location", "location") })}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
     ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
-    async (f) => { if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
-  wireConfigs(document.querySelector(".overlay.open .modal") || document);
+    async (f) => { if ("city" in f) f.location = joinLocation(f); if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
+  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m);
 }
 async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
   let team = []; try { team = await Data.getTeamCached(); } catch { team = []; }
   const emp = !!(window.ME && window.ME.role === "employee");     // employees work their own leads: no reassigning
+  const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] })), at = splitLocation(lead.location, m);
   const k = (n) => String(n || "").trim().toLowerCase(), cur = lead.agent || "", match = team.find((m) => k(m.name) === k(cur));
   const KINDS = { agent: "Agent", rm: "Relationship Manager" };
   const agentField = emp ? raw("") : team.length
@@ -179,18 +216,18 @@ async function openEditLead(lead, done) {
   openModal("Edit " + lead.name, html`<div class="form">
     ${selectField("Status", "status", STATUSES, lead.status)}${field("Next follow-up", "follow_up", toLocalInput(lead.followUpTs), "datetime-local")}
     ${agentField}${selectField("Priority", "priority", ["", "A (High Priority)", "B (Medium)", "C (Low)"], lead.priority)}
-    ${field("Budget", "budget", lead.budget)}${field("Location", "location", lead.location)}
+    ${field("Budget", "budget", lead.budget)}${locPicker(m, { city: at.city, locality: at.locality, fallback: field("Location", "location", lead.location) })}
     ${configPicker({ type: lead.propertyType, value: lead.bhk })}
     <label class="full">Notes<textarea name="notes" rows="3">${lead.notes}</textarea></label></div>`,
     async (f) => {
       const changed = !emp && k(f.agent) !== k(cur), who = team.find((m) => k(m.name) === k(f.agent));
-      const patch = { status: f.status, followUp: fromLocalInput(f.follow_up), ...(emp ? {} : { agent: f.agent }), priority: f.priority, budget: f.budget, location: f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
+      const patch = { status: f.status, followUp: fromLocalInput(f.follow_up), ...(emp ? {} : { agent: f.agent }), priority: f.priority, budget: f.budget, location: "city" in f ? joinLocation(f) : f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
       if (changed && team.length) patch.agentEmail = who ? who.email : null;     // a team member brings their own email; unassigning clears it
       await Data.updateLead(lead.dbId, patch);
       if (changed) { try { await Data.addActivity(lead, "Assigned", f.agent ? "Assigned to " + f.agent + (cur ? " (was " + cur + ")" : "") : "Unassigned (was " + cur + ")"); } catch { /* the assignment itself is saved */ } }
       toast("Saved"); done && done();
     });
-  wireConfigs(document.querySelector(".overlay.open .modal") || document);
+  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m);
 }
 function openNote(lead, done) {
   openModal("Add Note", html`<div class="form"><label class="full">Note *<textarea name="text" rows="4" required></textarea></label></div>`,
