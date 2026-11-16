@@ -930,3 +930,11 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 }
 .login-b{display:inline-flex;gap:4px;align-items:center;font-size:11px;font-weight:600;color:#15803d}.login-b.off{color:var(--muted)}.login-b svg{width:11px;height:11px}
 .pw-row{display:flex;gap:6px;align-items:center}.pw-row input{flex:1;min-width:0}
+
+/* Settings lists */
+.st-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}
+.st-bar .st-q{flex:1;min-width:180px}.st-city{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#334155}
+.st-list{list-style:none}.st-list li{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}.st-list li:last-child{border-bottom:0}
+.st-ic{width:18px;height:18px;color:var(--brand-600);flex:none}.st-main{flex:1;min-width:0;display:grid;gap:2px}.st-main b{font-weight:600;overflow-wrap:anywhere}.st-main small{color:var(--muted)}
+.st-list .icon-btn{padding:6px;border-radius:6px}.st-list .icon-btn:hover{background:#f1f5f9}
+@media(max-width:900px){.st-bar{flex-direction:column;align-items:stretch}.st-bar .btn{justify-content:center}}

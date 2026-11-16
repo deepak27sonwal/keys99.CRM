@@ -9,10 +9,10 @@ const NAV = [
   { group: "Manage", id: "manage", icon: "briefcase", items: [
     ["Agents & Teams", "agents.html", "users-round", "agents"], ["Marketing & Campaigns", "#", "megaphone"], ["Integrations", "integrations.html", "plug-zap", "integrations"],
     ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"]] },
-  ["Settings", "#", "settings"],
+  ["Settings", "settings.html", "settings", "settings"],
 ];
 const navLink = ([label, href, icon, key], active) => html`<a href="${href}" class="${key && key === active ? "active" : ""}" ${key && key === active ? raw('aria-current="page"') : raw("")}><i data-lucide="${icon}"></i>${label}</a>`;
-const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers"];
+const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
 // employees only get the pages that work on their own leads; everything else is hidden (and blocked by the database anyway)
 const navFor = (role) => role === "employee"
   ? NAV.map((n) => (Array.isArray(n) ? (EMP_KEYS.includes(n[3]) ? n : null) : { ...n, items: n.items.filter((it) => EMP_KEYS.includes(it[3])) })).filter((n) => n && (Array.isArray(n) || n.items.length))

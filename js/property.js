@@ -157,17 +157,18 @@ async function mountPropertyPage(kind) {
     return html`<h4>Details</h4><dl class="pp-info">${rows.map(([l, k]) => html`<div><dt>${l}</dt><dd>${k === "phone" ? html`<a href="${telHref(e.reg[k])}">${e.reg[k]}</a>` : k === "email" ? html`<a href="mailto:${e.reg[k]}">${e.reg[k]}</a>` : k === "website" ? html`<a href="${/^https?:/i.test(e.reg[k]) ? e.reg[k] : "https://" + e.reg[k]}" target="_blank" rel="noopener">${e.reg[k]}</a>` : e.reg[k]}</dd></div>`)}</dl>`;
   }
   // Add / edit a project or developer. Editing a name does not rename the leads that already use it.
-  function openForm(e) {
+  async function openForm(e) {
+    const ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [] }));
     const r = (e && e.reg) || {}, seed = !e ? {} : e.reg ? {} : { name: e.name };
     const v = (k) => r[k] || seed[k] || "";
     const devNames = [...new Set([...state.regDev.map((d) => d.name), ...state.regProj.map((x) => x.developer), ...state.leads.map((l) => String(l.developer || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const body = isProj
       ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${field("Developer", "developer", v("developer") || (e && e.devs[0]) || "", "text", 'placeholder="Start typing a developer name" autocomplete="off"')}
-          ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${field("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${field("City", "city", v("city"))}
+          ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${locPicker(ms, { city: v("city"), locality: v("location") || (e && e.locs[0]) || "", cityName: "city", locName: "location", locLabel: "Location / area", fallback: html`${field("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${field("City", "city", v("city"))}` })}
           ${configPicker({ type: r.property_type || "", value: v("configurations"), name: "configurations", typeLabel: "Type", label: "Configurations" })}
           ${field("Price range", "price_range", v("price_range"), "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Possession", "possession", v("possession"), "text", 'placeholder="Dec 2027"')}${field("RERA no.", "rera_no", v("rera_no"), "text", "", "full")}
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`
-      : html`<div class="form">${field("Developer name *", "name", v("name"), "text", "required", "full")}${field("Contact person", "contact_person", v("contact_person"))}${field("Phone", "phone", v("phone"), "tel")}${field("Email", "email", v("email"), "email")}${field("Website", "website", v("website"))}${field("City", "city", v("city"))}
+      : html`<div class="form">${field("Developer name *", "name", v("name"), "text", "required", "full")}${field("Contact person", "contact_person", v("contact_person"))}${field("Phone", "phone", v("phone"), "tel")}${field("Email", "email", v("email"), "email")}${field("Website", "website", v("website"))}${masterSelect("City", "city", ms.cities.map((x) => x.name), v("city"))}
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`;
     openModal((e && e.reg ? "Edit " : "Add ") + NOUN.toLowerCase(), body, async (f) => {
       const row = { ...f }; delete row.id;
@@ -182,7 +183,7 @@ async function mountPropertyPage(kind) {
       toast(NOUN + (e && e.reg ? " updated" : " saved")); state.open = norm(f.name); await refresh();
     }, e && e.reg ? "Save" : "Add " + NOUN);
     const modal = document.querySelector(".overlay.open .modal") || document;
-    if (isProj) { wireConfigs(modal); const dev = modal.querySelector('[name="developer"]'); if (dev) attachSuggest(dev, () => devNames); }   // developer names suggest as you type
+    wireLocations(modal, ms, "city", "location"); if (isProj) { wireConfigs(modal); const dev = modal.querySelector('[name="developer"]'); if (dev) attachSuggest(dev, () => devNames); }   // developer names suggest as you type
   }
 
   function draw() {

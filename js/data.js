@@ -230,11 +230,36 @@ const Data = {
     } catch { return { ok: false, error: "Could not reach the capture service. Check your connection." }; }
   },
   // ---- team: agents and relationship managers (leads are matched to them by the name in enquiries.manager_name)
+  // ---- master lists (Settings): teams, departments, cities, localities ----
+  async getMasters() {
+    const get = async (t) => { const { data, error } = await this.client.from(t).select("*").order("name").limit(5000); return error ? [] : data || []; };   // a missing table or no access just means "no list yet"
+    const [teams, departments, cities, localities] = await Promise.all(["teams", "departments", "cities", "localities"].map(get));
+    return (this._masters = { teams, departments, cities, localities });
+  },
+  async mastersCached() { return this._masters || this.getMasters(); },
+  // rows: [{ name, city_id? }]; the database refuses duplicates (ignoring case), those are reported back instead of failing the batch
+  async addMasters(table, rows) {
+    let added = 0, dup = 0;
+    for (const r of rows) { const { error } = await this.client.from(table).insert(r); if (!error) added++; else if (error.code === "23505") dup++; else throw error; }
+    this._masters = null; return { added, dup };
+  },
+  async renameMaster(table, id, name) {
+    const { error } = await this.client.from(table).update({ name }).eq("id", id);
+    if (error) throw new Error(error.code === "23505" ? "That name already exists" : error.message);
+    this._masters = null;
+  },
+  async deleteMaster(table, id) { const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; this._masters = null; },
+  // after a rename, team members / projects that hold the old exact text follow the new name
+  // spec entries: [table, column, optionalFilterColumn, optionalFilterValue]
+  async cascadeRename(spec, from, to) {
+    for (const [table, col, wc, wv] of spec) { let q = this.client.from(table).update({ [col]: to }).eq(col, from); if (wc) q = q.eq(wc, wv); const { error } = await q; if (error) throw error; }
+    this._team = null;
+  },
   async getTeam() { return this.fetchAll("team_members"); },
   async getTeamCached() { if (!this._team) this._team = await this.getTeam(); return this._team; },
   teamRow(f) {
     return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
-      designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, location: String(f.location || "").trim() || null,
+      designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, department: String(f.department || "").trim() || null, location: String(f.location || "").trim() || null, locality: String(f.locality || "").trim() || null,
       monthly_target: Math.max(0, Number(f.monthly_target) || 0), daily_cap: Number(f.daily_cap) > 0 ? Math.floor(Number(f.daily_cap)) : null, joined_on: f.joined_on || null,
       projects: [...new Set((Array.isArray(f.projects) ? f.projects : []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 40), status: f.status === "Inactive" ? "Inactive" : "Active" };
   },

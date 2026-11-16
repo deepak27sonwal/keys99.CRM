@@ -638,3 +638,22 @@ create or replace function public.count_unrouted(p_forms text[], p_campaigns tex
   where public.is_admin() and (e.project is null or length(trim(e.project)) = 0)
     and ((e.meta_form_id is not null and e.meta_form_id = any (coalesce(p_forms, '{}')))
       or (e.meta_campaign_id is not null and e.meta_campaign_id = any (coalesce(p_campaigns, '{}')))) $f$;
+
+-- ===== Settings: master lists for teams, departments, cities and localities (admin manages; employees read cities/localities) =====
+create table if not exists public.teams (id bigint generated always as identity primary key, name text not null check (length(trim(name)) > 0), created_at timestamptz not null default now());
+create unique index if not exists teams_name_uq on public.teams (lower(trim(name)));
+create table if not exists public.departments (id bigint generated always as identity primary key, name text not null check (length(trim(name)) > 0), created_at timestamptz not null default now());
+create unique index if not exists departments_name_uq on public.departments (lower(trim(name)));
+create table if not exists public.cities (id bigint generated always as identity primary key, name text not null check (length(trim(name)) > 0), created_at timestamptz not null default now());
+create unique index if not exists cities_name_uq on public.cities (lower(trim(name)));
+create table if not exists public.localities (id bigint generated always as identity primary key, city_id bigint not null references public.cities(id) on delete cascade, name text not null check (length(trim(name)) > 0), created_at timestamptz not null default now());
+create unique index if not exists localities_name_uq on public.localities (city_id, lower(trim(name)));
+alter table public.teams enable row level security; alter table public.departments enable row level security; alter table public.cities enable row level security; alter table public.localities enable row level security;
+create policy "admin all teams list" on public.teams for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "admin all departments" on public.departments for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "admin all cities" on public.cities for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "admin all localities" on public.localities for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "employee read cities" on public.cities for select to authenticated using (public.my_member_id() is not null);
+create policy "employee read localities" on public.localities for select to authenticated using (public.my_member_id() is not null);
+alter table public.team_members add column if not exists department text;
+alter table public.team_members add column if not exists locality text;
