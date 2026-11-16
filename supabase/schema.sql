@@ -909,3 +909,23 @@ language sql stable security definer set search_path = '' as $f$
   order by (lower(trim(t.name)) = lower(trim(o.owner))) desc
   limit 1 $f$;
 revoke all on function public.repeat_owner(text) from public, anon, authenticated;
+
+-- repeat_owner: the stored email identifies a person; a name can be reused by someone else after a rename, so an email match beats a name match
+create or replace function public.repeat_owner(p_phone text)
+returns table(name text, email text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d)
+  select t.name, t.email
+  from k
+  cross join lateral (
+    select e.manager_name #>> '{}' as owner,
+           case when jsonb_typeof(e.manager_email) = 'string' then nullif(lower(trim(e.manager_email #>> '{}')), '') end as owner_email
+    from public.enquiries e
+    where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d
+      and jsonb_typeof(e.manager_name) = 'string' and nullif(trim(e.manager_name #>> '{}'), '') is not null
+    order by e.created_at desc limit 1) o
+  join public.team_members t on t.status = 'Active'
+    and (lower(trim(t.name)) = lower(trim(o.owner)) or (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email))
+  order by (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email) desc, (lower(trim(t.name)) = lower(trim(o.owner))) desc, t.id
+  limit 1 $f$;
+revoke all on function public.repeat_owner(text) from public, anon, authenticated;
