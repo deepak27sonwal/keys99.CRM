@@ -960,7 +960,11 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 .tk-qa{display:grid;gap:8px}.tk-qa .btn{justify-content:flex-start}
 @media(max-width:1250px){.tk-grid{grid-template-columns:minmax(0,1fr)}.tk-det{position:static}.tk-bot{grid-template-columns:1fr 1fr}}
 @media(max-width:900px){
-  .kpis.k7.tk-kpis{grid-template-columns:repeat(2,1fr)}.tk-bot{grid-template-columns:1fr}.tk-dg{grid-template-columns:1fr}.tk-thumb{width:100%;max-width:220px}
+  .kpis.k7.tk-kpis{grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}
+  /* compact chips: the first four (Total, Completed, Pending, Overdue) share one row, the other three the next */
+  .tk-kpis>.kpi,.tk-kpis>.kpi:last-child:nth-child(odd){grid-column:span 4;flex-direction:column;align-items:center;text-align:center;gap:3px;padding:10px 4px}
+  .tk-kpis>.kpi:nth-child(-n+4){grid-column:span 3}
+  .tk-kpis .kpi [data-lucide]{width:18px;height:18px}.tk-kpis .kpi .lbl{font-size:10.5px;line-height:1.2;white-space:normal;overflow-wrap:anywhere}.tk-kpis .kpi .val{font-size:18px}.tk-kpis .kpi .dl{display:none}.tk-bot{grid-template-columns:1fr}.tk-dg{grid-template-columns:1fr}.tk-thumb{width:100%;max-width:220px}
   .tk-t thead{display:none}.tk-t,.tk-t tbody,.tk-t tr,.tk-t td{display:block}.tk-t tr{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;position:relative}.tk-t td{border:0;padding:3px 0}
   .tk-t td[data-label="Task"]{padding-right:34px}.tk-t td[data-label="Actions"]{position:absolute;top:8px;right:8px;padding:0}.tk-t td[data-label="Customer"] small{display:inline;margin-left:6px}
   .tk-t td[data-label="Type"],.tk-t td[data-label="Priority"],.tk-t td[data-label="Status"]{display:inline-block;margin-right:6px;margin-top:4px}
