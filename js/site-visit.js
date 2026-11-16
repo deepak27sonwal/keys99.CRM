@@ -43,7 +43,7 @@
 
   function customerCard() {
     return card("cust", "user", "Customer Details", html`<div class="vd-person">${avatar(lead.name, 66)}<div class="vd-pi"><div class="row" style="flex-wrap:wrap"><a href="customer.html?id=${encodeURIComponent(lead.id || "")}"><b class="vd-name">${lead.name}</b></a><span class="idchip sm">Lead ID: ${lead.id || "—"}</span></div>
-      <div class="vc-line"><i data-lucide="phone"></i><a href="${telHref(lead.mobile)}">${lead.mobile || "—"}</a>${lead.mobile ? html`<a href="${waHref(lead.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a>` : raw("")}</div>
+      <div class="vc-line"><i data-lucide="phone"></i><a href="${telHref(lead.mobile)}" data-lead="${lead.dbId}">${lead.mobile || "—"}</a>${lead.mobile ? html`<a href="${waHref(lead.mobile)}" data-lead="${lead.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a>` : raw("")}</div>
       ${lead.email ? html`<div class="vc-line"><i data-lucide="mail"></i>${lead.email}</div>` : raw("")}</div></div>
       ${kv([["Requirement", [lead.requirement, lead.propertyType].filter(Boolean).join(" – ")], ["Preferred Location", lead.location], ["Budget", lead.budget], ["Configuration", lead.bhk], ["Lead Status", lead.status ? badge(lead.status) : ""]])}`);
   }

@@ -193,11 +193,12 @@ const Data = {
   // ---- daily workflow: waiting time, repeat enquiries, call logging, WhatsApp templates ----
   // minutes a brand-new lead has gone untouched (null when someone already worked on it)
   waiting(l) { return l.status === "New Leads" && !l.touched ? Math.max(0, (Date.now() - new Date(l.createdAt)) / 60000) : null; },
+  // Finds the lead behind a number whatever its stored format ("+91 98765 43210", "98765-43210"); the wildcard pattern lets any separators sit between the digits.
   async findLeadByPhone(phone) {
     const d = digits(phone).slice(-10); if (d.length < 10) return null;
-    const { data, error } = await this.client.from("enquiries").select("*").ilike("phone", "%" + d + "%").order("created_at", { ascending: false }).limit(5);
+    const { data, error } = await this.client.from("enquiries").select("*").ilike("phone", "%" + d.split("").join("%") + "%").order("created_at", { ascending: false }).limit(50);
     if (error || !data || !data.length) return null;
-    return this.fromRow(data.find((r) => digits(r.phone).slice(-10) === d) || data[0]);
+    const hit = data.find((r) => digits(r.phone).slice(-10) === d); return hit ? this.fromRow(hit) : null;
   },
   async phoneMatches(phone) { const { data, error } = await this.client.rpc("phone_matches", { p_phone: phone }); if (error) throw error; return (data && data[0]) || null; },
   async getTemplates() { const { data, error } = await this.client.from("message_templates").select("*").order("id").limit(200); if (error) return []; return data || []; },

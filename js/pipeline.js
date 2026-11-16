@@ -46,7 +46,7 @@
         <button class="kb-k" data-menu="${l.dbId}" aria-label="Actions for ${l.name}"><i data-lucide="more-vertical"></i></button></div>
       ${l.budget ? html`<div class="kb-bud">₹ ${l.budget.replace(/^₹\s*/, "")}</div>` : raw("")}
       ${l.status === "Spam" && l.lostReason ? html`<div class="kb-why">Reason: ${l.lostReason}</div>` : raw("")}
-      <div class="kb-bot">${fuChip(l)}${priorityChip(l)}<span class="kb-acts"><a href="${telHref(l.mobile)}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></span></div></div>`;
+      <div class="kb-bot">${fuChip(l)}${priorityChip(l)}<span class="kb-acts"><a href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></span></div></div>`;
   }
   function board(L) {
     return html`<div class="kb" role="list">${COLS.map((st) => { const items = L.filter((l) => l.status === st).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), shown = Math.max(STEP, state.shown[st] || STEP), more = items.length - shown;
@@ -59,7 +59,7 @@
     return html`<div class="card table-wrap"><table class="leads-t pl-t"><thead><tr><th>Customer</th><th>Project</th><th>Stage</th><th>Priority</th><th>Follow-up</th><th>Agent</th><th>Actions</th></tr></thead><tbody>
       ${rows.length ? rows.map((l) => html`<tr class="lead-row s-${slug(l.status)}" data-id="${l.dbId}"><td data-label="Customer"><div class="row">${avatar(l.name, 28)}<b>${l.name}</b></div></td><td data-label="Project">${l.project || "—"}</td>
         <td data-label="Stage">${badge(l.status)}</td><td data-label="Priority">${prioLevel(l) ? priorityChip(l) : "—"}</td><td data-label="Follow-up">${fuChip(l)}</td><td data-label="Agent">${l.agent || "—"}</td>
-        <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="act act-wa" href="${waHref(l.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a><button class="act" data-menu="${l.dbId}" aria-label="More for ${l.name}"><i data-lucide="more-vertical"></i></button></div></td></tr>`) : html`<tr><td colspan="7" class="empty">No leads found.</td></tr>`}</tbody></table></div>`;
+        <td data-label="Actions"><div class="acts"><a class="act act-call" href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="act act-wa" href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a><button class="act" data-menu="${l.dbId}" aria-label="More for ${l.name}"><i data-lucide="more-vertical"></i></button></div></td></tr>`) : html`<tr><td colspan="7" class="empty">No leads found.</td></tr>`}</tbody></table></div>`;
   }
   function funnel(counts, total) {
     const W = 300, H = 26, GAP = 3, n = PIPELINE.length;
