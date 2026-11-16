@@ -58,9 +58,9 @@
     const cols = days.map((d) => { const key = dayKey(d), hs = holsOn(key), list = evs.filter((e) => dayKey(e.start) === key).map((e) => ({ ...e })); list.sort((x, y) => x.start - y.start);
       const lanes = []; list.forEach((e) => { let i = lanes.findIndex((end) => end <= e.start); if (i < 0) { i = lanes.length; lanes.push(0); } lanes[i] = e.end; e.lane = i; }); const n = Math.max(1, lanes.length);
       const blocks = list.map((e) => { const top = Math.max(0, ((e.start.getHours() + e.start.getMinutes() / 60) - H0) * HOUR), h = Math.max(22, ((e.end - e.start) / 3600000) * HOUR); return `<button type="button" class="${evCls(e)} blk" data-ev="${esc(e.key)}" style="top:${top}px;height:${h}px;left:${e.lane * 100 / n}%;width:${100 / n}%"><i></i><span><b>${fmtTime(e.start)}</b> ${esc(e.title)}</span></button>`; }).join("");
-      return { key, d, hs, html: `<div class="cal-col ${isOff(d) ? "off" : ""} ${hs.length ? "hol" : ""} ${key === tk ? "today" : ""}" data-day="${key}" style="height:${(H1 - H0) * HOUR}px">${blocks}</div>` }; });
+      return { key, d, hs, markup: `<div class="cal-col ${isOff(d) ? "off" : ""} ${hs.length ? "hol" : ""} ${key === tk ? "today" : ""}" data-day="${key}" style="height:${(H1 - H0) * HOUR}px">${blocks}</div>` }; });
     return `<div class="cal-tg"><div class="cal-tgh" style="grid-template-columns:48px repeat(${days.length},1fr)"><span></span>${cols.map((c) => `<button type="button" class="cal-th ${c.key === dayKey(new Date()) ? "today" : ""}" data-day="${c.key}"><small>${WD[c.d.getDay()]}</small><b>${c.d.getDate()}</b>${c.hs.slice(0, 1).map(holTag).join("")}</button>`).join("")}</div>
-      <div class="cal-tgb" style="grid-template-columns:48px repeat(${days.length},1fr)"><div class="cal-hrs">${hours.map((h) => `<span style="height:${HOUR}px">${h % 12 || 12} ${h < 12 ? "AM" : "PM"}</span>`).join("")}</div>${cols.map((c) => c.html).join("")}</div></div>`;
+      <div class="cal-tgb" style="grid-template-columns:48px repeat(${days.length},1fr)"><div class="cal-hrs">${hours.map((h) => `<span style="height:${HOUR}px">${h % 12 || 12} ${h < 12 ? "AM" : "PM"}</span>`).join("")}</div>${cols.map((c) => c.markup).join("")}</div></div>`;
   }
   function agenda() {
     const [a, b] = rangeOf(), evs = events(a, b), out = [];
