@@ -8,8 +8,10 @@ window.Workflow = (() => {
   const me = () => (window.ME && window.ME.member && window.ME.member.name) || "";
 
   // ---------- call outcome ----------
-  async function callOutcome(phone) {
-    const lead = await Data.findLeadByPhone(phone).catch(() => null); if (!lead) return;
+  // leadId = the lead whose Call button was pressed (several leads can share one number); without it the newest lead on that number is used
+  const pickLead = (phone, leadId) => (Number(leadId) > 0 ? Data.getLead(Number(leadId)).catch(() => null) : Data.findLeadByPhone(phone).catch(() => null));
+  async function callOutcome(phone, leadId) {
+    const lead = await pickLead(phone, leadId); if (!lead) return;
     if (document.querySelector(".call-modal")) return;
     const pre = (v) => (v === null ? "" : at(v));
     openModal("How did the call go? · " + lead.name, html`<div class="form call-modal">
@@ -29,8 +31,8 @@ window.Workflow = (() => {
 
   // ---------- WhatsApp templates ----------
   const fill = (body, lead) => body.replace(/\{name\}/g, lead.name.split(" ")[0] || lead.name).replace(/\{project\}/g, lead.project || "our project").replace(/\{agent\}/g, me() || lead.agent || "Keys99 team").replace(/\{phone\}/g, lead.mobile || "");
-  async function waChooser(href, phone) {
-    const [tpl, lead] = await Promise.all([Data.templatesCached().catch(() => []), Data.findLeadByPhone(phone).catch(() => null)]);
+  async function waChooser(href, phone, leadId) {
+    const [tpl, lead] = await Promise.all([Data.templatesCached().catch(() => []), pickLead(phone, leadId)]);
     if (!tpl.length || !lead) { window.open(href, "_blank", "noopener"); return; }
     const ov = document.createElement("div"); ov.className = "overlay open";
     ov.innerHTML = `<div class="modal wa-modal" role="dialog" aria-modal="true" aria-label="WhatsApp message"><h2>WhatsApp · ${esc(lead.name)}</h2><p class="sub">Pick a ready message (you can edit it in WhatsApp before sending).</p>
@@ -60,7 +62,7 @@ window.Workflow = (() => {
       toast(msg);
       try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Keys99 CRM", { body: msg, tag: "k99-due" }); } catch { /* notices are optional */ }
     }
-    const n = due.followUps.length + due.tasks.length, link = document.querySelector('.nav a[href="tasks.html"]');
+    const n = due.followUps.filter((f) => new Date(f.follow_up) <= now).length + due.tasks.filter((t) => new Date(t.due_at) <= now).length, link = document.querySelector('.nav a[href="tasks.html"]');
     if (link) { let b = link.querySelector(".nav-n"); if (n && !b) { b = document.createElement("span"); b.className = "nav-n"; link.appendChild(b); } if (b) { b.textContent = n > 99 ? "99+" : String(n); b.hidden = !n; b.setAttribute("aria-label", n + " due"); } }
   }
 
@@ -68,8 +70,8 @@ window.Workflow = (() => {
     document.addEventListener("click", (e) => {
       const a = e.target.closest && e.target.closest("a[href]"); if (!a || e.defaultPrevented || e.ctrlKey || e.metaKey) return;
       const h = a.getAttribute("href") || "";
-      if (h.startsWith("tel:")) { setTimeout(() => callOutcome(h.slice(4)), 600); }
-      else if (/^https:\/\/wa\.me\/\d+/.test(h)) { e.preventDefault(); waChooser(h, h.replace(/^https:\/\/wa\.me\//, "")); }
+      if (h.startsWith("tel:")) { setTimeout(() => callOutcome(h.slice(4), a.dataset.lead), 600); }
+      else if (/^https:\/\/wa\.me\/\d+/.test(h)) { e.preventDefault(); waChooser(h, h.replace(/^https:\/\/wa\.me\//, ""), a.dataset.lead); }
     }, true);
     poll(); setInterval(poll, 60000);
     window.addEventListener("k99:lead-changed", poll);

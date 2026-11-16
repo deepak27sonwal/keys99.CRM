@@ -70,7 +70,7 @@
           <button class="btn gold" id="dealBtn"><i data-lucide="handshake"></i>Convert to Deal</button><button class="btn" id="visitBtn"><i data-lucide="calendar"></i>Schedule Visit</button></div></div>
       <div class="top-row">
         <section class="card p id-card">${avatar(lead.name, 110)}<div class="info"><div class="row" style="flex-wrap:wrap"><h2>${lead.name}</h2><span class="st-prio">${badge(lead.status)}${priorityChip(lead)}</span></div>
-          <div class="row"><i data-lucide="phone" class="brand-t" style="width:15px"></i><a href="${telHref(lead.mobile)}">${lead.mobile}</a><a href="${waHref(lead.mobile)}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
+          <div class="row"><i data-lucide="phone" class="brand-t" style="width:15px"></i><a href="${telHref(lead.mobile)}" data-lead="${lead.dbId}">${lead.mobile}</a><a href="${waHref(lead.mobile)}" data-lead="${lead.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a></div>
           ${lead.email ? html`<div class="row"><i data-lucide="mail" class="brand-t" style="width:15px"></i>${lead.email}</div>` : raw("")}
           ${lead.location ? html`<div class="row"><i data-lucide="map-pin" class="brand-t" style="width:15px"></i>${lead.location}</div>` : raw("")}</div></section>
         <section class="card p"><div class="stats">${stats.map(([v, l, ic]) => html`<div class="stat"><i data-lucide="${ic}"></i><div><b>${v}</b><span>${l}</span></div></div>`)}</div>
