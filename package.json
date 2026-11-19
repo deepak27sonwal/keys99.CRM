@@ -1,0 +1,7 @@
+{
+  "name": "keys99-crm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Keys99 CRM: plain HTML/CSS/JS site. `npm run build` copies it into dist/ for Hostinger.",
+  "scripts": { "build": "node scripts/build.js" }
+}
