@@ -1,7 +1,7 @@
 // Notifications: the bell (every new lead, from every source), live alerts with a chime, and real browser notifications that also arrive when the CRM is closed.
 // Live updates come from Supabase realtime (new rows in `enquiries`). Browser push comes from the send-push function. Read state is kept per person in `user_prefs`.
 const Notify = (() => {
-  const LIMIT = 30, st = { leads: [], readBefore: null, readIds: new Set(), sound: true, open: false, pushOn: false, perm: "default", busy: "", msg: "", ready: false };
+  const LIMIT = 30, st = { leads: [], readBefore: null, readIds: new Set(), sound: true, open: false, pushOn: false, perm: "default", busy: "", msg: "", ready: false, attn: null };
   let btn, panel, ctx = null, saveT = 0, channel = null, wasDown = false, baseTitle = document.title, sess = null;
   const supported = () => "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
   const ios = () => /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone;
@@ -88,6 +88,19 @@ const Notify = (() => {
   }
 
   // ---------- the bell and its panel ----------
+  // "Needs attention": untouched new leads and due follow-ups, loaded when the bell is opened and refreshed every 2 minutes
+  async function loadAttention() { try { st.attn = await Data.getAttention(); } catch { return; } render(); }
+  function attnRow(l, note) {
+    return html`<li><a class="nf-ar" href="customer.html?id=${encodeURIComponent("L-" + l.dbId)}" aria-label="Open ${l.name}">${avatar(l.name, 32)}<span class="nf-t"><b>${l.name}</b><span>${note}${l.project ? " · " + l.project : ""}</span></span></a><a class="icon-btn" href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="icon-btn" href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></li>`;
+  }
+  function attention() {
+    const a = st.attn; if (!a) return html``;
+    const n = a.waiting.length + a.due.length;
+    if (!n) return html`<section class="nf-attn ok" aria-label="Needs attention now"><b><i data-lucide="circle-check"></i> Nothing needs attention</b><small>Every new lead has been contacted and no follow-up is overdue.</small></section>`;
+    return html`<section class="nf-attn" aria-label="Needs attention now"><h4><i data-lucide="alarm-clock"></i> Needs attention now <em>${n}</em></h4>
+      ${a.waiting.length ? html`<h5>New leads waiting (${a.waiting.length})</h5><ul class="nf-al">${a.waiting.slice(0, 5).map((l) => attnRow(l, "Waiting " + fmtWait(Data.waiting(l))))}</ul>${a.waiting.length > 5 ? html`<a class="nf-more" href="leads.html">View all ${a.waiting.length}</a>` : raw("")}` : raw("")}
+      ${a.due.length ? html`<h5>Follow-ups due (${a.due.length})</h5><ul class="nf-al">${a.due.slice(0, 5).map((l) => attnRow(l, "Due " + relTime(l.followUpTs)))}</ul>${a.due.length > 5 ? html`<a class="nf-more" href="tasks.html">View all ${a.due.length}</a>` : raw("")}` : raw("")}</section>`;
+  }
   function card() {
     if (!supported()) return ios() && !standalone() ? html`<div class="nf-card"><b>Notifications on iPhone</b><p>Open this page in Safari, tap Share, choose <b>Add to Home Screen</b>, then open the CRM from the new icon and turn notifications on there.</p></div>` : html`<div class="nf-card"><b>Browser notifications</b><p>This browser cannot show background notifications. You will still see new leads here and hear the chime while the CRM is open.</p></div>`;
     if (st.perm === "denied") return html`<div class="nf-card warn"><b>Notifications are blocked</b><p>Click the lock icon next to the address, set Notifications to Allow, then come back and press the button.</p><button class="btn sm" id="nfOn">Try again</button></div>`;
@@ -99,10 +112,12 @@ const Notify = (() => {
     if (!btn) return;
     const n = unread(), nEl = btn.querySelector(".bell-n");
     nEl.hidden = n === 0; nEl.textContent = n > 99 ? "99+" : String(n);
-    btn.setAttribute("aria-label", n ? `Notifications, ${n} unread` : "Notifications");
+    const at = st.attn ? st.attn.waiting.length + st.attn.due.length : 0; btn.classList.toggle("has-attn", at > 0);
+    btn.setAttribute("aria-label", (n ? `Notifications, ${n} unread` : "Notifications") + (at ? `, ${at} need attention` : ""));
     document.title = (n ? `(${n > 99 ? "99+" : n}) ` : "") + baseTitle;
     if (!st.open) return;
     panel.innerHTML = html`<div class="nf-h"><b>Notifications</b><span class="nf-sp"></span><button class="icon-btn" id="nfSound" aria-label="${st.sound ? "Turn the sound off" : "Turn the sound on"}" aria-pressed="${st.sound}" title="${st.sound ? "Sound on" : "Sound off"}"><i data-lucide="${st.sound ? "volume-2" : "volume-x"}"></i></button><button class="btn sm" id="nfAll" ${n ? raw("") : raw("disabled")}>Mark all as read</button></div>
+      ${attention()}
       ${card()}
       <ul class="nf-l" role="list">${st.leads.length ? st.leads.map((l) => html`<li><a href="leads.html?q=${encodeURIComponent("L-" + l.id)}" data-nf="${l.id}" class="${isUnread(l) ? "unread" : ""}">${avatar(l.name, 36)}<span class="nf-t"><b>${l.name}</b><span>New lead from ${srcLabel(l)}${l.project ? " · " + l.project : ""}</span>${l.agent ? html`<small>Assigned to ${l.agent}</small>` : raw("")}</span><time datetime="${l.at}">${relTime(l.at)}</time>${isUnread(l) ? html`<i class="nf-dot" aria-label="Unread"></i>` : raw("")}</a></li>`) : html`<li class="nf-empty">No leads yet. New ones appear here the moment they arrive.</li>`}</ul>
       <div class="nf-f"><a href="leads.html">View all leads</a></div>`.__raw;
@@ -120,7 +135,7 @@ const Notify = (() => {
   }
   function toggle(open) {
     st.open = open === undefined ? !st.open : open; panel.hidden = !st.open; btn.setAttribute("aria-expanded", String(st.open));
-    if (st.open) { render(); checkPush().then(render); }
+    if (st.open) { render(); checkPush().then(render); loadAttention(); }
   }
 
   async function init(session) {
@@ -138,6 +153,7 @@ const Notify = (() => {
       if (prefs && !prefs.notif_read_before) st.readBefore = new Date().toISOString();
     } catch { st.readBefore = st.readBefore || new Date().toISOString(); }
     await refetch(); connect(); checkPush().then(render); render(); st.ready = true;
+    loadAttention(); setInterval(loadAttention, 120000); window.addEventListener("k99:lead-changed", loadAttention);
   }
   return { init, _test: { onLead: (r) => onLead(r, true), state: st, unread, markAll, toggle } };
 })();
