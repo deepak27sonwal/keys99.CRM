@@ -715,7 +715,7 @@ table{width:100%;border-collapse:collapse}
 .bell-wrap{position:relative}.top-actions .bell{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;border-radius:50%;background:none;color:inherit;cursor:pointer}
 .top-actions .bell:hover{background:rgba(15,23,42,.06)}.top-actions .bell:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px}
 .bell-n{position:absolute;top:0;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff}
-.nf-panel{position:absolute;top:calc(100% + 10px);right:-60px;z-index:90;width:380px;max-width:calc(100vw - 24px);max-height:min(640px,calc(100vh - 90px));overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.22)}
+.nf-panel,.al-panel{position:absolute;top:calc(100% + 10px);right:-60px;z-index:90;width:380px;max-width:calc(100vw - 24px);max-height:min(640px,calc(100vh - 90px));overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.22)}
 .nf-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:1}.nf-h b{font-size:16px}.nf-sp{flex:1}
 .nf-card{margin:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;font-size:13.5px}.nf-card p{margin:4px 0 8px;color:#475569}.nf-card b{display:flex;align-items:center;gap:6px}.nf-card [data-lucide]{width:16px;height:16px}
 .nf-card.ok{background:#ecf8f1;border-color:#bde5cc}.nf-card.ok [data-lucide],.nf-card.ok svg{color:#16a34a}.nf-card.warn{background:#fffbeb;border-color:#fde68a}.nf-btns{display:flex;gap:8px;flex-wrap:wrap}.nf-msg{display:block;margin-top:4px;color:#0f5f54;font-weight:500}
@@ -723,7 +723,7 @@ table{width:100%;border-collapse:collapse}
 .nf-t{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;line-height:1.35}.nf-t b{font-size:14px;overflow-wrap:anywhere}.nf-t span,.nf-t small{color:#475569;overflow-wrap:anywhere}.nf-t small{color:var(--muted)}
 .nf-l time{font-size:12px;color:var(--muted);white-space:nowrap;align-self:flex-start;padding-top:2px}.nf-dot{width:9px;height:9px;border-radius:50%;background:#ef4444;flex:none}
 .nf-empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:14px}.nf-f{padding:10px 14px;border-top:1px solid var(--line);text-align:center;position:sticky;bottom:0;background:#fff}.nf-f a{color:var(--brand-700);font-weight:600;text-decoration:none}
-@media(max-width:600px){.bell-wrap{position:static}.nf-panel{position:fixed;top:60px;left:8px;right:8px;width:auto;max-width:none;max-height:calc(100vh - 76px)}}
+@media(max-width:600px){.bell-wrap{position:static}.nf-panel,.al-panel{position:fixed;top:60px;left:8px;right:8px;width:auto;max-width:none;max-height:calc(100vh - 76px)}}
 
 @media(min-width:1501px){.drawer{width:330px}}   /* side-by-side only on wide screens; below that the lead panel is full width (stacked) or full screen */
 /* Lead source chip */
@@ -1132,3 +1132,10 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 @keyframes tkUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 @media(prefers-reduced-motion:reduce){.tk-sheet{animation:none}}
 @media(max-width:900px){.tk-grid>.tk-det{display:none}.tk-row{cursor:pointer}}
+
+/* Follow-ups and Tasks alert icons (next to the lead bell) */
+.top-actions .bell.al-btn.has-due{color:var(--brand-700)}.top-actions .bell.al-btn .bell-n{background:#ef4444}
+.al-panel .nf-h b{display:inline-flex;align-items:center;gap:6px}.al-panel .nf-h [data-lucide]{width:16px;height:16px;color:var(--brand-700)}
+.al-panel h5.al-over{color:#b91c1c}.al-done{flex:none}.al-done [data-lucide]{width:20px;height:20px;color:#94a3b8}.al-done:hover [data-lucide]{color:var(--brand-700)}
+.top-actions{gap:12px}
+@media(max-width:600px){.top-actions{gap:2px}.top-actions .bell{width:36px;height:36px}.top-actions .search{min-width:0}}

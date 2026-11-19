@@ -62,6 +62,8 @@ async function mountShell(active) {
           <div class="search"><i data-lucide="search"></i><input id="globalSearch" placeholder="Search leads, customers, projects, developers..."></div>
           <div class="top-actions">
             <div class="bell-wrap"><button type="button" class="bell" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button></div>
+            <div class="bell-wrap" id="fuWrap"><button type="button" class="bell al-btn" id="fuBtn" aria-label="Follow-ups" aria-haspopup="dialog" aria-expanded="false" title="Follow-ups"><i data-lucide="phone-call"></i><span class="bell-n" hidden></span></button></div>
+            <div class="bell-wrap" id="tkWrap"><button type="button" class="bell al-btn" id="tkBtn" aria-label="Tasks" aria-haspopup="dialog" aria-expanded="false" title="Tasks"><i data-lucide="list-checks"></i><span class="bell-n" hidden></span></button></div>
             <i data-lucide="message-circle" class="wa"></i>
             <a href="calendar.html" class="cal-link" aria-label="Open the calendar" title="Calendar"><i data-lucide="calendar-days" class="cal"></i></a>
             <button class="user" id="userBtn" title="Your profile" aria-haspopup="dialog" aria-expanded="false">
@@ -89,6 +91,7 @@ async function mountShell(active) {
   if (active !== "leads") gs.onkeydown = (e) => { if (e.key === "Enter" && gs.value.trim()) location.href = "leads.html?q=" + encodeURIComponent(gs.value.trim()); };
   // the bell: loaded after the page shell so it never delays the page
   const ns = document.createElement("script"); ns.src = "js/notify.js"; ns.onload = () => window.Notify && Notify.init(sess); document.head.appendChild(ns);
+  const as = document.createElement("script"); as.src = "js/alerts.js"; as.onload = () => window.Alerts && Alerts.init(); document.head.appendChild(as);
   const ws = document.createElement("script"); ws.src = "js/workflow.js"; ws.onload = () => window.Workflow && Workflow.init(); document.head.appendChild(ws);
   return document.getElementById("page");
 }
