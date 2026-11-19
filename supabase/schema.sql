@@ -929,3 +929,37 @@ language sql stable security definer set search_path = '' as $f$
   order by (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email) desc, (lower(trim(t.name)) = lower(trim(o.owner))) desc, t.id
   limit 1 $f$;
 revoke all on function public.repeat_owner(text) from public, anon, authenticated;
+
+-- My profile: profile photos (public-read bucket, each person writes only inside their own folder) and a safe "edit my own mobile/photo" function.
+alter table public.team_members add column if not exists avatar_path text;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = true, file_size_limit = 2097152, allowed_mime_types = array['image/jpeg','image/png','image/webp'];
+drop policy if exists "avatars read" on storage.objects;
+create policy "avatars read" on storage.objects for select to anon, authenticated using (bucket_id = 'avatars');
+drop policy if exists "avatars own folder write" on storage.objects;
+create policy "avatars own folder write" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+drop policy if exists "avatars own folder update" on storage.objects;
+create policy "avatars own folder update" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()))
+  with check (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+drop policy if exists "avatars own folder delete" on storage.objects;
+create policy "avatars own folder delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- Employees cannot update team_members directly (that would let them change designation, team, ...). This changes only their own mobile and photo.
+create or replace function public.update_my_profile(p_phone text, p_avatar text, p_keep_avatar boolean default true)
+returns void language plpgsql security definer set search_path = '' as $f$
+declare mid bigint; ph text := nullif(trim(coalesce(p_phone, '')), '');
+begin
+  select u.member_id into mid from public.app_users u where u.user_id = auth.uid() and u.active;
+  if mid is null then raise exception 'No profile is linked to this login'; end if;
+  if ph is not null and ph !~ '^[0-9+()\- ]{7,20}$' then raise exception 'Enter a valid mobile number'; end if;
+  if p_avatar is not null and p_avatar !~ ('^' || auth.uid()::text || '/[A-Za-z0-9._-]{1,120}$') then raise exception 'Invalid photo'; end if;
+  update public.team_members set phone = ph,
+    avatar_path = case when p_keep_avatar then coalesce(p_avatar, avatar_path) else p_avatar end
+  where id = mid;
+end $f$;
+revoke all on function public.update_my_profile(text, text, boolean) from public, anon;
+grant execute on function public.update_my_profile(text, text, boolean) to authenticated;
