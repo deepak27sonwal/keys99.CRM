@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
-  <div class="auth">
+  <div class="auth auth-pro">
     <aside class="auth-side">
       <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
       <div><h2>Choose a new password.</h2><p>Use at least 8 characters. You'll be signed in right after.</p></div>
@@ -18,7 +18,9 @@
     </aside>
     <main class="auth-main">
       <div class="auth-card">
-        <div class="m-logo"><b>Keys<span>99</span> CRM</b></div>
+        <div class="m-logo"><b>Keys<span>99</span> CRM</b><small>Channel Partner CRM</small></div>
+        <div class="ac-body">
+        <span class="ac-eyebrow">Account recovery</span>
         <h1>Set new password</h1>
         <p class="sub" id="sub">Checking your reset link…</p>
         <form id="form" novalidate hidden>
@@ -31,6 +33,7 @@
           <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
           <button class="btn gold auth-submit" id="btn" type="submit">Update password</button>
         </form>
+        </div>
         <p class="auth-foot"><a href="login.html" class="auth-link">← Back to sign in</a></p>
       </div>
     </main>

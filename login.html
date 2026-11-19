@@ -10,65 +10,71 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
-  <div class="auth">
+  <div class="auth auth-pro">
     <aside class="auth-side">
       <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
-      <div>
-        <h2>Every enquiry, one place.</h2>
-        <p>Track leads from your landing pages and website, schedule site visits and follow bookings through to brokerage.</p>
-        <ul>
-          <li><i data-lucide="user-search"></i>Leads and follow-ups in one pipeline</li>
-          <li><i data-lucide="calendar-check"></i>Site visits and bookings</li>
-          <li><i data-lucide="wallet"></i>Brokerage due and received</li>
+      <div class="as-mid">
+        <span class="as-pill"><i data-lucide="shield-check"></i>Secure team workspace</span>
+        <h2>Every enquiry,<br>one place.</h2>
+        <p>Track leads from your landing pages and ads, schedule site visits and follow every booking through to brokerage.</p>
+        <ul class="as-feat">
+          <li><span class="as-ic"><i data-lucide="user-search"></i></span><div><b>Leads &amp; follow-ups</b><small>One pipeline, from enquiry to booking</small></div></li>
+          <li><span class="as-ic"><i data-lucide="calendar-check"></i></span><div><b>Site visits &amp; calendar</b><small>Never miss a meeting or a visit</small></div></li>
+          <li><span class="as-ic"><i data-lucide="wallet"></i></span><div><b>Brokerage tracking</b><small>See what is due and what is received</small></div></li>
         </ul>
       </div>
+      <div class="as-bot"><span>&copy; 2026 Keys99 CRM</span><span>Made for channel partners</span></div>
       <div class="auth-art" id="art"></div>
     </aside>
 
     <main class="auth-main">
       <div class="auth-card">
-        <div class="m-logo"><b>Keys<span>99</span> CRM</b></div>
+        <div class="m-logo"><b>Keys<span>99</span> CRM</b><small>Channel Partner CRM</small></div>
+        <div class="ac-body">
 
         <section id="signinView">
+          <span class="ac-eyebrow">Sign in</span>
           <h1>Welcome back</h1>
-          <p class="sub">Sign in to your Keys99 account.</p>
+          <p class="sub">Enter your details to access your workspace.</p>
           <form id="signinForm" novalidate>
             <label>Email
-              <input id="email" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com">
+              <span class="fld"><i data-lucide="mail"></i><input id="email" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com"></span>
             </label>
             <label>Password
-              <span class="pw">
-                <input id="password" type="password" autocomplete="current-password" required placeholder="Your password">
+              <span class="pw fld">
+                <i data-lucide="lock"></i><input id="password" type="password" autocomplete="current-password" required placeholder="Your password">
                 <button type="button" id="togglePw" aria-label="Show password"><i data-lucide="eye"></i></button>
               </span>
             </label>
-            <div class="auth-row"><span></span><button type="button" class="auth-link" id="forgotBtn">Forgot password?</button></div>
+            <div class="auth-row"><span class="ac-secure"><i data-lucide="lock-keyhole"></i>Encrypted connection</span><button type="button" class="auth-link" id="forgotBtn">Forgot password?</button></div>
             <div class="auth-msg" id="msg" role="alert" aria-live="polite"></div>
             <button class="btn gold auth-submit" id="submitBtn" type="submit">Sign in</button>
           </form>
         </section>
 
         <section id="resetView" hidden>
+          <span class="ac-eyebrow">Account recovery</span>
           <h1>Reset password</h1>
           <p class="sub">Enter your email and we'll send you a 6-digit code (and a link) to set a new password.</p>
           <form id="resetForm" novalidate>
             <label>Email
-              <input id="resetEmail" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com">
+              <span class="fld"><i data-lucide="mail"></i><input id="resetEmail" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com"></span>
             </label>
             <div class="auth-msg" id="resetMsg" role="alert" aria-live="polite"></div>
             <button class="btn gold auth-submit" id="resetBtn" type="submit">Send code</button>
           </form>
-          <form id="otpForm" novalidate hidden style="margin-top:14px">
-            <p class="sub" style="margin:0 0 6px">Enter the 6-digit code from the email and choose a new password. No code? Use the link in the same email, or check your spam folder.</p>
-            <label>6-digit code<input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" style="letter-spacing:6px;text-align:center;font-size:18px"></label>
+          <form id="otpForm" novalidate hidden>
+            <p class="sub">Enter the 6-digit code from the email and choose a new password. No code? Use the link in the same email, or check your spam folder.</p>
+            <label>6-digit code<input id="otpCode" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456"></label>
             <label>New password<input id="otpPw1" type="password" autocomplete="new-password"></label>
             <label>Confirm password<input id="otpPw2" type="password" autocomplete="new-password"></label>
             <div class="auth-msg" id="otpMsg" role="alert" aria-live="polite"></div>
             <button class="btn gold auth-submit" id="otpBtn" type="submit">Verify and set password</button>
           </form>
-          <button type="button" class="auth-link" id="backBtn" style="align-self:center;margin-top:10px">← Back to sign in</button>
+          <button type="button" class="auth-link ac-back" id="backBtn"><i data-lucide="arrow-left"></i>Back to sign in</button>
         </section>
 
+        </div>
         <p class="auth-foot">Access is by invitation only. Ask your administrator for an account.</p>
       </div>
     </main>
