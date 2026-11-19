@@ -7,6 +7,17 @@
   const TYPES = ["Call", "WhatsApp", "Meeting", "Site Visit", "Document", "Other"], PRIOS = ["High", "Medium", "Low"], STATUSES = ["Pending", "Completed", "Overdue", "Scheduled"];
   const TYPE_ICON = { "Follow-up": "phone-call", Call: "phone", WhatsApp: "message-circle", Meeting: "users", "Site Visit": "map-pin", Document: "file-text", Other: "list-checks" };
   const TABS = [["all", "All Tasks"], ["Follow-up", "Follow-ups"], ["Call", "Calls"], ["Meeting", "Meetings"], ["Site Visit", "Site Visits"], ["Document", "Documents"], ["other", "Others"]];
+  // quick picks in the Create task form: the usual task messages per type, so nobody types them again (a pick also sets the priority)
+  const QUICK = {
+    Call: [["Call to introduce the project", "Medium"], ["Call to confirm the site visit", "High"], ["Follow-up call after site visit", "High"], ["Call to discuss price and offers", "High"], ["Call to collect pending documents", "Medium"], ["Payment reminder call", "High"], ["No answer, call again", "Medium"]],
+    WhatsApp: [["Send project brochure", "Medium"], ["Send location and directions", "Medium"], ["Share payment plan", "Medium"], ["Send price sheet", "Medium"], ["Send floor plans", "Medium"], ["Site visit reminder message", "High"]],
+    Meeting: [["Price negotiation meeting", "High"], ["Client meeting at the office", "Medium"], ["Discuss booking with the family", "High"], ["Meeting with the developer", "Medium"]],
+    "Site Visit": [["Schedule a site visit", "High"], ["Confirm site visit pickup", "High"], ["Take feedback after the site visit", "Medium"]],
+    Document: [["Collect KYC documents", "Medium"], ["Share the booking form", "High"], ["Collect token cheque", "High"], ["Send the agreement draft", "Medium"]],
+    Other: [["Update the lead status in CRM", "Low"], ["Check unit availability", "Medium"], ["Share lead feedback with the manager", "Low"], ["Send a thank-you message", "Low"]],
+  };
+  const DUE_PICKS = [["In 1 hour", () => { const d = new Date(Date.now() + 3600000); d.setSeconds(0, 0); return d; }], ["Today 6 PM", () => { const d = new Date(); d.setHours(18, 0, 0, 0); return d > new Date() ? d : null; }], ["Tomorrow 11 AM", () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(11, 0, 0, 0); return d; }],
+    ["In 2 days", () => { const d = new Date(); d.setDate(d.getDate() + 2); d.setHours(11, 0, 0, 0); return d; }], ["Next Monday", () => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(11, 0, 0, 0); return d; }]];
   const TEMPLATES = [["Send project brochure", "WhatsApp", "Medium"], ["Collect KYC documents", "Document", "Medium"], ["Follow up on booking confirmation", "Call", "High"], ["Schedule a site visit", "Site Visit", "High"], ["Price negotiation meeting", "Meeting", "High"], ["Share payment plan", "WhatsApp", "Medium"]];
   const state = { warn: "", tab: "all", who: admin ? "" : "me", status: "", prio: "", type: "", due: "", q: "", day: null, month: startOfDay(new Date()), pg: 1, sel: null, leads: [], tasks: [], visits: [], team: [], err: "" };
   const k = (s) => String(s || "").trim().toLowerCase(), slug2 = (s) => String(s).toLowerCase().replace(/[^a-z]+/g, "");
@@ -187,9 +198,9 @@
   function openTask(t, preset = {}) {
     const team = state.team.filter((m) => (m.status || "Active") === "Active"), v = (key, d = "") => (t ? t[key] : preset[key]) ?? d;
     const who = admin ? html`<label>Assign to *<select name="assigned_to" required><option value="">— Choose —</option>${team.map((m) => html`<option value="${m.id}" ${m.id === v("assigned_to") ? raw("selected") : raw("")}>${m.name}</option>`)}</select></label>` : html`<input type="hidden" name="assigned_to" value="${me.memberId}">`;
-    openModal(t ? "Edit task" : "Create task", html`<div class="form">${field("Task *", "title", v("title"), "text", 'required maxlength="140" placeholder="e.g. Send brochure to Mr. Shah"', "full")}
+    openModal(t ? "Edit task" : "Create task", html`<div class="form">${field("Task *", "title", v("title"), "text", 'required maxlength="140" placeholder="e.g. Send brochure to Mr. Shah"', "full")}${t ? raw("") : html`<div class="full tk-sug" id="tkSug" aria-label="Quick picks"></div>`}
       ${selectField("Type", "type", TYPES, v("type", "Call"))}${selectField("Priority", "priority", PRIOS, v("priority", "Medium"))}
-      ${field("Due date & time", "due", toLocalInput(v("due_at")), "datetime-local")}${who}
+      ${field("Due date & time", "due", toLocalInput(v("due_at")), "datetime-local")}${who}${t ? raw("") : html`<div class="full tk-sug tk-due" id="tkDueSug" aria-label="Quick due times"></div>`}
       <label class="full">Related lead (optional)<select name="enquiry_id">${leadOptions(v("enquiry_id"))}</select></label><label class="full">Notes (optional)<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`,
       async (f) => {
         const assigned = Number(f.assigned_to); if (!assigned) throw new Error("Choose who the task is for");
@@ -198,6 +209,29 @@
         toast(t ? "Task updated" : "Task created"); await refresh();
       }, t ? "Save" : "Create task");
   wireHolidayNote(document.querySelector(".overlay.open .modal"), "due");
+    if (!t) wireQuick(document.querySelector(".overlay.open form"));
+  }
+  // the quick pick chips: fill the title (and priority / due) with one tap; the list follows the chosen type and starts with the person's own recent titles
+  function wireQuick(form) {
+    if (!form) return; const box = form.querySelector("#tkSug"), dueBox = form.querySelector("#tkDueSug"); if (!box) return;
+    const title = form.querySelector('[name="title"]'), type = form.querySelector('[name="type"]'), prio = form.querySelector('[name="priority"]'), due = form.querySelector('[name="due"]');
+    const fire = (el) => { el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
+    const setSel = (el, val) => { if (!el) return; el.value = val; if (el._dd && el._dd.refresh) el._dd.refresh(); fire(el); };
+    const known = new Set(Object.values(QUICK).flat().map((x) => x[0].toLowerCase()));
+    const recent = [...new Set(state.tasks.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map((x) => String(x.title || "").trim()).filter((x) => x && x.length <= 80 && !known.has(x.toLowerCase())))].slice(0, 3);
+    const chip = (label, attrs) => `<button type="button" class="pill tk-sg" ${attrs}>${esc(label)}</button>`;
+    const drawTitles = () => { const list = QUICK[type.value] || QUICK.Other; box.innerHTML = `<span class="tk-sl">Quick picks</span>${recent.map((r, n) => chip(r, `data-r="${n}" title="Your recent task"`)).join("")}${list.map(([m], n) => chip(m, `data-q="${n}"`)).join("")}`; };
+    drawTitles();
+    // pressing a chip must not blur the (still empty) title, or its "required" message would shift the chips under the finger before the tap lands
+    form.querySelectorAll("#tkSug, #tkDueSug").forEach((c) => c.addEventListener("mousedown", (e) => { if (e.target.closest(".tk-sg")) e.preventDefault(); }));
+    box.addEventListener("click", (e) => {
+      const b = e.target.closest(".tk-sg"); if (!b) return; const list = QUICK[type.value] || QUICK.Other;
+      if (b.dataset.r !== undefined) title.value = recent[Number(b.dataset.r)]; else { const [m, pr] = list[Number(b.dataset.q)]; title.value = m; setSel(prio, pr); }
+      fire(title); title.focus(); title.setSelectionRange(title.value.length, title.value.length);
+    });
+    type.addEventListener("change", drawTitles);
+    if (dueBox) { dueBox.innerHTML = `<span class="tk-sl">Due</span>${DUE_PICKS.map(([l, f], n) => (f() ? chip(l, `data-d="${n}"`) : "")).join("")}`;
+      dueBox.addEventListener("click", (e) => { const b = e.target.closest(".tk-sg"); if (!b) return; const d = DUE_PICKS[Number(b.dataset.d)][1](); if (d) { due.value = toLocalInput(d.toISOString()); fire(due); } }); }
   }
   function pickLead(title, cta, next) {
     openModal(title, html`<div class="form"><label class="full">Lead *<select name="lead" required>${leadOptions("")}</select></label>${cta.date ? field("Date & time *", "when", toLocalInput(new Date(Date.now() + 86400000).toISOString()), "datetime-local", "required", "full") : raw("")}${cta.note ? html`<label class="full">Note (optional)<textarea name="note" rows="2"></textarea></label>` : raw("")}</div>`,
