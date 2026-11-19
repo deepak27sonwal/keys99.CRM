@@ -88,18 +88,17 @@ const Notify = (() => {
   }
 
   // ---------- the bell and its panel ----------
-  // "Needs attention": untouched new leads and due follow-ups, loaded when the bell is opened and refreshed every 2 minutes
+  // "Needs attention": untouched new leads (follow-ups and tasks have their own icons), loaded when the bell is opened and refreshed every 2 minutes
   async function loadAttention() { try { st.attn = await Data.getAttention(); } catch { return; } render(); }
   function attnRow(l, note) {
     return html`<li><a class="nf-ar" href="customer.html?id=${encodeURIComponent("L-" + l.dbId)}" aria-label="Open ${l.name}">${avatar(l.name, 32)}<span class="nf-t"><b>${l.name}</b><span>${note}${l.project ? " · " + l.project : ""}</span></span></a><a class="icon-btn" href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="icon-btn" href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></li>`;
   }
   function attention() {
     const a = st.attn; if (!a) return html``;
-    const n = a.waiting.length + a.due.length;
-    if (!n) return html`<section class="nf-attn ok" aria-label="Needs attention now"><b><i data-lucide="circle-check"></i> Nothing needs attention</b><small>Every new lead has been contacted and no follow-up is overdue.</small></section>`;
+    const n = a.waiting.length;
+    if (!n) return html`<section class="nf-attn ok" aria-label="Needs attention now"><b><i data-lucide="circle-check"></i> Nothing needs attention</b><small>Every new lead has been contacted.</small></section>`;
     return html`<section class="nf-attn" aria-label="Needs attention now"><h4><i data-lucide="alarm-clock"></i> Needs attention now <em>${n}</em></h4>
-      ${a.waiting.length ? html`<h5>New leads waiting (${a.waiting.length})</h5><ul class="nf-al">${a.waiting.slice(0, 5).map((l) => attnRow(l, "Waiting " + fmtWait(Data.waiting(l))))}</ul>${a.waiting.length > 5 ? html`<a class="nf-more" href="leads.html">View all ${a.waiting.length}</a>` : raw("")}` : raw("")}
-      ${a.due.length ? html`<h5>Follow-ups due (${a.due.length})</h5><ul class="nf-al">${a.due.slice(0, 5).map((l) => attnRow(l, "Due " + relTime(l.followUpTs)))}</ul>${a.due.length > 5 ? html`<a class="nf-more" href="tasks.html">View all ${a.due.length}</a>` : raw("")}` : raw("")}</section>`;
+      ${a.waiting.length ? html`<h5>New leads waiting (${a.waiting.length})</h5><ul class="nf-al">${a.waiting.slice(0, 5).map((l) => attnRow(l, "Waiting " + fmtWait(Data.waiting(l))))}</ul>${a.waiting.length > 5 ? html`<a class="nf-more" href="leads.html">View all ${a.waiting.length}</a>` : raw("")}` : raw("")}</section>`;
   }
   function card() {
     if (!supported()) return ios() && !standalone() ? html`<div class="nf-card"><b>Notifications on iPhone</b><p>Open this page in Safari, tap Share, choose <b>Add to Home Screen</b>, then open the CRM from the new icon and turn notifications on there.</p></div>` : html`<div class="nf-card"><b>Browser notifications</b><p>This browser cannot show background notifications. You will still see new leads here and hear the chime while the CRM is open.</p></div>`;
@@ -112,7 +111,7 @@ const Notify = (() => {
     if (!btn) return;
     const n = unread(), nEl = btn.querySelector(".bell-n");
     nEl.hidden = n === 0; nEl.textContent = n > 99 ? "99+" : String(n);
-    const at = st.attn ? st.attn.waiting.length + st.attn.due.length : 0; btn.classList.toggle("has-attn", at > 0);
+    const at = st.attn ? st.attn.waiting.length : 0; btn.classList.toggle("has-attn", at > 0);
     btn.setAttribute("aria-label", (n ? `Notifications, ${n} unread` : "Notifications") + (at ? `, ${at} need attention` : ""));
     document.title = (n ? `(${n > 99 ? "99+" : n}) ` : "") + baseTitle;
     if (!st.open) return;
@@ -135,13 +134,14 @@ const Notify = (() => {
   }
   function toggle(open) {
     st.open = open === undefined ? !st.open : open; panel.hidden = !st.open; btn.setAttribute("aria-expanded", String(st.open));
-    if (st.open) { render(); checkPush().then(render); loadAttention(); }
+    if (st.open) { document.dispatchEvent(new CustomEvent("k99:panel-open", { detail: "bell" })); render(); checkPush().then(render); loadAttention(); }
   }
 
   async function init(session) {
     sess = session; btn = document.getElementById("bellBtn"); if (!btn || btn.dataset.ready) return; btn.dataset.ready = "1";
     panel = document.createElement("div"); panel.className = "nf-panel"; panel.hidden = true; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Notifications"); btn.parentNode.appendChild(panel);
     btn.onclick = (e) => { e.stopPropagation(); toggle(); };
+    document.addEventListener("k99:panel-open", (e) => { if (st.open && e.detail !== "bell") toggle(false); });
     document.addEventListener("mousedown", (e) => { if (st.open && !panel.contains(e.target) && !btn.contains(e.target)) toggle(false); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && st.open) { toggle(false); btn.focus(); } });
     ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, () => audio(), { once: true, passive: true }));

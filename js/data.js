@@ -243,18 +243,23 @@ const Data = {
   },
   // ---- notifications (bell): recent leads, per-person read state, browser push subscriptions
   async getRecentLeads(n = 30) { const { data, error } = await this.client.from("enquiries").select("id,name,project,source,manager_name,meta_platform,created_at").order("created_at", { ascending: false }).limit(n); if (error) throw error; return data || []; },
-  // things that need action now (shown in the bell): untouched new leads past the alert time, and follow-ups already due
+  // untouched new leads past the alert time (shown in the bell); follow-ups and tasks have their own alert icons
   async getAttention() {
-    const cut = new Date(Date.now() - WAIT_ALERT_MIN * 60000).toISOString(), now = new Date().toISOString();
-    // every matching row (paged 1000 at a time), so the counts are the true backlog; a failed query throws, so the caller keeps what it last showed
-    const [a, b] = await Promise.all([
-      this.fetchAll("enquiries", (q) => q.eq("status", "New Leads").lte("created_at", cut)),
-      this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", now).not("status", "in", "(Spam,Booking Done,Post Sale)")),
-    ]);
-    return {
-      waiting: a.map((r) => this.fromRow(r)).filter((l) => this.waiting(l) !== null).sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt)),
-      due: b.map((r) => this.fromRow(r)).sort((x, y) => new Date(x.followUpTs) - new Date(y.followUpTs)),
-    };
+    const cut = new Date(Date.now() - WAIT_ALERT_MIN * 60000).toISOString();
+    // every matching row (paged 1000 at a time), so the count is the true backlog; a failed query throws, so the caller keeps what it last showed
+    const a = await this.fetchAll("enquiries", (q) => q.eq("status", "New Leads").lte("created_at", cut));
+    return { waiting: a.map((r) => this.fromRow(r)).filter((l) => this.waiting(l) !== null).sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt)) };
+  },
+  // follow-ups and manual tasks due by the end of today (overdue ones included), for the two alert icons
+  async getFollowUpAlerts() {
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    const r = await this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", end.toISOString()).not("status", "in", "(Spam,Booking Done,Post Sale)"));
+    return r.map((x) => this.fromRow(x)).sort((x, y) => new Date(x.followUpTs) - new Date(y.followUpTs));
+  },
+  async getTaskAlerts() {
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    const r = await this.fetchAll("tasks", (q) => q.is("done_at", null).not("due_at", "is", null).lte("due_at", end.toISOString()));
+    return r.sort((x, y) => new Date(x.due_at) - new Date(y.due_at));
   },
   async getPrefs() { const { data, error } = await this.client.from("user_prefs").select("*").limit(1).maybeSingle(); if (error) throw error; return data; },
   async savePrefs(p) { const s = await this.session(); if (!s) return; const { error } = await this.client.from("user_prefs").upsert({ ...p, user_id: s.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" }); if (error) throw error; },
