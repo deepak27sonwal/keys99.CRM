@@ -18,7 +18,10 @@ function render(el, tpl) {
 }
 const slug = (s) => String(s).replace(/\s+/g, "-");
 const AV_COLORS = ["#0f7a6b", "#e8a91f", "#3b6fe0", "#9b6fe0", "#d9534f", "#2e86de"];
-function avatar(name, size = 32) {
+// public URL of a profile photo stored in the "avatars" bucket (path = "<user id>/<file>")
+function avatarUrl(path) { const c = window.KEYS99_CONFIG || {}; return path && c.SUPABASE_URL ? c.SUPABASE_URL + "/storage/v1/object/public/avatars/" + String(path).split("/").map(encodeURIComponent).join("/") : ""; }
+function avatar(name, size = 32, photo = "") {
+  if (photo) return html`<img class="avatar avatar-img" src="${photo}" alt="" width="${size}" height="${size}" style="width:${size}px;height:${size}px">`;
   let h = 0;
   for (const c of String(name || "?")) h = (h * 31 + c.charCodeAt(0)) % AV_COLORS.length;
   const ini = String(name || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();

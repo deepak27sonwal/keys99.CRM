@@ -159,7 +159,7 @@
           <input class="select team-q" id="q" type="search" placeholder="Search by name, mobile or email…" value="${state.q}" aria-label="Search team"></div>
         <div class="card table-wrap"><table class="team-t"><thead><tr>${["Member", "Team", "Projects", "Role", "Leads", "Site Visits", "Bookings", "Deal Value", "Commission", "Conversion", "Status", ""].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((m) => { const s = S(m); return html`<tr class="tm-row ${m.id === state.selId ? "sel" : ""}" data-id="${m.id}" tabindex="0">
-            <td data-label="Member"><div class="row">${avatar(m.name, 34)}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small>${loginBadge(m)}</div></div></td>
+            <td data-label="Member"><div class="row">${avatar(m.name, 34, avatarUrl(m.avatar_path))}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small>${loginBadge(m)}</div></div></td>
             <td data-label="Team">${m.team || "—"}</td><td data-label="Projects" class="pjs">${pj(m.projects)}</td><td data-label="Role">${m.designation || KIND[m.kind]}${m.designation && m.designation !== KIND[m.kind] ? html`<small>${KIND[m.kind]}</small>` : raw("")}</td>
             <td data-label="Leads">${s.leads}</td><td data-label="Site Visits">${s.visits}</td><td data-label="Bookings">${s.bookings}</td>
             <td data-label="Deal Value">${s.value ? fmtMoney(s.value) : "—"}</td><td data-label="Commission">${s.commission ? fmtMoney(s.commission) : "—"}</td><td data-label="Conversion">${s.leads ? fmtPct(pct(s.booked, s.leads)) : "—"}</td>
@@ -230,7 +230,7 @@
     const s = stats.get(m.id), tgt = Number(m.monthly_target || 0);
     return html`<aside class="card drawer" aria-label="Team member details"><div class="drawer-h"><h2>${KIND[m.kind]} Details – ${m.name}</h2><button id="closeDrawer" aria-label="Close"><i data-lucide="x"></i></button></div>
       <div class="drawer-b">
-        <div class="tm-head">${avatar(m.name, 64)}<div><h3>${m.name}</h3><p>${m.designation || KIND[m.kind]}</p><span class="chip ${m.status === "Active" ? "c-ok" : "c-none"}">${m.status}</span></div></div>
+        <div class="tm-head">${avatar(m.name, 64, avatarUrl(m.avatar_path))}<div><h3>${m.name}</h3><p>${m.designation || KIND[m.kind]}</p><span class="chip ${m.status === "Active" ? "c-ok" : "c-none"}">${m.status}</span></div></div>
         <ul class="tm-info">
           ${m.phone ? html`<li><i data-lucide="phone"></i><a href="${telHref(m.phone)}">${m.phone}</a></li>` : raw("")}${m.email ? html`<li><i data-lucide="mail"></i><a href="mailto:${m.email}">${m.email}</a></li>` : raw("")}
           <li><i data-lucide="user-check"></i><span class="k">Type</span>${KIND[m.kind]}</li><li><i data-lucide="users"></i><span class="k">Team</span>${m.team || "—"}</li><li><i data-lucide="map-pin"></i><span class="k">Location</span>${m.location || "—"}</li>

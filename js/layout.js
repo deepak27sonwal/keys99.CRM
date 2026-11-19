@@ -12,8 +12,9 @@ const NAV = [
     ["Documents", "#", "file-text"], ["Reports & Analytics", "#", "bar-chart-3"]] },
   ["Settings", "settings.html", "settings", "settings"],
 ];
+const niceName = (e) => String(e || "").split("@")[0].split(/[._-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || "You";
 const navLink = ([label, href, icon, key], active) => html`<a href="${href}" class="${key && key === active ? "active" : ""}" ${key && key === active ? raw('aria-current="page"') : raw("")}><i data-lucide="${icon}"></i>${label}</a>`;
-const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks", "calendar"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
+const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks", "calendar", "profile"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
 // employees only get the pages that work on their own leads; everything else is hidden (and blocked by the database anyway)
 const navFor = (role) => role === "employee"
   ? NAV.map((n) => (Array.isArray(n) ? (EMP_KEYS.includes(n[3]) ? n : null) : { ...n, items: n.items.filter((it) => EMP_KEYS.includes(it[3])) })).filter((n) => n && (Array.isArray(n) || n.items.length))
@@ -41,7 +42,8 @@ async function mountShell(active) {
   if (!me || !me.active) { accessScreen(root, me ? "Your login has been switched off. Please ask an admin." : "Your login has no access yet. Please ask an admin to set you up."); return null; }
   if (me.mustChange) { changePasswordScreen(root, email); return null; }
   if (me.role !== "admin" && ADMIN_KEYS.includes(active)) { location.replace("index.html"); return null; }
-  const role = me.role === "admin" ? "Admin" : "Employee";
+  const role = me.role === "admin" ? "Admin" : "Employee", who = me.member ? me.member.name : niceName(email), photo = avatarUrl(me.avatarPath);
+  me.name = who;
   render(root, html`
     <div class="app">
       <div class="sidebar-backdrop" id="backdrop"></div>
@@ -51,6 +53,7 @@ async function mountShell(active) {
         <nav class="nav">
           ${navHtml(active, me.role)}
         </nav>
+        <a class="sb-profile ${active === "profile" ? "active" : ""}" href="profile.html" aria-label="My profile" ${active === "profile" ? raw('aria-current="page"') : raw("")}>${avatar(who, 40, photo)}<span class="sb-pn"><b>${who}</b><small>${role}${me.member && me.member.designation ? " · " + me.member.designation : ""}</small></span><i data-lucide="chevron-right"></i></a>
         <div class="sidebar-art">${buildingSvg()}</div>
       </aside>
       <div class="main-col">
@@ -62,7 +65,7 @@ async function mountShell(active) {
             <i data-lucide="message-circle" class="wa"></i>
             <a href="calendar.html" class="cal-link" aria-label="Open the calendar" title="Calendar"><i data-lucide="calendar-days" class="cal"></i></a>
             <button class="user" id="userBtn" title="Your profile" aria-haspopup="dialog" aria-expanded="false">
-              ${avatar(email, 40)}<span class="who"><b>${email}</b><span>${role}</span></span>
+              ${avatar(who, 40, photo)}<span class="who"><b>${email}</b><span>${role}</span></span>
             </button>
           </div>
         </header>
@@ -100,17 +103,11 @@ function openProfile(btn, sess, me) {
   const draw = (m) => {
     const rows = [["Role", me && me.role === "employee" ? "Employee" : "Admin"], ...(m ? [["Designation", m.designation || (m.kind === "rm" ? "Relationship Manager" : "Agent")], ["Team", m.team], ["Mobile", m.phone], ["Location", m.location]] : []),
       ["Last sign-in", when(u.last_sign_in_at)], ["Account created", when(u.created_at)]].filter(([, v]) => v);
-    pop.innerHTML = `<div class="pp-top">${avatar(m ? m.name : email, 56).__raw}<div><b>${esc(m ? m.name : nice(email))}</b><span>${esc(email)}</span></div></div>
+    pop.innerHTML = `<div class="pp-top">${avatar(m ? m.name : nice(email), 56, avatarUrl((window.ME && window.ME.avatarPath) || (m && m.avatar_path))).__raw}<div><b>${esc(m ? m.name : nice(email))}</b><span>${esc(email)}</span></div></div>
       <dl class="pp-d">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
-      <div class="pp-a"><button type="button" class="btn sm" id="ppReset"><i data-lucide="key-round"></i>Send password reset email</button><button type="button" class="btn sm red" id="ppOut"><i data-lucide="log-out"></i>Log out</button></div>`;
+      <div class="pp-a"><a class="btn sm" href="profile.html" id="ppEdit"><i data-lucide="user-cog"></i>Edit profile</a><button type="button" class="btn sm red" id="ppOut"><i data-lucide="log-out"></i>Log out</button></div>`;
     if (window.lucide) lucide.createIcons();
     pop.querySelector("#ppOut").onclick = () => Data.signOut();
-    pop.querySelector("#ppReset").onclick = async (ev) => {
-      const b = ev.currentTarget; b.disabled = true;
-      try { const { error } = await Data.client.auth.resetPasswordForEmail(email, { redirectTo: new URL("reset.html", location.href).href }); if (error) throw error; toast("Password reset email sent to " + email); }
-      catch (err) { toast("Could not send the email: " + err.message); }
-      b.disabled = false;
-    };
   };
   draw(null); document.body.appendChild(pop); btn.setAttribute("aria-expanded", "true");
   Data.getTeamCached().then((t) => { const m = (t || []).find((x) => x.email && x.email.toLowerCase() === email.toLowerCase()); if (m && pop.isConnected) draw(m); }).catch(() => {});

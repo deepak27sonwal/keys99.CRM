@@ -49,7 +49,7 @@
   };
 
   const view = (reset) => { $("signinView").hidden = reset; $("resetView").hidden = !reset; (reset ? $("resetEmail") : $("email")).focus(); };
-  $("forgotBtn").onclick = () => { $("resetEmail").value = $("email").value; say($("resetMsg"), ""); view(true); };
+  $("forgotBtn").onclick = () => { $("resetEmail").value = $("email").value; say($("resetMsg"), ""); $("otpForm").hidden = true; view(true); };
   $("backBtn").onclick = () => view(false);
 
   $("resetForm").onsubmit = async (e) => {
@@ -60,9 +60,25 @@
     busy($("resetBtn"), true, "Sending");
     const redirectTo = new URL("reset.html", location.href).href;
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-    busy($("resetBtn"), false, "Send reset link");
+    busy($("resetBtn"), false, "Send code");
     // Same message whether or not the account exists, so emails can't be probed.
     if (error && !/not found|invalid/i.test(error.message)) return say($("resetMsg"), friendly(error.message), "err");
-    say($("resetMsg"), "If an account exists for that email, a reset link is on its way.", "ok");
+    say($("resetMsg"), "If an account exists for that email, a code and a reset link are on their way.", "ok");
+    $("otpForm").hidden = false; $("otpCode").focus();
+  };
+
+  // Step 2: the emailed code proves it is the account owner; it signs them in briefly so the new password can be saved.
+  $("otpForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const email = $("resetEmail").value.trim(), token = $("otpCode").value.replace(/\s+/g, ""), a = $("otpPw1").value, b = $("otpPw2").value, m = $("otpMsg");
+    if (!/^\d{6,8}$/.test(token)) return say(m, "Enter the 6-digit code from the email.", "err");
+    if (a.length < 10 || !/[A-Za-z]/.test(a) || !/\d/.test(a)) return say(m, "Use at least 10 characters, with letters and numbers.", "err");
+    if (a !== b) return say(m, "The two passwords do not match.", "err");
+    busy($("otpBtn"), true, "Checking");
+    const v = await sb.auth.verifyOtp({ email, token, type: "recovery" });
+    if (v.error) { busy($("otpBtn"), false, "Verify and set password"); return say(m, /expired|invalid|token/i.test(v.error.message) ? "That code is wrong or has expired. Check it, or send a new one." : friendly(v.error.message), "err"); }
+    const u = await sb.auth.updateUser({ password: a, data: { must_change_password: false } });
+    if (u.error) { busy($("otpBtn"), false, "Verify and set password"); return say(m, /different|same/i.test(u.error.message) ? "Choose a password different from your current one." : friendly(u.error.message), "err"); }
+    say(m, "Password changed. Signing you in…", "ok"); location.replace(nextUrl());
   };
 })();

@@ -171,9 +171,31 @@ const Data = {
     if (!au) return null;
     let member = null;
     if (au.member_id) { const { data } = await this.client.from("team_members").select("*").eq("id", au.member_id).maybeSingle(); member = data || null; }
-    return { role: au.role, active: au.active !== false, memberId: au.member_id, member, mustChange: !!(sess.user.user_metadata && sess.user.user_metadata.must_change_password) };
+    return { role: au.role, active: au.active !== false, memberId: au.member_id, member, avatarPath: (sess.user.user_metadata || {}).avatar_path || (member && member.avatar_path) || "", mustChange: !!(sess.user.user_metadata && sess.user.user_metadata.must_change_password) };
   },
   async changePassword(pw) { const { error } = await this.client.auth.updateUser({ password: pw, data: { must_change_password: false } }); if (error) throw error; },
+  // ---- my profile: photo, mobile number and the emailed one-time code for a new password ----
+  // Resizes the picked picture to a 400px square JPEG in the browser, so uploads stay small whatever the phone camera produced.
+  async squarePhoto(file) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use a JPG, PNG or WebP picture.");
+    if (file.size > 12 * 1024 * 1024) throw new Error("That picture is too large (12 MB max).");
+    const bmp = await createImageBitmap(file), side = Math.min(bmp.width, bmp.height), c = document.createElement("canvas"); c.width = c.height = 400;
+    c.getContext("2d").drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 400, 400);
+    const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.86)); if (!blob) throw new Error("Could not read that picture.");
+    return blob;
+  },
+  async saveMyProfile({ phone, photo, removePhoto }) {
+    const s = await this.session(); if (!s) throw new Error("Sign in first");
+    const meta = s.user.user_metadata || {}, old = meta.avatar_path || "";
+    let path = removePhoto ? null : old || null;
+    if (photo) { path = `${s.user.id}/avatar-${Date.now()}.jpg`; const { error } = await this.client.storage.from("avatars").upload(path, photo, { contentType: "image/jpeg", upsert: false }); if (error) throw error; }
+    if (window.ME && window.ME.memberId) { const { error } = await this.client.rpc("update_my_profile", { p_phone: phone, p_avatar: photo ? path : null, p_keep_avatar: !removePhoto }); if (error) throw error; }
+    if (photo || removePhoto) { const { error } = await this.client.auth.updateUser({ data: { avatar_path: path } }); if (error) throw error; if (old && old !== path) this.client.storage.from("avatars").remove([old]).catch(() => {}); }
+    return path;
+  },
+  // emails a 6-digit code (and the usual link); the "Reset password" email template carries both
+  async sendResetCode(email) { const { error } = await this.client.auth.resetPasswordForEmail(email, { redirectTo: new URL("reset.html", location.href).href }); if (error) throw error; },
+  async verifyResetCode(email, token) { const { error } = await this.client.auth.verifyOtp({ email, token: String(token).replace(/\s+/g, ""), type: "recovery" }); if (error) throw error; },
   async getLogins() { const { data, error } = await this.client.from("app_users").select("user_id,role,member_id,active").limit(2000); if (error) throw error; return data || []; },
   // Create / reset / disable / enable / remove a team member's login (runs on the server and only for admins).
   async loginAdmin(body) {

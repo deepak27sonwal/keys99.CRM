@@ -50,15 +50,23 @@
 
         <section id="resetView" hidden>
           <h1>Reset password</h1>
-          <p class="sub">Enter your email and we'll send you a link to set a new password.</p>
+          <p class="sub">Enter your email and we'll send you a 6-digit code (and a link) to set a new password.</p>
           <form id="resetForm" novalidate>
             <label>Email
               <input id="resetEmail" type="email" autocomplete="username" inputmode="email" required placeholder="you@company.com">
             </label>
             <div class="auth-msg" id="resetMsg" role="alert" aria-live="polite"></div>
-            <button class="btn gold auth-submit" id="resetBtn" type="submit">Send reset link</button>
-            <button type="button" class="auth-link" id="backBtn" style="align-self:center">← Back to sign in</button>
+            <button class="btn gold auth-submit" id="resetBtn" type="submit">Send code</button>
           </form>
+          <form id="otpForm" novalidate hidden style="margin-top:14px">
+            <p class="sub" style="margin:0 0 6px">Enter the 6-digit code from the email and choose a new password. No code? Use the link in the same email, or check your spam folder.</p>
+            <label>6-digit code<input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" style="letter-spacing:6px;text-align:center;font-size:18px"></label>
+            <label>New password<input id="otpPw1" type="password" autocomplete="new-password"></label>
+            <label>Confirm password<input id="otpPw2" type="password" autocomplete="new-password"></label>
+            <div class="auth-msg" id="otpMsg" role="alert" aria-live="polite"></div>
+            <button class="btn gold auth-submit" id="otpBtn" type="submit">Verify and set password</button>
+          </form>
+          <button type="button" class="auth-link" id="backBtn" style="align-self:center;margin-top:10px">← Back to sign in</button>
         </section>
 
         <p class="auth-foot">Access is by invitation only. Ask your administrator for an account.</p>
