@@ -1109,3 +1109,15 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 }
 @media(max-width:700px){.kpis.cal-kpis .kpi{flex-direction:row!important;text-align:left!important;justify-content:flex-start!important;padding:10px!important;gap:10px!important}.kpis.cal-kpis .kpi>[data-lucide]{width:36px;height:36px;padding:8px}.kpis.cal-kpis .kpi .val{font-size:20px!important}.kpis.cal-kpis .kpi .lbl{white-space:normal;font-size:11.5px}}
 @media(max-width:700px){.kpis.cal-kpis .kpi>div,.kpis.cal-kpis .kpi .lbl,.kpis.cal-kpis .kpi .dl{text-align:left!important;justify-content:flex-start!important}}
+
+/* Calendar layer chips use the same pill as the filters on Leads / Tasks: same size, border, dot and filled "on" state */
+.cal-layers{gap:6px;margin-bottom:14px}
+.cal-lay{--lc:#64748b;padding:6px 12px;gap:0;border-radius:99px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:400;color:inherit;white-space:nowrap;box-shadow:none;opacity:1!important;transform:none!important}
+.cal-lay i{width:8px;height:8px;margin-right:7px;box-shadow:none;vertical-align:1px}
+.cal-lay.ev-meeting{--lc:#0f7a6b}.cal-lay.ev-holiday{--lc:#dc2626}.cal-lay.ev-visit{--lc:#3b6fe0}.cal-lay.ev-followup{--lc:#e8a91f}.cal-lay.ev-task{--lc:#8b5cf6}
+.cal-lay:hover{border-color:#cbd5e1;background:#fff}.cal-lay:not(:has(input:checked)) i{background:var(--lc)}
+.cal-lay:has(input:checked){background:var(--lc);border-color:var(--lc);color:#fff;font-weight:600}.cal-lay:has(input:checked) i{background:#fff}
+.cal-who{font-size:13px}
+/* summary cards: same size as the dashboard / tasks cards */
+.kpis.cal-kpis .kpi{padding:16px 12px;border-radius:12px}.kpis.cal-kpis .kpi>[data-lucide]{width:34px;height:34px;padding:7px;border-radius:10px}.kpis.cal-kpis .kpi .val{font-size:24px;font-weight:700}
+@media(max-width:700px){.cal-lay{padding:5px 10px;font-size:12.5px}.cal-layers{gap:5px}}
