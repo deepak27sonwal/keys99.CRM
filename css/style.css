@@ -1132,3 +1132,9 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 @keyframes tkUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 @media(prefers-reduced-motion:reduce){.tk-sheet{animation:none}}
 @media(max-width:900px){.tk-grid>.tk-det{display:none}.tk-row{cursor:pointer}}
+
+/* quick pick chips in the Create task form: the same pill as the filters elsewhere */
+.tk-sug{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 2px}.tk-sl{font-size:12px;font-weight:600;color:var(--muted);margin-right:2px}
+.tk-sg{cursor:pointer;font-family:inherit;color:inherit}.tk-sg:hover{border-color:var(--brand-700);background:#f1faf7}.tk-sg:focus-visible{outline:2px solid var(--brand-700);outline-offset:2px}
+.tk-sug.tk-due{margin-bottom:4px}
+@media(max-width:600px){.tk-sg{padding:5px 10px;font-size:12.5px;white-space:normal;text-align:left}}
