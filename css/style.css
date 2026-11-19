@@ -1139,3 +1139,8 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 .al-panel h5.al-over{color:#b91c1c}.al-done{flex:none}.al-done [data-lucide]{width:20px;height:20px;color:#94a3b8}.al-done:hover [data-lucide]{color:var(--brand-700)}
 .top-actions{gap:12px}
 @media(max-width:600px){.top-actions{gap:2px}.top-actions .bell{width:36px;height:36px}.top-actions .search{min-width:0}}
+/* quick pick chips in the Create task form: the same pill as the filters elsewhere */
+.tk-sug{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 2px}.tk-sl{font-size:12px;font-weight:600;color:var(--muted);margin-right:2px}
+.tk-sg{cursor:pointer;font-family:inherit;color:inherit}.tk-sg:hover{border-color:var(--brand-700);background:#f1faf7}.tk-sg:focus-visible{outline:2px solid var(--brand-700);outline-offset:2px}
+.tk-sug.tk-due{margin-bottom:4px}
+@media(max-width:600px){.tk-sg{padding:5px 10px;font-size:12.5px;white-space:normal;text-align:left}}
