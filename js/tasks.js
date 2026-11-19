@@ -88,7 +88,7 @@
             ${Array.from({ length: pages }, (_, x) => x + 1).filter((x) => x === 1 || x === pages || Math.abs(x - state.pg) <= 1).map((x, idx, arr) => html`${idx && x - arr[idx - 1] > 1 ? raw("<span>…</span>") : raw("")}<button type="button" class="${x === state.pg ? "on" : ""}" data-pg="${x}">${x}</button>`)}
             <button type="button" data-pg="${state.pg + 1}" ${state.pg >= pages ? raw("disabled") : raw("")} aria-label="Next page"><i data-lucide="chevron-right"></i></button></div></div>`
           : html`<div class="empty-sm">${state.q || state.status || state.prio || state.type || state.due || state.day ? "No tasks match these filters." : "Nothing here yet. Create a task or schedule a follow-up."}</div>`}
-      </section>${details(sel)}</div>
+      </section>${isPhone() ? raw("") : details(sel)}</div>
       <div class="tk-bot">${calendar(sc)}
         <section class="card p"><div class="ch"><i data-lucide="clock"></i><h3>Today's Follow-ups (${todays.length})</h3></div>${todays.length ? html`<ul class="tk-today">${todays.map((i) => html`<li class="${i.done ? "done" : ""}"><span class="tt">${fmtTime(i.due)}</span><i data-lucide="${TYPE_ICON[i.type]}"></i><div><b>${i.title}</b><small>${[i.lead ? i.lead.name : i.sub, i.owner && i.owner !== "Unassigned" ? "Assigned to " + i.owner : "Unassigned"].filter(Boolean).join(" · ")}</small></div>${i.done ? raw("") : html`<input type="checkbox" data-tick="${i.key}" aria-label="Mark ${i.title} done">`}</li>`)}</ul>` : html`<div class="empty-sm">Nothing scheduled for today.</div>`}</section>
         <section class="card p"><div class="ch"><i data-lucide="bar-chart-3"></i><h3>Task by Status</h3></div>${donut(sc)}</section>
@@ -131,6 +131,21 @@
   // ---- wiring ----
   const refresh = async () => { await load(); draw(); };
   const find = (all, key) => all.find((i) => i.key === key);
+  // On a phone the details panel would sit far below the list, so a tapped card opens them in a bottom sheet instead.
+  const isPhone = () => matchMedia("(max-width:900px)").matches;
+  function openSheet(i, opener) {
+    if (!i) return;
+    document.querySelectorAll(".tk-ov").forEach((o) => o.remove());
+    const ov = document.createElement("div"); ov.className = "overlay open tk-ov";
+    ov.innerHTML = `<div class="modal tk-sheet" role="dialog" aria-modal="true" aria-label="${esc(i.title)}"><div class="tk-sh"><span class="tk-grab" aria-hidden="true"></span><button type="button" class="icon-btn" id="tkShX" aria-label="Close details"><i data-lucide="x"></i></button></div>${details(i).__raw}</div>`;
+    document.body.appendChild(ov); if (window.lucide) lucide.createIcons();
+    const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); if (opener && opener.isConnected) opener.focus({ preventScroll: true }); }, onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey); ov.addEventListener("mousedown", (e) => { if (e.target === ov) close(); });
+    const act = (id, fn) => { const b = ov.querySelector(id); if (b) b.onclick = () => { close(); fn(); }; };
+    ov.querySelector("#tkShX").onclick = close; act("#dDone", () => complete(i)); act("#dEdit", () => i.task && openTask(i.task)); act("#dResched", () => resched(i)); act("#dNote", () => note(i));
+    ov.querySelector("#tkShX").focus({ preventScroll: true });
+  }
+  { const mq = matchMedia("(max-width:900px)"); const sw = () => { document.querySelectorAll(".tk-ov").forEach((o) => o.remove()); draw(); }; mq.addEventListener ? mq.addEventListener("change", sw) : mq.addListener(sw); }
   function wire(all, sel) {
     const $ = (s) => page.querySelector(s), on = (s, fn) => { const e = $(s); if (e) e.onclick = fn; };
     page.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; state.pg = 1; draw(); }));
@@ -141,8 +156,8 @@
     on("#tkOver", () => { state.status = state.status === "Overdue" ? "" : "Overdue"; state.pg = 1; draw(); }); on("#tkCal", () => $(".tk-cal").scrollIntoView({ behavior: "smooth", block: "center" }));
     on("#tkRetry", () => refresh()); on("#tkAdd", () => openTask(null)); on("#tkDayX", () => { state.day = null; draw(); });
     page.querySelectorAll("[data-pg]").forEach((b) => (b.onclick = () => { state.pg = Number(b.dataset.pg); draw(); }));
-    page.querySelectorAll("tr.tk-row").forEach((r) => { const pick = (e) => { if (e && e.target.closest("button,a,input")) return; state.sel = r.dataset.key; draw(); }; r.onclick = pick; r.onkeydown = (e) => { if (e.key === "Enter" && e.target === r) pick(); }; });
-    page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const i = find(all, b.dataset.menu); if (!i) return; popMenu(b, [["View details", "eye", () => { state.sel = i.key; draw(); }], ...(i.done ? [] : [["Mark complete", "check", () => complete(i)], ["Reschedule", "calendar-clock", () => resched(i)]]), ...(i.kind === "t" ? [["Edit", "pencil", () => openTask(i.task)]] : []), ...(i.kind === "t" && (admin || i.task.created_by === me.uid) ? [["Delete", "trash-2", () => del(i), true]] : [])]); }));
+    page.querySelectorAll("tr.tk-row").forEach((r) => { const pick = (e) => { if (e && e.target.closest("button,a,input")) return; state.sel = r.dataset.key; if (isPhone()) return openSheet(find(all, r.dataset.key), r); draw(); }; r.onclick = pick; r.onkeydown = (e) => { if (e.key === "Enter" && e.target === r) pick(); }; });
+    page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const i = find(all, b.dataset.menu); if (!i) return; popMenu(b, [["View details", "eye", () => { state.sel = i.key; if (isPhone()) openSheet(i, b); else draw(); }], ...(i.done ? [] : [["Mark complete", "check", () => complete(i)], ["Reschedule", "calendar-clock", () => resched(i)]]), ...(i.kind === "t" ? [["Edit", "pencil", () => openTask(i.task)]] : []), ...(i.kind === "t" && (admin || i.task.created_by === me.uid) ? [["Delete", "trash-2", () => del(i), true]] : [])]); }));
     page.querySelectorAll("[data-tick]").forEach((c) => (c.onchange = () => { const i = find(all, c.dataset.tick); c.checked = false; if (i) complete(i); }));
     page.querySelectorAll("[data-day]").forEach((b) => (b.onclick = () => { state.day = state.day === b.dataset.day ? null : b.dataset.day; state.due = ""; state.pg = 1; draw(); }));
     on("#calPrev", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); draw(); }); on("#calNext", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); draw(); });

@@ -1121,3 +1121,14 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 /* summary cards: same size as the dashboard / tasks cards */
 .kpis.cal-kpis .kpi{padding:16px 12px;border-radius:12px}.kpis.cal-kpis .kpi>[data-lucide]{width:34px;height:34px;padding:7px;border-radius:10px}.kpis.cal-kpis .kpi .val{font-size:24px;font-weight:700}
 @media(max-width:700px){.cal-lay{padding:5px 10px;font-size:12.5px}.cal-layers{gap:5px}}
+
+/* Task details as a bottom sheet on phones */
+.tk-ov{align-items:flex-end;padding:0;z-index:110}
+.tk-sheet{padding:0;max-width:600px;max-height:88vh;border-radius:18px 18px 0 0;animation:tkUp .22s ease;overscroll-behavior:contain}
+.tk-sh{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:center;min-height:30px;background:#fff;border-radius:18px 18px 0 0}.tk-sh .icon-btn{position:absolute;right:8px;top:4px}
+.tk-grab{width:42px;height:5px;border-radius:99px;background:#cbd5e1}
+.tk-sheet .tk-det{display:block;position:static;border:0;border-radius:0;box-shadow:none;margin:0}.tk-sheet .tk-dh{border-radius:0}
+.tk-sheet .tk-dact{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tk-sheet .tk-dact .btn{justify-content:center}
+@keyframes tkUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.tk-sheet{animation:none}}
+@media(max-width:900px){.tk-grid>.tk-det{display:none}.tk-row{cursor:pointer}}
