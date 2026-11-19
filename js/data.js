@@ -221,6 +221,14 @@ const Data = {
   },
   // ---- notifications (bell): recent leads, per-person read state, browser push subscriptions
   async getRecentLeads(n = 30) { const { data, error } = await this.client.from("enquiries").select("id,name,project,source,manager_name,meta_platform,created_at").order("created_at", { ascending: false }).limit(n); if (error) throw error; return data || []; },
+  // things that need action now (shown in the bell): untouched new leads past the alert time, and follow-ups already due
+  async getAttention() {
+    const cut = new Date(Date.now() - WAIT_ALERT_MIN * 60000).toISOString(), now = new Date().toISOString(), cols = "id,name,phone,project,status,follow_up,created_at,activities";
+    const a = await this.client.from("enquiries").select(cols).eq("status", "New Leads").lte("created_at", cut).order("created_at").limit(60);
+    const b = await this.client.from("enquiries").select(cols).not("follow_up", "is", null).lte("follow_up", now).not("status", "in", "(Spam,Booking Done,Post Sale)").order("follow_up").limit(60);
+    const waiting = (a.error ? [] : a.data || []).map((r) => this.fromRow(r));
+    return { waiting: waiting.filter((l) => this.waiting(l) !== null), due: (b.error ? [] : b.data || []).map((r) => this.fromRow(r)) };
+  },
   async getPrefs() { const { data, error } = await this.client.from("user_prefs").select("*").limit(1).maybeSingle(); if (error) throw error; return data; },
   async savePrefs(p) { const s = await this.session(); if (!s) return; const { error } = await this.client.from("user_prefs").upsert({ ...p, user_id: s.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" }); if (error) throw error; },
   async savePushSub(sub) { const s = await this.session(); const { error } = await this.client.from("push_subscriptions").upsert({ ...sub, user_id: s.user.id }, { onConflict: "endpoint" }); if (error) throw error; },

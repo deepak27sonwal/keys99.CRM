@@ -918,14 +918,12 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 .wait-chip{display:inline-block;margin-top:3px;background:#fee2e2;color:#b91c1c;font-weight:700;font-size:11px;padding:1px 7px;border-radius:99px;white-space:nowrap}
 .rep-chip{margin-left:6px;background:#fef3c7;color:#92400e;font-weight:700;font-size:11px;padding:1px 7px;border-radius:99px;white-space:nowrap}
 .dup-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.4}
-.attn{border-left:4px solid #dc2626;margin-bottom:18px}.attn-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}.attn h4{font-size:13px;margin-bottom:6px}
-.attn .list li{display:flex;align-items:center;gap:10px}.attn .list small{display:block;color:var(--muted)}.attn .icon-btn{padding:6px;border-radius:6px}.attn .icon-btn:hover{background:#f1f5f9}
 .nav-n{margin-left:auto;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;min-width:18px;text-align:center}
 .wa-modal{max-width:460px}.wa-list{display:grid;gap:8px;margin:10px 0}
 .wa-o{text-align:left;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:3px;cursor:pointer}.wa-o:hover,.wa-o:focus-visible{border-color:var(--brand-600);background:#f0faf7}
 .wa-o small{color:var(--muted);line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.wa-o.plain{font-weight:600}
 .tp-body{white-space:pre-wrap;overflow-wrap:anywhere}
-@media(max-width:900px){.attn-cols{grid-template-columns:1fr}}
+
 
 /* Tasks & Follow-ups (dashboard-style page) */
 .btns .btn.on{background:var(--brand-700);border-color:var(--brand-700);color:#fff}
@@ -1019,3 +1017,10 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 @media(max-width:1100px){.kpis.cal-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.kpis.cal-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.cal-kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1}}
 .cal-strip{margin-bottom:18px}.cal-strip .cal-up a{display:grid;gap:1px;padding:7px 4px;border-bottom:1px solid var(--line);color:inherit}
+
+/* "Needs attention" lives in the bell panel */
+.bell.has-attn::after{content:"";position:absolute;bottom:3px;right:3px;width:9px;height:9px;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 2px #fff}
+.nf-attn{padding:12px 14px;border-bottom:1px solid var(--line);border-left:4px solid #dc2626}.nf-attn.ok{border-left-color:#16a34a;display:flex;flex-direction:column;gap:2px}.nf-attn.ok b{display:flex;align-items:center;gap:6px;font-size:13px}.nf-attn.ok small{color:var(--muted)}
+.nf-attn h4{display:flex;align-items:center;gap:6px;font-size:14px;margin:0 0 6px}.nf-attn h4 em{font-style:normal;background:#fdecec;color:#b91c1c;border-radius:9px;padding:0 7px;font-size:12px}.nf-attn h5{font-size:12px;color:var(--muted);margin:8px 0 2px;font-weight:600}
+.nf-al li{display:flex;align-items:center;gap:6px}.nf-al .nf-ar{flex:1;min-width:0;border-top:0;padding:6px 0}.nf-al .nf-t{display:block;min-width:0}.nf-al .nf-t span{display:block;color:var(--muted);font-size:12px}.nf-al .icon-btn{padding:6px;border-radius:6px;flex:none}.nf-al .icon-btn:hover{background:#f1f5f9}
+.nf-more{display:block;font-size:12px;font-weight:600;color:var(--brand-700);text-decoration:none;padding:2px 0}
