@@ -7,15 +7,14 @@
   let tick = null, hrChart = null;
   // active hours: everything from the last 800 days is loaded once and the period filters are applied here
   const hr = { preset: "30d", from: "", to: "", by: "day", rows: [], loading: true, err: "" };
-  const today = () => Hours.key(new Date());
+  const today = () => Hours.today();
   async function loadHours() {
-    const d = new Date(); d.setDate(d.getDate() - 799);
-    try { hr.rows = await Data.getActiveTime(Hours.key(d), today()); hr.err = ""; } catch (e) { hr.err = e.message || String(e); }
+    try { hr.rows = await Data.getActiveTime(Hours.today(-799), today()); hr.err = ""; } catch (e) { hr.err = e.message || String(e); }
     hr.loading = false; draw();
   }
   function hoursCard() {
-    const t = today(), y = Hours.key(new Date(Date.now() - 86400000)), [f, to] = Hours.span(hr.preset, hr.from, hr.to), rows = hr.rows.filter((r) => r.day >= f && r.day <= to), sm = Hours.summary(rows, f, to);
-    const wk = Hours.key((() => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; })()), mo = t.slice(0, 7) + "-01";
+    const t = today(), y = Hours.today(-1), [f, to] = Hours.span(hr.preset, hr.from, hr.to), rows = hr.rows.filter((r) => r.day >= f && r.day <= to), sm = Hours.summary(rows, f, to);
+    const wk = Hours.weekStart(t), mo = t.slice(0, 7) + "-01";
     const sum = (a, b) => hr.rows.filter((r) => r.day >= a && r.day <= b).reduce((n, r) => n + r.minutes, 0);
     const kp = [["Today", Hours.sumDay(hr.rows, t)], ["Yesterday", Hours.sumDay(hr.rows, y)], ["This week", sum(wk, t)], ["This month", sum(mo, t)], ["Total", hr.rows.reduce((n, r) => n + r.minutes, 0)]];
     const nice = (k) => (k ? new Date(k + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "");

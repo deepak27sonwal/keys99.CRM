@@ -1005,7 +1005,7 @@ begin
     left join auth.users au on au.id = a.user_id
     where a.day between p_from and p_to
       and (adm and (p_user is null or a.user_id = p_user) or a.user_id = auth.uid())
-    order by a.day, 3;
+    order by a.day, 3, a.user_id;
 end $f$;
 revoke all on function public.active_time_report(date, date, uuid) from public, anon;
 grant execute on function public.active_time_report(date, date, uuid) to authenticated;

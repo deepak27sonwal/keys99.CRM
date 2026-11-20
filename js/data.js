@@ -201,8 +201,13 @@ const Data = {
   // ---- active hours (the tracker adds one minute at a time; reports are limited by the database to my own rows, or everyone's for admins) ----
   async recordActive() { const { error } = await this.client.rpc("record_active_minute"); if (error) throw error; },
   async getActiveTime(from, to, userId = null) {
-    const { data, error } = await this.client.rpc("active_time_report", { p_from: from, p_to: to, p_user: userId }); if (error) throw error;
-    return (data || []).map((r) => ({ userId: r.user_id, memberId: r.member_id, name: r.name || "—", team: r.team || "", role: r.role, day: String(r.day).slice(0, 10), minutes: Number(r.minutes) || 0, lastAt: r.last_at }));
+    // the server answers at most 1000 rows at a time, so page until everything has arrived (the report is ordered, so pages never overlap)
+    const out = [];
+    for (let at = 0; at < 100000; at += 1000) {
+      const { data, error } = await this.client.rpc("active_time_report", { p_from: from, p_to: to, p_user: userId }).range(at, at + 999); if (error) throw error;
+      out.push(...(data || [])); if (!data || data.length < 1000) break;
+    }
+    return out.map((r) => ({ userId: r.user_id, memberId: r.member_id, name: r.name || "—", team: r.team || "", role: r.role, day: String(r.day).slice(0, 10), minutes: Number(r.minutes) || 0, lastAt: r.last_at }));
   },
   async getLogins() { const { data, error } = await this.client.from("app_users").select("user_id,role,member_id,active").limit(2000); if (error) throw error; return data || []; },
   // Create / reset / disable / enable / remove a team member's login (runs on the server and only for admins).

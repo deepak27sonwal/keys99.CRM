@@ -184,7 +184,7 @@
   // ---- active hours (admin): who was active how long, with period / team / member filters ----
   const hr = { preset: "7d", from: "", to: "", by: "day", team: "", member: "", rows: [], loading: false, err: "", key: "" };
   let hrCalc = null;
-  const dayKeyOf = (offset = 0) => Hours.key(new Date(Date.now() + offset * 86400000));
+  const dayKeyOf = (offset = 0) => Hours.today(offset);
   async function loadHrs(force) {
     const [f, t] = Hours.span(hr.preset, hr.from, hr.to), td = dayKeyOf(0), yd = dayKeyOf(-1), a = f < yd ? f : yd, b = t > td ? t : td, k = a + "|" + b;
     if (!force && hr.key === k) return;
@@ -211,7 +211,7 @@
       <p class="sub" style="margin:0 0 10px">A minute counts only while the CRM tab is open and the person is using it (mouse, keys, scroll or touch). Days follow Indian time.</p>
       ${hr.err ? html`<div class="pf-note err" role="alert">Could not load active hours: ${hr.err}</div>` : raw("")}
       <div class="kpis k4 hr-akpis">${kp.map((k) => kpiCard([k[0], hr.loading ? "…" : k[1], "", k[2], k[3], k[4]]))}</div>
-      <div class="card p">${Hours.controls(hr, extra)}<p class="muted" style="font-size:12.5px;margin:2px 0 0">${nice(f)}${f === t ? "" : " – " + nice(t)} · ${per.length} ${per.length === 1 ? "person" : "people"}${hr.rows.length >= 1000 ? " · showing the first 1,000 records, choose a shorter period or one member" : ""}</p></div>
+      <div class="card p">${Hours.controls(hr, extra)}<p class="muted" style="font-size:12.5px;margin:2px 0 0">${nice(f)}${f === t ? "" : " – " + nice(t)} · ${per.length} ${per.length === 1 ? "person" : "people"}</p></div>
       ${hr.loading ? html`<div class="card p"><p class="muted">Loading…</p></div>` : html`
       <div class="grid g-hours"><section class="card p"><div class="ch"><h3><i data-lucide="bar-chart-3"></i> ${mem ? "Daily history" : "Team active time"}</h3></div><div class="hr-chart"><canvas id="hrTeam" role="img" aria-label="Active hours over time"></canvas></div></section>
         ${mem ? raw("") : html`<section class="card p"><div class="ch"><h3><i data-lucide="users-round"></i> Hours by member</h3></div><div class="hr-chart"><canvas id="hrMembers" role="img" aria-label="Active hours by member"></canvas></div></section>`}</div>
