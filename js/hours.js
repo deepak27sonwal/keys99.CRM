@@ -1,24 +1,37 @@
 // Active-hours helpers shared by My Profile and Agents & Teams: formatting, period choices, grouping and the bar chart.
 window.Hours = (function () {
   const PRESETS = [["today", "Today"], ["yesterday", "Yesterday"], ["7d", "Last 7 days"], ["30d", "Last 30 days"], ["month", "This month"], ["lastmonth", "Last month"], ["custom", "Custom range"]];
-  const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Days are Indian-time calendar days (the database stores them that way), whatever timezone this browser is in.
+  const IST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" });
+  const key = (d) => IST.format(d instanceof Date ? d : new Date(d));                       // an instant -> its India date "YYYY-MM-DD"
+  const utc = (k) => new Date(k + "T00:00:00Z");                                            // a date key as UTC midnight, so day maths never depends on the browser timezone
+  const shift = (k, n) => { const d = utc(k); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const today = (off = 0) => shift(key(new Date()), off);
+  const weekStart = (k) => shift(k, -((utc(k).getUTCDay() + 6) % 7));                       // Monday
   const fmt = (m) => { m = Math.round(m || 0); if (m <= 0) return "0m"; const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h}h ${r}m` : `${h}h`) : `${r}m`; };
   const dec = (m) => (Math.round(((m || 0) / 60) * 10) / 10).toFixed(1);
   // from/to as "YYYY-MM-DD" (inclusive) for a preset, or the custom dates
   function span(preset, cFrom, cTo, now = new Date()) {
-    if (preset === "custom") { const a = cFrom || key(now), b = cTo || a; return a <= b ? [a, b] : [b, a]; }
-    const r = rangeBounds(preset, now); if (!r.from) return [key(now), key(now)];
-    const last = new Date(r.to.getTime() - 86400000), end = last > now ? now : last; return [key(r.from), key(end)];
+    const t = shift(key(now), 0);
+    if (preset === "custom") { const a = cFrom || t, b = cTo || a; return a <= b ? [a, b] : [b, a]; }
+    const y = Number(t.slice(0, 4)), m0 = Number(t.slice(5, 7)) - 1, first = (yy, mm) => new Date(Date.UTC(yy, mm, 1)).toISOString().slice(0, 10), last = (yy, mm) => new Date(Date.UTC(yy, mm + 1, 0)).toISOString().slice(0, 10);
+    switch (preset) {
+      case "yesterday": return [shift(t, -1), shift(t, -1)];
+      case "7d": return [shift(t, -6), t];
+      case "30d": return [shift(t, -29), t];
+      case "month": return [first(y, m0), t];
+      case "lastmonth": return [first(y, m0 - 1), last(y, m0 - 1)];
+      default: return [t, t];
+    }
   }
-  const days = (from, to) => { const out = []; for (let d = new Date(from + "T00:00:00"); key(d) <= to; d.setDate(d.getDate() + 1)) out.push(key(d)); return out; };
-  const monday = (d) => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  const days = (from, to) => { const out = []; for (let k = from; k <= to && out.length < 900; k = shift(k, 1)) out.push(k); return out; };
   const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   // rows -> buckets [{label, minutes}] by day / week / month, covering every day of the period (zero days included)
   function group(rows, from, to, by) {
     const per = new Map(); rows.forEach((r) => per.set(r.day, (per.get(r.day) || 0) + r.minutes));
     const out = new Map();
-    days(from, to).forEach((k) => { const d = new Date(k + "T00:00:00"); let bk, label;
-      if (by === "week") { const m = monday(d); bk = key(m); label = `${m.getDate()} ${MO[m.getMonth()]}`; } else if (by === "month") { bk = k.slice(0, 7); label = `${MO[d.getMonth()]} ${d.getFullYear()}`; } else { bk = k; label = `${d.getDate()} ${MO[d.getMonth()]}`; }
+    days(from, to).forEach((k) => { const d = utc(k); let bk, label;
+      if (by === "week") { bk = weekStart(k); const m = utc(bk); label = `${m.getUTCDate()} ${MO[m.getUTCMonth()]}`; } else if (by === "month") { bk = k.slice(0, 7); label = `${MO[d.getUTCMonth()]} ${d.getUTCFullYear()}`; } else { bk = k; label = `${d.getUTCDate()} ${MO[d.getUTCMonth()]}`; }
       const b = out.get(bk) || { label, minutes: 0, from: k }; b.minutes += per.get(k) || 0; out.set(bk, b); });
     return [...out.values()];
   }
@@ -42,7 +55,7 @@ window.Hours = (function () {
       ${st.preset === "custom" ? html`<label>From<input class="select" type="date" data-hr="from" value="${st.from}" max="${st.to || ""}"></label><label>To<input class="select" type="date" data-hr="to" value="${st.to}" min="${st.from || ""}"></label>` : raw("")}
       <label>Group by<select class="select" data-hr="by" aria-label="Group by">${raw([["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([v, l]) => `<option value="${v}" ${st.by === v ? "selected" : ""}>${l}</option>`).join(""))}</select></label>${extra}</div>`;
   function wire(root, st, changed) {
-    root.querySelectorAll("[data-hr]").forEach((el) => (el.onchange = () => { st[el.dataset.hr] = el.value; if (el.dataset.hr === "preset" && el.value === "custom" && !st.from) { st.from = st.to = key(new Date()); } changed(el.dataset.hr); }));
+    root.querySelectorAll("[data-hr]").forEach((el) => (el.onchange = () => { st[el.dataset.hr] = el.value; if (el.dataset.hr === "preset" && el.value === "custom" && !st.from) { st.from = st.to = today(); } changed(el.dataset.hr); }));
   }
-  return { PRESETS, key, fmt, dec, span, days, group, summary, sumDay, chart, controls, wire };
+  return { PRESETS, key, shift, today, weekStart, fmt, dec, span, days, group, summary, sumDay, chart, controls, wire };
 })();
