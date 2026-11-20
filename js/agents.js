@@ -245,7 +245,7 @@
   }
 
   function drawCharts(target, achieved) {
-    const grid = { color: "#eef1f3" }, ticks = { font: { size: 11 } };
+    const grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
     const pc = document.getElementById("perf");
     if (pc && window.Chart) charts.push(new Chart(pc, { type: "doughnut", data: { labels: ["Achieved", "Remaining"], datasets: [{ data: [Math.min(achieved, target), Math.max(0, target - achieved)], backgroundColor: ["#0f7a6b", "#e8a91f"], borderWidth: 0 }] }, options: { cutout: "72%", plugins: { legend: { display: false } }, maintainAspectRatio: false } }));
     const cv = document.getElementById("conv"); if (!cv || !window.Chart) return;
