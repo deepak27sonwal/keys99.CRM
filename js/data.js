@@ -1,6 +1,8 @@
 // Data layer. All CRM data lives in Supabase: leads are rows of `enquiries`,
 // plus `site_visits` and `bookings`. Lead id shown in the CRM is "L-" + enquiries.id.
 const CFG = window.KEYS99_CONFIG || {};
+// only the columns the alert panels show (not whole rows) so the periodic refresh stays light
+const ALERT_LEAD_COLS = "id,name,phone,project,status,follow_up,created_at,activities";
 const Data = {
   configured: !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY),
   client: null,
@@ -21,10 +23,10 @@ const Data = {
   },
 
   // PostgREST returns at most 1000 rows per request, so page through.
-  async fetchAll(table, build) {
+  async fetchAll(table, build, cols = "*") {
     const rows = [];
     for (let from = 0; ; from += 1000) {
-      let q = this.client.from(table).select("*");
+      let q = this.client.from(table).select(cols);
       if (build) q = build(q);
       const { data, error } = await q.order("id", { ascending: false }).range(from, from + 999);
       if (error) throw error;
@@ -247,18 +249,18 @@ const Data = {
   async getAttention() {
     const cut = new Date(Date.now() - WAIT_ALERT_MIN * 60000).toISOString();
     // every matching row (paged 1000 at a time), so the count is the true backlog; a failed query throws, so the caller keeps what it last showed
-    const a = await this.fetchAll("enquiries", (q) => q.eq("status", "New Leads").lte("created_at", cut));
+    const a = await this.fetchAll("enquiries", (q) => q.eq("status", "New Leads").lte("created_at", cut), ALERT_LEAD_COLS);
     return { waiting: a.map((r) => this.fromRow(r)).filter((l) => this.waiting(l) !== null).sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt)) };
   },
   // follow-ups and manual tasks due by the end of today (overdue ones included), for the two alert icons
   async getFollowUpAlerts() {
     const end = new Date(); end.setHours(23, 59, 59, 999);
-    const r = await this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", end.toISOString()).not("status", "in", "(Spam,Booking Done,Post Sale)"));
+    const r = await this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", end.toISOString()).not("status", "in", "(Spam,Booking Done,Post Sale)"), ALERT_LEAD_COLS);
     return r.map((x) => this.fromRow(x)).sort((x, y) => new Date(x.followUpTs) - new Date(y.followUpTs));
   },
   async getTaskAlerts() {
     const end = new Date(); end.setHours(23, 59, 59, 999);
-    const r = await this.fetchAll("tasks", (q) => q.is("done_at", null).not("due_at", "is", null).lte("due_at", end.toISOString()));
+    const r = await this.fetchAll("tasks", (q) => q.is("done_at", null).not("due_at", "is", null).lte("due_at", end.toISOString()), "id,title,type,due_at,enquiry_id");
     return r.sort((x, y) => new Date(x.due_at) - new Date(y.due_at));
   },
   async getPrefs() { const { data, error } = await this.client.from("user_prefs").select("*").limit(1).maybeSingle(); if (error) throw error; return data; },

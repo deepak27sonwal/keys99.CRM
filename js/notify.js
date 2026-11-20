@@ -153,7 +153,7 @@ const Notify = (() => {
       if (prefs && !prefs.notif_read_before) st.readBefore = new Date().toISOString();
     } catch { st.readBefore = st.readBefore || new Date().toISOString(); }
     await refetch(); connect(); checkPush().then(render); render(); st.ready = true;
-    loadAttention(); setInterval(loadAttention, 120000); window.addEventListener("k99:lead-changed", loadAttention);
+    loadAttention(); setInterval(() => { if (!document.hidden) loadAttention(); }, 300000); window.addEventListener("k99:lead-changed", loadAttention);
   }
   return { init, _test: { onLead: (r) => onLead(r, true), state: st, unread, markAll, toggle } };
 })();

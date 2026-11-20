@@ -218,7 +218,7 @@
     const fire = (el) => { el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
     const setSel = (el, val) => { if (!el) return; el.value = val; if (el._dd && el._dd.refresh) el._dd.refresh(); fire(el); };
     const known = new Set(Object.values(QUICK).flat().map((x) => x[0].toLowerCase()));
-    const recent = [...new Set(state.tasks.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map((x) => String(x.title || "").trim()).filter((x) => x && x.length <= 80 && !known.has(x.toLowerCase())))].slice(0, 3);
+    const recent = [...new Set(state.tasks.filter((x) => x.created_by === me.uid).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).map((x) => String(x.title || "").trim()).filter((x) => x && x.length <= 80 && !known.has(x.toLowerCase())))].slice(0, 3);
     const chip = (label, attrs) => `<button type="button" class="pill tk-sg" ${attrs}>${esc(label)}</button>`;
     const drawTitles = () => { const list = QUICK[type.value] || QUICK.Other; box.innerHTML = `<span class="tk-sl">Quick picks</span>${recent.map((r, n) => chip(r, `data-r="${n}" title="Your recent task"`)).join("")}${list.map(([m], n) => chip(m, `data-q="${n}"`)).join("")}`; };
     drawTitles();
