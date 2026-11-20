@@ -4,7 +4,35 @@
   if (!page) return;
   const me = window.ME, email = (await Data.session()).user.email, name = me.name, m = me.member, canEdit = !!me.memberId;
   const st = { photo: avatarUrl(me.avatarPath), busy: "", step: "idle", msg: "", err: "", wait: 0, phone: m ? m.phone || "" : "" };
-  let tick = null;
+  let tick = null, hrChart = null;
+  // active hours: everything from the last 800 days is loaded once and the period filters are applied here
+  const hr = { preset: "30d", from: "", to: "", by: "day", rows: [], loading: true, err: "" };
+  const today = () => Hours.key(new Date());
+  async function loadHours() {
+    const d = new Date(); d.setDate(d.getDate() - 799);
+    try { hr.rows = await Data.getActiveTime(Hours.key(d), today()); hr.err = ""; } catch (e) { hr.err = e.message || String(e); }
+    hr.loading = false; draw();
+  }
+  function hoursCard() {
+    const t = today(), y = Hours.key(new Date(Date.now() - 86400000)), [f, to] = Hours.span(hr.preset, hr.from, hr.to), rows = hr.rows.filter((r) => r.day >= f && r.day <= to), sm = Hours.summary(rows, f, to);
+    const wk = Hours.key((() => { const x = new Date(); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; })()), mo = t.slice(0, 7) + "-01";
+    const sum = (a, b) => hr.rows.filter((r) => r.day >= a && r.day <= b).reduce((n, r) => n + r.minutes, 0);
+    const kp = [["Today", Hours.sumDay(hr.rows, t)], ["Yesterday", Hours.sumDay(hr.rows, y)], ["This week", sum(wk, t)], ["This month", sum(mo, t)], ["Total", hr.rows.reduce((n, r) => n + r.minutes, 0)]];
+    const nice = (k) => (k ? new Date(k + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "");
+    return html`<section class="card p" id="hrCard" aria-label="Active hours"><div class="ch"><i data-lucide="timer"></i><h3>Active hours</h3></div>
+      ${hr.err ? html`<div class="pf-note err" role="alert">Could not load your active hours: ${hr.err}</div>` : raw("")}
+      <div class="hr-kpis">${kp.map(([l, m]) => html`<div class="hr-k"><small>${l}</small><b>${hr.loading ? "…" : Hours.fmt(m)}</b></div>`)}</div>
+      ${Hours.controls(hr)}
+      ${hr.loading ? html`<p class="muted pf-h">Loading…</p>` : rows.length ? html`<p class="hr-sum"><b>${Hours.fmt(sm.total)}</b> in this period · ${sm.daysActive} active day${sm.daysActive === 1 ? "" : "s"} · average <b>${Hours.fmt(sm.avg)}</b> per active day · longest <b>${Hours.fmt(sm.longest)}</b> (${nice(sm.longestDay)})</p>
+        <div class="hr-chart"><canvas id="hrChart" role="img" aria-label="Active hours over time"></canvas></div>` : html`<div class="hr-empty"><i data-lucide="timer-off"></i><p>No active time recorded in this period yet.</p></div>`}
+      <p class="muted hr-note">A minute counts only while this tab is open and you are using it (mouse, keys, scroll or touch). Idle time is not counted.</p></section>`;
+  }
+  function drawHoursChart() {
+    if (hrChart) { hrChart.destroy(); hrChart = null; }
+    const cv = document.getElementById("hrChart"); if (!cv) return;
+    const [f, to] = Hours.span(hr.preset, hr.from, hr.to), rows = hr.rows.filter((r) => r.day >= f && r.day <= to);
+    hrChart = Hours.chart(cv, Hours.group(rows, f, to, hr.by));
+  }
   const row = ([k, v]) => html`<div class="pf-r"><dt>${k}</dt><dd>${v || "—"}</dd></div>`;
   const details = [["Name", name], ["Email", email], ["Role", me.role === "admin" ? "Admin" : "Employee"], ["Designation", m && m.designation], ["Department", m && m.department], ["Team", m && m.team], ["Location", m && m.location]];
 
@@ -31,13 +59,14 @@
                 <button class="btn brand" id="pfSave" type="submit" ${st.busy ? raw("disabled") : raw("")}>Save changes</button>`
               : html`<p class="muted pf-h">This login is not linked to a team member, so there is no mobile number to edit. You can still change your photo and password.</p>`}
             </form></section>
+          ${hoursCard()}
           <section class="card p" aria-label="Appearance"><div class="ch"><i data-lucide="palette"></i><h3>Appearance</h3></div>
             <p class="muted pf-h">Choose how the CRM looks on this device. System follows your device setting.</p>
             <div class="th-opts" role="radiogroup" aria-label="Theme">${[["light", "Light", "sun"], ["dark", "Dark", "moon"], ["system", "System", "monitor"]].map(([v, l, ic]) => html`<button type="button" role="radio" class="th-opt" data-theme-set="${v}" aria-checked="false"><span class="th-prev th-${v}" aria-hidden="true"><i></i><i></i><i></i></span><span class="th-l"><i data-lucide="${ic}"></i>${l}</span></button>`)}</div></section>
           <section class="card p" aria-label="Change password"><div class="ch"><i data-lucide="key-round"></i><h3>Change password</h3></div>${security()}</section>
         </div>
       </div>`);
-    wire(); if (window.Theme) Theme.paint();
+    wire(); if (window.Theme) Theme.paint(); drawHoursChart(); Hours.wire(page.querySelector("#hrCard"), hr, () => draw());
   }
   function security() {
     const note = html`<div class="pf-note ${st.err ? "err" : st.msg ? "ok" : ""}" id="pfSec" role="alert" aria-live="polite">${st.err || st.msg}</div>`;
@@ -99,5 +128,5 @@
   }
   // the sidebar card and the top-right button show the new photo straight away
   function refreshChrome() { document.querySelectorAll(".sb-profile > .avatar, #userBtn > .avatar").forEach((a) => { a.outerHTML = avatar(name, a.closest("#userBtn") ? 40 : 40, st.photo).__raw; }); }
-  draw();
+  draw(); loadHours();
 })();

@@ -142,7 +142,7 @@
     const kpis = [["Members", all.length, "", "users-round", 1], ["Active", active.length, "", "check-circle-2", 0, 1], ["Inactive", all.length - active.length, "", "user-x"],
       ["Month Target", target ? fmtMoney(target) : "—", "", "target"], ["Achieved", fmtMoney(achieved), "", "bar-chart-3"],
       ["Conversion", leadsAll ? fmtPct(pct(bookAll, leadsAll)) : "0%", "", "trophy"], ["Commission", fmtMoney(sumOf(all, (s) => s.commissionM)), "", "coins"]];
-    const tabs = [["all", "All Members", all.length], ["agent", "Agents", all.filter((m) => m.kind === "agent").length], ["rm", "Relationship Managers", all.filter((m) => m.kind === "rm").length], ["routing", "Lead Routing", null]];
+    const tabs = [["all", "All Members", all.length], ["agent", "Agents", all.filter((m) => m.kind === "agent").length], ["rm", "Relationship Managers", all.filter((m) => m.kind === "rm").length], ["hours", "Active hours", null], ["routing", "Lead Routing", null]];
     const sel2 = (k, label) => html`<select class="select" data-f="${k}"><option value="">${label}: All</option>${uniq(k).map((v) => html`<option ${state.f[k] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
     const top = [...all].map((m) => [m, S(m).value]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 5), topMax = top.length ? top[0][1] : 1;
     const noTeamNote = state.leads.length && !state.owner.size && all.length ? html`<p class="sub" style="margin:0 0 12px">No lead is assigned to anyone in this list yet. A lead belongs to a person when its <b>Assigned agent</b> matches their name.</p>` : raw("");
@@ -154,7 +154,7 @@
         <div class="kpis k7">${kpis.map(kpiCard)}</div>
         ${autoCard(active)}
         <div class="tabs-pill">${tabs.map(([k, l, n]) => html`<button class="pill ${k === state.tab ? "active" : ""}" data-tab="${k}">${l}${n === null ? "" : " (" + n + ")"}</button>`)}</div>
-        ${state.tab === "routing" ? routingView() : html`${noTeamNote}
+        ${state.tab === "routing" ? routingView() : state.tab === "hours" ? hoursView() : html`${noTeamNote}
         <div class="filters">${sel2("team", "Team")}<select class="select" data-f="status"><option value="">Status: All</option>${["Active", "Inactive"].map((v) => html`<option ${state.f.status === v ? raw("selected") : raw("")}>${v}</option>`)}</select>${sel2("location", "Location")}
           <input class="select team-q" id="q" type="search" placeholder="Search by name, mobile or email…" value="${state.q}" aria-label="Search team"></div>
         <div class="card table-wrap"><table class="team-t"><thead><tr>${["Member", "Team", "Projects", "Role", "Leads", "Site Visits", "Bookings", "Deal Value", "Commission", "Conversion", "Status", ""].map((h) => html`<th>${h}</th>`)}</tr></thead>
@@ -178,7 +178,69 @@
             <button class="btn" id="qaAgent"><i data-lucide="plus"></i>Add New Agent</button><button class="btn" id="qaRm"><i data-lucide="user-plus"></i>Add Relationship Manager</button><button class="btn" id="qaExport"><i data-lucide="download"></i>Export Team</button></section>
         </div>
       </div>${drawer(sel)}</div>`);
-    bind(list); drawCharts(target, achieved);
+    bind(list); drawCharts(target, achieved); if (state.tab === "hours") drawHrCharts(); if (sel) memberHours(sel);
+  }
+
+  // ---- active hours (admin): who was active how long, with period / team / member filters ----
+  const hr = { preset: "7d", from: "", to: "", by: "day", team: "", member: "", rows: [], loading: false, err: "", key: "" };
+  let hrCalc = null;
+  const dayKeyOf = (offset = 0) => Hours.key(new Date(Date.now() + offset * 86400000));
+  async function loadHrs(force) {
+    const [f, t] = Hours.span(hr.preset, hr.from, hr.to), td = dayKeyOf(0), yd = dayKeyOf(-1), a = f < yd ? f : yd, b = t > td ? t : td, k = a + "|" + b;
+    if (!force && hr.key === k) return;
+    hr.loading = true; draw();
+    try { hr.rows = await Data.getActiveTime(a, b); hr.err = ""; hr.key = k; } catch (e) { hr.err = e.message || String(e); }
+    hr.loading = false; draw();
+  }
+  function hoursView() {
+    const [f, t] = Hours.span(hr.preset, hr.from, hr.to), td = dayKeyOf(0), yd = dayKeyOf(-1), mem = Number(hr.member) || 0;
+    const people = state.members.filter((m) => (!hr.team || m.team === hr.team) && (!mem || m.id === mem));
+    const by = new Map(); hr.rows.forEach((r) => { if (r.memberId == null) return; (by.get(r.memberId) || by.set(r.memberId, []).get(r.memberId)).push(r); });
+    const per = people.map((m) => { const all = by.get(m.id) || [], inP = all.filter((r) => r.day >= f && r.day <= t), sm = Hours.summary(inP, f, t);
+      return { m, today: Hours.sumDay(all, td), yest: Hours.sumDay(all, yd), total: sm.total, days: sm.daysActive, avg: sm.avg, lastAt: all.reduce((a, r) => (r.lastAt && r.lastAt > a ? r.lastAt : a), ""), hasLogin: !!loginOf(m) }; })
+      .sort((a, b) => b.total - a.total || a.m.name.localeCompare(b.m.name));
+    const ids = new Set(people.map((m) => m.id)), inRows = hr.rows.filter((r) => r.day >= f && r.day <= t && ids.has(r.memberId));
+    hrCalc = { per, inRows, f, t };
+    const online = (x) => x.lastAt && Date.now() - new Date(x.lastAt).getTime() < 180000, total = per.reduce((n, x) => n + x.total, 0), activeN = per.filter((x) => x.total > 0).length;
+    const kp = [["Total active time", Hours.fmt(total), "timer", 1], ["Active people", `${activeN} of ${per.length}`, "users-round"], ["Average per active person", activeN ? Hours.fmt(total / activeN) : "—", "gauge"], ["Online now", per.filter(online).length, "radio", 0, 1]];
+    const teams = uniq("team");
+    const extra = html`<label>Team<select class="select" data-hr="team" aria-label="Team"><option value="">All teams</option>${raw(teams.map((v) => `<option ${hr.team === v ? "selected" : ""}>${esc(v)}</option>`).join(""))}</select></label>
+      <label>Member<select class="select" data-hr="member" aria-label="Member"><option value="">All members</option>${raw(state.members.filter((m) => !hr.team || m.team === hr.team).map((m) => `<option value="${m.id}" ${mem === m.id ? "selected" : ""}>${esc(m.name)}</option>`).join(""))}</select></label>`;
+    const nice = (k) => (k ? new Date(k + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
+    return html`<section id="hrAdmin" aria-label="Active hours">
+      <p class="sub" style="margin:0 0 10px">A minute counts only while the CRM tab is open and the person is using it (mouse, keys, scroll or touch). Days follow Indian time.</p>
+      ${hr.err ? html`<div class="pf-note err" role="alert">Could not load active hours: ${hr.err}</div>` : raw("")}
+      <div class="kpis k4 hr-akpis">${kp.map((k) => kpiCard([k[0], hr.loading ? "…" : k[1], "", k[2], k[3], k[4]]))}</div>
+      <div class="card p">${Hours.controls(hr, extra)}<p class="muted" style="font-size:12.5px;margin:2px 0 0">${nice(f)}${f === t ? "" : " – " + nice(t)} · ${per.length} ${per.length === 1 ? "person" : "people"}${hr.rows.length >= 1000 ? " · showing the first 1,000 records, choose a shorter period or one member" : ""}</p></div>
+      ${hr.loading ? html`<div class="card p"><p class="muted">Loading…</p></div>` : html`
+      <div class="grid g-hours"><section class="card p"><div class="ch"><h3><i data-lucide="bar-chart-3"></i> ${mem ? "Daily history" : "Team active time"}</h3></div><div class="hr-chart"><canvas id="hrTeam" role="img" aria-label="Active hours over time"></canvas></div></section>
+        ${mem ? raw("") : html`<section class="card p"><div class="ch"><h3><i data-lucide="users-round"></i> Hours by member</h3></div><div class="hr-chart"><canvas id="hrMembers" role="img" aria-label="Active hours by member"></canvas></div></section>`}</div>
+      <div class="card table-wrap"><table class="team-t hr-t"><thead><tr>${["Member", "Team", "Today", "Yesterday", "Period total", "Days active", "Avg / active day", "Last seen"].map((h) => html`<th>${h}</th>`)}</tr></thead><tbody>
+        ${per.length ? per.map((x) => html`<tr><td data-label="Member"><div class="row">${avatar(x.m.name, 30, avatarUrl(x.m.avatar_path))}<div><b>${x.m.name}</b>${x.hasLogin ? raw("") : html`<small>No login yet</small>`}</div></div></td>
+          <td data-label="Team">${x.m.team || "—"}</td><td data-label="Today">${x.today ? Hours.fmt(x.today) : "—"}</td><td data-label="Yesterday">${x.yest ? Hours.fmt(x.yest) : "—"}</td>
+          <td data-label="Period total"><b>${x.total ? Hours.fmt(x.total) : "—"}</b></td><td data-label="Days active">${x.days || "—"}</td><td data-label="Avg / active day">${x.days ? Hours.fmt(x.avg) : "—"}</td>
+          <td data-label="Last seen">${online(x) ? html`<span class="hr-on"><i></i>Online now</span>` : x.lastAt ? relTime(x.lastAt) : html`<span class="muted">Never</span>`}</td></tr>`) : html`<tr><td colspan="8" class="empty">No one matches these filters.</td></tr>`}</tbody></table></div>`}</section>`;
+  }
+  function drawHrCharts() {
+    if (!hrCalc || hr.loading) return; const { per, inRows, f, t } = hrCalc, c1 = document.getElementById("hrTeam"), c2 = document.getElementById("hrMembers");
+    if (c1) charts.push(Hours.chart(c1, Hours.group(inRows, f, t, hr.by)));
+    if (c2) charts.push(Hours.chart(c2, per.filter((x) => x.total > 0).slice(0, 12).map((x) => ({ label: x.m.name.split(" ")[0], minutes: x.total }))));
+  }
+  function exportHours() {
+    if (!hrCalc) return toast("Open the Active hours tab first");
+    const { per, f, t } = hrCalc; downloadCsv(`keys99-active-hours-${f}-to-${t}.csv`, ["Member", "Team", "Today (min)", "Yesterday (min)", "Period total (min)", "Period total (hours)", "Days active", "Avg per active day (min)", "Last seen"],
+      per.map((x) => [x.m.name, x.m.team, x.today, x.yest, x.total, Hours.dec(x.total), x.days, Math.round(x.avg), x.lastAt]));
+  }
+  // the details panel: a short summary of one person's recent hours (loaded when the panel opens)
+  const memHrs = new Map();
+  async function memberHours(m) {
+    const box = page.querySelector("#tmHours"); if (!box) return; const u = loginOf(m);
+    if (!u) { box.innerHTML = '<small class="muted">No login yet, so no active hours.</small>'; return; }
+    let rows = memHrs.get(m.id); const stale = !rows || Date.now() - rows.at > 120000;
+    if (stale) { box.innerHTML = '<small class="muted">Loading…</small>'; try { rows = { at: Date.now(), rows: await Data.getActiveTime(dayKeyOf(-29), dayKeyOf(0), u.user_id) }; memHrs.set(m.id, rows); } catch (e) { box.innerHTML = '<small class="muted">Could not load active hours.</small>'; return; } }
+    const r = rows.rows, sum = (a, b) => r.filter((x) => x.day >= a && x.day <= b).reduce((n, x) => n + x.minutes, 0), td = dayKeyOf(0);
+    const cell = (l, v) => `<div><b>${esc(Hours.fmt(v))}</b><small>${l}</small></div>`;
+    if (state.selId === m.id && page.querySelector("#tmHours")) page.querySelector("#tmHours").innerHTML = `<div class="tiles4">${cell("Today", sum(td, td))}${cell("Yesterday", sum(dayKeyOf(-1), dayKeyOf(-1)))}${cell("Last 7 days", sum(dayKeyOf(-6), td))}${cell("Last 30 days", sum(dayKeyOf(-29), td))}</div>`;
   }
 
   function autoCard(active) {
@@ -237,6 +299,7 @@
           <li class="pj-li"><i data-lucide="folder-kanban"></i><span class="k">Projects</span><span>${(m.projects || []).length ? pj(m.projects, 20) : "None yet"}</span></li><li><i data-lucide="shuffle"></i><span class="k">Last lead</span>${m.last_assigned_at ? relTime(m.last_assigned_at) : "—"}</li>
           <li><i data-lucide="calendar"></i><span class="k">Joined On</span>${m.joined_on ? new Date(m.joined_on + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</li><li><i data-lucide="id-card"></i><span class="k">Employee ID</span>${empId(m)}</li></ul>
         <div class="tm-target"><div><small>Monthly Target</small><b>${tgt ? fmtMoney(tgt) : "Not set"}</b></div><div><small>Achieved</small><b>${fmtMoney(s.achieved)}${tgt ? " (" + fmtPct(pct(s.achieved, tgt)) + ")" : ""}</b></div></div>
+        <h4 class="tm-h">Active hours</h4><div id="tmHours" class="tm-hours"><small class="muted">Loading…</small></div>
         <h4 class="tm-h">Performance (This Month)</h4>
         <div class="tiles4"><div><b>${s.leadsM}</b><small>Leads</small></div><div><b>${s.visitsM}</b><small>Site Visits</small></div><div><b>${s.bookingsM}</b><small>Bookings</small></div><div><b>${s.leadsM ? fmtPct(pct(s.bookedM, s.leadsM)) : "—"}</b><small>Conversion</small></div></div>
         <p class="sub" style="margin-top:10px">All time: ${s.leads} leads · ${s.bookings} bookings · ${s.value ? fmtMoney(s.value) : "no deal value"}. <a href="leads.html?q=${encodeURIComponent(m.name)}">View their leads</a></p>
@@ -289,12 +352,14 @@
   const refresh = async () => { if (await load()) draw(); };
 
   function exportCsv() {
+    if (state.tab === "hours") return exportHours();
     downloadCsv("keys99-team.csv", ["Employee ID", "Name", "Type", "Designation", "Mobile", "Email", "Team", "Location", "Status", "Joined", "Monthly target", "Leads", "Site visits", "Bookings", "Deal value", "Commission", "Conversion %"],
       visible().map((m) => { const s = stats.get(m.id); return [empId(m), m.name, KIND[m.kind], m.designation, m.phone, m.email, m.team, m.location, m.status, m.joined_on, m.monthly_target, s.leads, s.visits, s.bookings, s.value, s.commission, s.leads ? Math.round(pct(s.booked, s.leads) * 10) / 10 : ""]; }));
   }
 
   function bind(list) {
-    page.querySelectorAll("[data-tab]").forEach((x) => (x.onclick = () => { state.tab = x.dataset.tab; state.page = 1; draw(); }));
+    page.querySelectorAll("[data-tab]").forEach((x) => (x.onclick = () => { state.tab = x.dataset.tab; state.page = 1; draw(); if (state.tab === "hours") loadHrs(); }));
+    const ha = page.querySelector("#hrAdmin"); if (ha) Hours.wire(ha, hr, (k) => { if (k === "preset" || k === "from" || k === "to") loadHrs(); else { if (k === "team") hr.member = ""; draw(); } });
     page.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { state.f[x.dataset.f] = x.value; state.page = 1; draw(); }));
     const q = page.querySelector("#q"); if (q) q.oninput = () => { state.q = q.value; state.page = 1; const pos = q.selectionStart; draw(); const n = page.querySelector("#q"); n.focus(); n.setSelectionRange(pos, pos); };
     page.querySelectorAll("[data-page]").forEach((x) => (x.onclick = () => { state.page = Number(x.dataset.page); draw(); }));

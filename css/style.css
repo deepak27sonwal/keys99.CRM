@@ -1550,3 +1550,14 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 :root[data-theme="dark"] option{background:#16212b;color:#e6edf3}
 :root[data-theme="dark"] ::placeholder{color:#7b8a99}
 :root[data-theme="dark"] .th-float{box-shadow:0 4px 14px rgba(0,0,0,.45)}
+
+/* Active hours (My Profile card + Agents & Teams tab) */
+.hr-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:2px 0 12px}
+.hr-k{background:var(--b-f8fafc);border:1px solid var(--line);border-radius:12px;padding:9px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}.hr-k small{font-size:11.5px;color:var(--muted)}.hr-k b{font-size:17px;font-weight:800;white-space:nowrap}
+.hr-filters{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:10px}.hr-filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}.hr-filters .select{min-width:140px;font-weight:400}
+.hr-sum{font-size:13px;margin:4px 0 8px;color:var(--text)}.hr-chart{position:relative;height:240px}.hr-note{font-size:12px;margin-top:10px}
+.hr-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 10px;color:var(--muted);text-align:center;background:var(--b-f8fafc);border-radius:12px}.hr-empty [data-lucide]{width:26px;height:26px}
+.hr-akpis{grid-template-columns:repeat(4,minmax(0,1fr))}.g-hours{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin:14px 0}
+.hr-t td{vertical-align:middle}.hr-on{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:600}.hr-on i{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.2)}
+.tm-hours .tiles4{margin-top:4px}
+@media(max-width:900px){.hr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.hr-k:last-child{grid-column:1/-1}.hr-akpis{grid-template-columns:repeat(2,minmax(0,1fr))}.g-hours{grid-template-columns:1fr}.hr-filters .select{min-width:0;width:100%}.hr-filters label{flex:1 1 140px}.hr-chart{height:210px}}
