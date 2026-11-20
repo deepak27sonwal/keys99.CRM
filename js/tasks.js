@@ -53,6 +53,7 @@
     if (!state.due) return true; if (state.due === "overdue") return i.status === "Overdue"; if (!i.due) return false;
     const now = new Date(), d = startOfDay(i.due), t0 = startOfDay(now);
     if (state.due === "today") return sameDay(i.due, now);
+    if (state.due === "yesterday") { const y = new Date(t0); y.setDate(y.getDate() - 1); return sameDay(i.due, y); }
     if (state.due === "week") { const e = new Date(t0); e.setDate(e.getDate() + 7); return d >= t0 && d < e; }
     return i.due.getMonth() === now.getMonth() && i.due.getFullYear() === now.getFullYear();
   }
@@ -88,7 +89,7 @@
           <label>Status<select class="select" id="fStatus" aria-label="Status"><option value="">All</option>${STATUSES.map((s) => html`<option ${s === state.status ? raw("selected") : raw("")}>${s}</option>`)}</select></label>
           <label>Priority<select class="select" id="fPrio" aria-label="Priority"><option value="">All</option>${PRIOS.map((s) => html`<option ${s === state.prio ? raw("selected") : raw("")}>${s}</option>`)}</select></label>
           <label>Type<select class="select" id="fType" aria-label="Type"><option value="">All</option>${["Follow-up", ...TYPES].map((s) => html`<option ${s === state.type ? raw("selected") : raw("")}>${s}</option>`)}</select></label>
-          <label>Due Date<select class="select" id="fDue" aria-label="Due date"><option value="">Any</option>${[["today", "Today"], ["week", "Next 7 days"], ["month", "This month"], ["overdue", "Overdue"]].map(([v, l]) => html`<option value="${v}" ${v === state.due ? raw("selected") : raw("")}>${l}</option>`)}</select></label>
+          <label>Due Date<select class="select" id="fDue" aria-label="Due date"><option value="">Any</option>${[["today", "Today"], ["yesterday", "Yesterday"], ["week", "Next 7 days"], ["month", "This month"], ["overdue", "Overdue"]].map(([v, l]) => html`<option value="${v}" ${v === state.due ? raw("selected") : raw("")}>${l}</option>`)}</select></label>
           <input class="select tk-q" id="fQ" type="search" placeholder="Search task, customer, lead ID…" value="${state.q}" aria-label="Search tasks">
           ${state.day ? html`<button type="button" class="pill active" id="tkDayX" aria-label="Clear the selected day">${fmtLongDay(new Date(state.day + "T00:00:00"))} ✕</button>` : raw("")}</div>
         ${shown.length ? html`<div class="table-wrap"><table class="tk-t"><thead><tr><th>Task / Follow-up</th><th>Customer / Lead</th><th>Assigned to</th><th>Type</th><th>Priority</th><th>Due Date &amp; Time</th><th>Status</th><th></th></tr></thead><tbody>
