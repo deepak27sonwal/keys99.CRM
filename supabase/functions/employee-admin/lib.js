@@ -31,6 +31,13 @@ export function parseAction(body) {
       const pe = passwordProblem(b.password); if (pe) return { error: pe };
       return { value: { action, member_id, password: String(b.password) } };
     }
+    case "change-email": {
+      const email = String(b.email || "").trim().toLowerCase();
+      if (needMember()) return { error: needMember() };
+      if (!EMAIL_RE.test(email)) return { error: "Enter a valid email address" };
+      if (email.length > 254) return { error: "That email address is too long" };
+      return { value: { action, member_id, email } };
+    }
     case "disable": case "enable": case "remove":
       if (needMember()) return { error: needMember() };
       return { value: { action, member_id } };

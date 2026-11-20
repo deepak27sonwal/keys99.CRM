@@ -85,11 +85,25 @@
       }, "Reset password");
     pwTools();
   }
+  // the email a person signs in with (and where their password codes go); also keeps their team record and their leads' alert address in step
+  const clash = (email, selfId) => state.members.find((x) => x.id !== selfId && x.email && x.email.trim().toLowerCase() === email.trim().toLowerCase());
+  async function changeLoginEmail(m, email) {
+    const e = String(email || "").trim().toLowerCase(), c = clash(e, m.id);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) throw new Error("Enter a valid email address");
+    if (c) throw new Error("Another team member (" + c.name + ") already uses that email");
+    await Data.loginAdmin({ action: "change-email", member_id: m.id, email: e });
+    return e;
+  }
+  function openChangeEmail(m, done) {
+    openModal("Change sign-in email · " + m.name, html`<div class="form">${field("New email *", "email", m.email || "", "email", "required maxlength=\"254\" autocomplete=\"off\"", "full")}
+      <p class="sub full">${m.name} will sign in with this new email from now on, and password codes and links go to it. Their team record and the alert address on their leads are updated too. Tell them about the change.</p></div>`,
+      async (f) => { const e = await changeLoginEmail(m, f.email); toast("Sign-in email changed to " + e); done && done(); }, "Change email");
+  }
   const loginAct = (m, action, okMsg, done) => async () => { try { await Data.loginAdmin({ action, member_id: m.id }); toast(okMsg); await done(); } catch (err) { alert(err.message); } };
   function loginMenu(m) {
     const u = loginOf(m);
     if (!u) return [["Create login", "key-round", () => openCreateLogin(m, refresh)]];
-    return [["Reset password", "key-round", () => openResetLogin(m, refresh)],
+    return [["Reset password", "key-round", () => openResetLogin(m, refresh)], ["Change sign-in email", "mail", () => openChangeEmail(m, refresh)],
       u.active ? ["Disable login", "lock", loginAct(m, "disable", "Login disabled", refresh)] : ["Enable login", "unlock", loginAct(m, "enable", "Login enabled", refresh)],
       ["Remove login", "user-minus", async () => { if (!confirm("Remove the login of " + m.name + "? They can no longer sign in. Their leads stay assigned to them.")) return; await loginAct(m, "remove", "Login removed", refresh)(); }, true]];
   }
@@ -335,8 +349,18 @@
       <div class="full proj-picker"><label>Projects (new leads for these go to this person)</label><div class="chips" data-chips></div>
         <div class="copyrow"><input placeholder="Start typing a project name, then press Enter" aria-label="Add a project" data-pin><button type="button" class="btn sm" data-padd><i data-lucide="plus"></i>Add</button></div>
         <input type="hidden" name="projects" value="${JSON.stringify((m && m.projects) || [])}"></div>
-      ${m ? html`<p class="sub full" style="margin:0">Leads are matched to a person by name. If you rename them, leads already assigned keep the old name until you change them.</p>` : raw("")}</div>`,
-      async (f) => { f.kind = f.kind_label === "Relationship Manager" ? "rm" : "agent"; try { f.projects = JSON.parse(f.projects || "[]"); } catch { f.projects = []; } await Data.saveMember(m ? m.id : null, f); toast(m ? "Saved" : (f.kind === "rm" ? "Relationship manager added" : "Agent added")); done && (await done()); });
+      ${m ? html`<p class="sub full" style="margin:0">Leads are matched to a person by name. If you rename them, leads already assigned keep the old name until you change them.</p>` : raw("")}
+      ${m && loginOf(m) ? html`<p class="sub full" id="mailNote" style="margin:0"><i data-lucide="key-round" style="width:14px;height:14px;vertical-align:-2px"></i> ${m.name} has a login: changing the email here also changes the email they sign in with. If their sign-in email still shows an old address, use <b>Change sign-in email</b> in the ⋯ menu.</p>` : raw("")}</div>`,
+      async (f) => {
+        if (m && loginOf(m)) {
+          const next = String(f.email || "").trim().toLowerCase(), cur = String(m.email || "").trim().toLowerCase();
+          if (!next) throw new Error("A person with a login needs an email address");
+          if (next !== cur) {
+            if (!confirm("Change the email " + m.name + " signs in with from " + (cur || "(none)") + " to " + next + "?\n\nThey must use the new email next time. Their leads' alert address is updated too.")) throw new Error("The email was not changed");
+            f.email = await changeLoginEmail(m, next);
+          }
+        } else if (m && f.email) { const c = clash(f.email, m.id); if (c) throw new Error("Another team member (" + c.name + ") already uses that email"); }
+        f.kind = f.kind_label === "Relationship Manager" ? "rm" : "agent"; try { f.projects = JSON.parse(f.projects || "[]"); } catch { f.projects = []; } await Data.saveMember(m ? m.id : null, f); toast(m ? "Saved" : (f.kind === "rm" ? "Relationship manager added" : "Agent added")); done && (await done()); });
     setupPicker(); { const mod = document.querySelector(".overlay.open .modal") || document; wireLocations(mod, ms, "location", "locality"); wireDesignations(mod, ms); }
   }
   function setupPicker() {
