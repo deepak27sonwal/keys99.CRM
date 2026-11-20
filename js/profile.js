@@ -31,10 +31,13 @@
                 <button class="btn brand" id="pfSave" type="submit" ${st.busy ? raw("disabled") : raw("")}>Save changes</button>`
               : html`<p class="muted pf-h">This login is not linked to a team member, so there is no mobile number to edit. You can still change your photo and password.</p>`}
             </form></section>
+          <section class="card p" aria-label="Appearance"><div class="ch"><i data-lucide="palette"></i><h3>Appearance</h3></div>
+            <p class="muted pf-h">Choose how the CRM looks on this device. System follows your device setting.</p>
+            <div class="th-opts" role="radiogroup" aria-label="Theme">${[["light", "Light", "sun"], ["dark", "Dark", "moon"], ["system", "System", "monitor"]].map(([v, l, ic]) => html`<button type="button" role="radio" class="th-opt" data-theme-set="${v}" aria-checked="false"><span class="th-prev th-${v}" aria-hidden="true"><i></i><i></i><i></i></span><span class="th-l"><i data-lucide="${ic}"></i>${l}</span></button>`)}</div></section>
           <section class="card p" aria-label="Change password"><div class="ch"><i data-lucide="key-round"></i><h3>Change password</h3></div>${security()}</section>
         </div>
       </div>`);
-    wire();
+    wire(); if (window.Theme) Theme.paint();
   }
   function security() {
     const note = html`<div class="pf-note ${st.err ? "err" : st.msg ? "ok" : ""}" id="pfSec" role="alert" aria-live="polite">${st.err || st.msg}</div>`;

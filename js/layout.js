@@ -64,6 +64,7 @@ async function mountShell(active) {
             <div class="bell-wrap"><button type="button" class="bell" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button></div>
             <div class="bell-wrap" id="fuWrap"><button type="button" class="bell al-btn" id="fuBtn" aria-label="Follow-ups" aria-haspopup="dialog" aria-expanded="false" title="Follow-ups"><i data-lucide="phone-call"></i><span class="bell-n" hidden></span></button></div>
             <div class="bell-wrap" id="tkWrap"><button type="button" class="bell al-btn" id="tkBtn" aria-label="Tasks" aria-haspopup="dialog" aria-expanded="false" title="Tasks"><i data-lucide="list-checks"></i><span class="bell-n" hidden></span></button></div>
+            <button type="button" class="bell th-btn" id="themeBtn" data-theme-toggle aria-label="Theme" title="Theme"><i data-lucide="monitor"></i></button>
             <i data-lucide="message-circle" class="wa"></i>
             <a href="calendar.html" class="cal-link" aria-label="Open the calendar" title="Calendar"><i data-lucide="calendar-days" class="cal"></i></a>
             <button class="user" id="userBtn" title="Your profile" aria-haspopup="dialog" aria-expanded="false">
@@ -74,6 +75,7 @@ async function mountShell(active) {
         <main id="main"><div id="page"><div class="empty">Loading…</div></div></main>
       </div>
     </div>`);
+  if (window.Theme) Theme.paint();
   const sb = document.getElementById("sidebar"), bd = document.getElementById("backdrop");
   const toggle = (open) => { sb.classList.toggle("open", open); bd.classList.toggle("open", open); };
   document.getElementById("menuBtn").onclick = () => toggle(!sb.classList.contains("open"));
