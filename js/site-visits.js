@@ -23,7 +23,7 @@
   }
   const now = () => new Date();
   const on = (d) => V.filter((v) => dayKey(v.start) === dayKey(d));
-  const range = (v, r) => r === "all" || (r === "month" ? v.start.getMonth() === now().getMonth() && v.start.getFullYear() === now().getFullYear() : v.start >= new Date(+now() - 30 * 86400000) && v.start <= now());
+  const range = (v, r) => inRangeTs(v.start, r, now());
   const sel = () => V.find((v) => v.id === state.selId) || null;
   const chooseDefault = () => { const d = on(state.day); if (!d.some((v) => v.id === state.selId)) state.selId = d.length ? d[0].id : null; };
 
@@ -101,7 +101,7 @@
     const L = V.filter((v) => range(v, state.range)), t = L.length, c = L.filter((v) => v.status === "Completed").length, x = L.filter((v) => v.status === "Cancelled").length;
     const prog = L.filter((v) => OPEN.includes(v.status) && v.start <= now() && now() <= v.end).length, cv = L.filter((v) => v.converted).length;
     const tile = (n, l, ic, cls) => html`<div class="tile ${cls || ""}"><i data-lucide="${ic}"></i><b>${n}</b><span>${l}</span></div>`;
-    return html`<section class="card p sv-ins"><div class="ch"><i data-lucide="bar-chart-3"></i><h3>Site Visit Insights</h3><select class="select" id="insRange" style="margin-left:auto"><option value="month" ${state.range === "month" ? raw("selected") : raw("")}>This Month</option><option value="30d" ${state.range === "30d" ? raw("selected") : raw("")}>Last 30 days</option><option value="all" ${state.range === "all" ? raw("selected") : raw("")}>All time</option></select></div>
+    return html`<section class="card p sv-ins"><div class="ch"><i data-lucide="bar-chart-3"></i><h3>Site Visit Insights</h3><select class="select" id="insRange" style="margin-left:auto">${raw([["today", "Today"], ["yesterday", "Yesterday"], ["7d", "Last 7 days"], ["30d", "Last 30 days"], ["month", "This Month"], ["all", "All time"]].map(([k, l]) => `<option value="${k}" ${state.range === k ? "selected" : ""}>${esc(l)}</option>`).join(""))}</select></div>
       <div class="tiles">${tile(t, "Total Visits", "calendar-check")}${tile(c, "Completed", "circle-check", "g")}${tile(prog, "In Progress", "car")}${tile(x, "Cancelled", "circle-x", "r")}${tile(`${cv}`, `Converted${t ? " (" + ((cv / t) * 100).toFixed(1) + "%)" : ""}`, "filter", "o")}</div></section>`;
   }
 

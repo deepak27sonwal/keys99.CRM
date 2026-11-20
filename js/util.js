@@ -122,6 +122,28 @@ async function copyText(text, okMsg = "Copied") {
 
 // "Waiting 25 min" / "2 h" / "3 d" for a lead nobody has touched yet
 function fmtWait(min) { return min < 60 ? Math.floor(min) + " min" : min < 1440 ? Math.floor(min / 60) + " h" : Math.floor(min / 1440) + " d"; }
+// ---- shared date ranges for the filters on every page (local midnight to midnight; "to" is exclusive) ----
+const RANGE_LABELS = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 3 months", month: "This month", lastmonth: "Last month" };
+function rangeBounds(key, now = new Date()) {
+  const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate()), day = (n) => new Date(sod.getFullYear(), sod.getMonth(), sod.getDate() + n);
+  switch (key) {
+    case "today": return { from: sod, to: day(1) };
+    case "yesterday": return { from: day(-1), to: sod };
+    case "7d": return { from: day(-6), to: day(1) };
+    case "30d": return { from: day(-29), to: day(1) };
+    case "90d": return { from: day(-89), to: day(1) };
+    case "month": return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+    case "lastmonth": return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 1) };
+    default: return { from: null, to: null };                                   // "all" (or an unknown value): no limit
+  }
+}
+// the period of the same length right before it, for "compared with" figures (null for all time)
+function rangePrev(key, now = new Date()) {
+  const b = rangeBounds(key, now); if (!b.from) return null;
+  if (key === "month" || key === "lastmonth") { const m = key === "month" ? now.getMonth() - 1 : now.getMonth() - 2; return { from: new Date(now.getFullYear(), m, 1), to: new Date(now.getFullYear(), m + 1, 1) }; }
+  const len = b.to - b.from; return { from: new Date(b.from.getTime() - len), to: b.from };
+}
+const inRangeTs = (ts, key, now = new Date()) => { const b = rangeBounds(key, now); if (!b.from) return true; const d = new Date(ts); return d >= b.from && d < b.to; };
 const WAIT_ALERT_MIN = 15;
 
 // ---- calendar helpers ----

@@ -3,7 +3,7 @@
   if (!page) return;
   const TABS = ["All Leads", ...STATUSES];
   const PAGE = 25;
-  const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
+  const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "", priority: "" }, range: "all", page: 1, sig: "", checked: new Set() };
 
   async function load() {
@@ -15,13 +15,7 @@
   if (!(await load())) return;
   if (window.innerWidth > 1200 && state.leads.length) state.selected = state.leads[0];
 
-  const inRange = (l) => {
-    if (state.range === "all") return true;
-    const d = new Date(l.createdAt), now = new Date(), sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (state.range === "today") return d >= sod;
-    if (state.range === "month") return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    return d >= new Date(sod - (state.range === "7d" ? 6 : 29) * 86400000);
-  };
+  const inRange = (l) => inRangeTs(l.createdAt, state.range);
   const base = () => state.leads.filter((l) => inRange(l) &&
     (!state.q || [l.name, l.mobile, l.email, l.project, l.developer, l.source, l.id, l.location, l.agent].join(" ").toLowerCase().includes(state.q.toLowerCase())) &&
     (!state.f.project || l.project === state.f.project) && (!state.f.developer || l.developer === state.f.developer) &&

@@ -4,7 +4,7 @@ async function mountPropertyPage(kind) {
   const isProj = kind === "project", KEY = isProj ? "projects" : "developers", NOUN = isProj ? "Project" : "Developer";
   const page = await mountShell(KEY);
   if (!page) return;
-  const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
+  const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const SORTS = { leads: "Most leads", conv: "Best conversion", book: "Most bookings", comm: "Most commission", recent: "Latest lead", name: "Name A–Z" };
   const state = { leads: [], visits: [], bookings: [], regProj: [], regDev: [], regErr: "", sources: [], pmembers: [], team: [], metaForms: [], auto: null, distErr: "", panelFocused: false, q: new URLSearchParams(location.search).get("q") || "", range: "all", sort: "leads", view: "cards", f: { developer: "", location: "" }, open: null };
 
@@ -24,13 +24,7 @@ async function mountPropertyPage(kind) {
 
   const regs = () => (isProj ? state.regProj : state.regDev);
   const norm = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
-  const inRange = (l) => {
-    if (state.range === "all") return true;
-    const d = new Date(l.createdAt), now = new Date(), sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (state.range === "today") return d >= sod;
-    if (state.range === "month") return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    return d >= new Date(sod - (state.range === "7d" ? 6 : 29) * 86400000);
-  };
+  const inRange = (l) => inRangeTs(l.createdAt, state.range);
   const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
   const top = (arr) => { const m = new Map(); arr.filter(Boolean).forEach((x) => m.set(x, (m.get(x) || 0) + 1)); return [...m].sort((a, b) => b[1] - a[1]); };
 

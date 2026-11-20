@@ -3,7 +3,7 @@
   const page = await mountShell("pipeline");
   if (!page) return;
   const COLS = [...PIPELINE, "Spam"];
-  const RANGES = { all: "All time", today: "Today", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
+  const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const state = { leads: [], bookings: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set(), shown: {} };
   let restoredAt = 0;                                // scroll events caused by putting the scroll position back must not load more
   const STEP = 5;                                  // each column shows its 5 newest leads, and 5 more every time it is scrolled to the bottom
@@ -19,13 +19,7 @@
   }
   if (!(await load())) return;
 
-  const inRange = (l) => {
-    if (state.range === "all") return true;
-    const d = new Date(l.createdAt), now = new Date(), sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    if (state.range === "today") return d >= sod;
-    if (state.range === "month") return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-    return d >= new Date(sod - (state.range === "7d" ? 6 : 29) * 86400000);
-  };
+  const inRange = (l) => inRangeTs(l.createdAt, state.range);
   const pool = () => state.leads.filter((l) => !state.type || l.propertyType === state.type);
   const scoped = () => pool().filter(inRange);
   const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);

@@ -7,20 +7,14 @@
   let hols = [], meets = [];
   try { [hols, meets] = await Promise.all([Data.getHolidays(), Data.getMeetings()]); } catch { /* the calendar strip is optional */ }
   const byId = new Map(leads.map((l) => [l.dbId, l]));
-  const RANGES = { "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time" };
+  const RANGES = { today: "Today", yesterday: "Yesterday", "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time" };
   const state = { range: "30d" };
   let charts = [];
 
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   function bounds(r) {
-    const now = new Date();
-    if (r === "all") return { cur: { start: null, end: null }, prev: null };
-    if (r === "month") {
-      const s = new Date(now.getFullYear(), now.getMonth(), 1), e = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      return { cur: { start: s, end: e }, prev: { start: new Date(now.getFullYear(), now.getMonth() - 1, 1), end: s } };
-    }
-    const days = r === "90d" ? 90 : 30, e = new Date(startOfDay(now).getTime() + 86400000), s = new Date(e - days * 86400000);
-    return { cur: { start: s, end: e }, prev: { start: new Date(s - days * 86400000), end: s } };
+    const c = rangeBounds(r), pv = rangePrev(r);
+    return { cur: { start: c.from, end: c.to }, prev: pv ? { start: pv.from, end: pv.to } : null };
   }
   const inR = (ts, b) => !b || !b.start || (new Date(ts) >= b.start && new Date(ts) < b.end);
   const bkDate = (b) => new Date(b.booking_date + "T00:00:00");
