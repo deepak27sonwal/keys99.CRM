@@ -33,7 +33,7 @@ window.Alerts = (function () {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && P.open) { toggle(false); btn.focus(); } });
     document.addEventListener("k99:panel-open", (e) => { if (P.open && e.detail !== cfg.btn) toggle(false); });
     window.addEventListener("k99:lead-changed", load); window.addEventListener("k99:task-changed", load);
-    setInterval(load, 60000); panels.push({ load }); load();
+    setInterval(() => { if (!document.hidden) load(); }, 60000); document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); }); panels.push({ load }); load();
   }
 
   const row = (l, note) => html`<li><a class="nf-ar" href="customer.html?id=${encodeURIComponent("L-" + l.dbId)}" aria-label="Open ${l.name}">${avatar(l.name, 32)}<span class="nf-t"><b>${l.name}</b><span>${note}${l.project ? " · " + l.project : ""}</span></span></a><a class="icon-btn" href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a class="icon-btn" href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></li>`;
