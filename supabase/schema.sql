@@ -963,3 +963,49 @@ begin
 end $f$;
 revoke all on function public.update_my_profile(text, text, boolean) from public, anon;
 grant execute on function public.update_my_profile(text, text, boolean) to authenticated;
+
+-- Active hours: one row per person per day (Asia/Kolkata). The app adds one minute at a time, only while the tab is visible and the person is interacting.
+create table if not exists public.active_time (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  day date not null,
+  minutes integer not null default 0 check (minutes between 0 and 1440),
+  first_at timestamptz not null default now(),
+  last_at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+alter table public.active_time enable row level security;
+drop policy if exists "own or admin reads active time" on public.active_time;
+create policy "own or admin reads active time" on public.active_time for select to authenticated using (user_id = auth.uid() or public.is_admin());
+revoke insert, update, delete, truncate on public.active_time from anon, authenticated;
+
+-- adds exactly one minute to today's row, and only if the last one is older than 50 s, so extra tabs, devices or a modified client cannot inflate the total
+create or replace function public.record_active_minute() returns void language plpgsql security definer set search_path = '' as $f$
+declare d date := (now() at time zone 'Asia/Kolkata')::date;
+begin
+  if auth.uid() is null or not exists (select 1 from public.app_users u where u.user_id = auth.uid() and u.active) then return; end if;
+  insert into public.active_time as a (user_id, day, minutes, first_at, last_at) values (auth.uid(), d, 1, now(), now())
+  on conflict (user_id, day) do update set minutes = least(1440, a.minutes + 1), last_at = now() where a.last_at <= now() - interval '50 seconds';
+end $f$;
+revoke all on function public.record_active_minute() from public, anon;
+grant execute on function public.record_active_minute() to authenticated;
+
+-- employees get only their own days; admins get everybody (or one person), with names
+create or replace function public.active_time_report(p_from date, p_to date, p_user uuid default null)
+returns table(user_id uuid, member_id bigint, name text, team text, role text, day date, minutes integer, last_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $f$
+declare adm boolean := public.is_admin();
+begin
+  if auth.uid() is null then return; end if;
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 800 then raise exception 'Choose a valid date range (up to 800 days)'; end if;
+  return query
+    select a.user_id, u.member_id, coalesce(t.name, au.email::text), t.team, u.role, a.day, a.minutes, a.last_at
+    from public.active_time a
+    join public.app_users u on u.user_id = a.user_id
+    left join public.team_members t on t.id = u.member_id
+    left join auth.users au on au.id = a.user_id
+    where a.day between p_from and p_to
+      and (adm and (p_user is null or a.user_id = p_user) or a.user_id = auth.uid())
+    order by a.day, 3;
+end $f$;
+revoke all on function public.active_time_report(date, date, uuid) from public, anon;
+grant execute on function public.active_time_report(date, date, uuid) to authenticated;

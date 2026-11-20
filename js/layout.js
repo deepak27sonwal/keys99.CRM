@@ -93,6 +93,7 @@ async function mountShell(active) {
   if (active !== "leads") gs.onkeydown = (e) => { if (e.key === "Enter" && gs.value.trim()) location.href = "leads.html?q=" + encodeURIComponent(gs.value.trim()); };
   // the bell: loaded after the page shell so it never delays the page
   const ns = document.createElement("script"); ns.src = "js/notify.js"; ns.onload = () => window.Notify && Notify.init(sess); document.head.appendChild(ns);
+  const ac = document.createElement("script"); ac.src = "js/activity.js"; ac.onload = () => window.Activity && Activity.init(); document.head.appendChild(ac);
   const as = document.createElement("script"); as.src = "js/alerts.js"; as.onload = () => window.Alerts && Alerts.init(); document.head.appendChild(as);
   const ws = document.createElement("script"); ws.src = "js/workflow.js"; ws.onload = () => window.Workflow && Workflow.init(); document.head.appendChild(ws);
   return document.getElementById("page");

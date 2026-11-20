@@ -198,6 +198,12 @@ const Data = {
   // emails a 6-digit code (and the usual link); the "Reset password" email template carries both
   async sendResetCode(email) { const { error } = await this.client.auth.resetPasswordForEmail(email, { redirectTo: new URL("reset.html", location.href).href }); if (error) throw error; },
   async verifyResetCode(email, token) { const { error } = await this.client.auth.verifyOtp({ email, token: String(token).replace(/\s+/g, ""), type: "recovery" }); if (error) throw error; },
+  // ---- active hours (the tracker adds one minute at a time; reports are limited by the database to my own rows, or everyone's for admins) ----
+  async recordActive() { const { error } = await this.client.rpc("record_active_minute"); if (error) throw error; },
+  async getActiveTime(from, to, userId = null) {
+    const { data, error } = await this.client.rpc("active_time_report", { p_from: from, p_to: to, p_user: userId }); if (error) throw error;
+    return (data || []).map((r) => ({ userId: r.user_id, memberId: r.member_id, name: r.name || "—", team: r.team || "", role: r.role, day: String(r.day).slice(0, 10), minutes: Number(r.minutes) || 0, lastAt: r.last_at }));
+  },
   async getLogins() { const { data, error } = await this.client.from("app_users").select("user_id,role,member_id,active").limit(2000); if (error) throw error; return data || []; },
   // Create / reset / disable / enable / remove a team member's login (runs on the server and only for admins).
   async loginAdmin(body) {
