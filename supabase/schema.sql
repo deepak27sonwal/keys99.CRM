@@ -1009,3 +1009,17 @@ begin
 end $f$;
 revoke all on function public.active_time_report(date, date, uuid) from public, anon;
 grant execute on function public.active_time_report(date, date, uuid) to authenticated;
+
+-- When a team member's email changes, the alert address stored on that person's leads follows it (matched by their name, or by their old email).
+create or replace function public.team_members_email_sync() returns trigger language plpgsql security definer set search_path = '' as $f$
+begin
+  if new.email is not distinct from old.email then return new; end if;
+  update public.enquiries e
+     set manager_email = case when nullif(trim(coalesce(new.email, '')), '') is null then null else to_jsonb(lower(trim(new.email))) end
+   where lower(trim(both '"' from coalesce(e.manager_name::text, ''))) = lower(trim(new.name))
+      or (nullif(trim(coalesce(old.email, '')), '') is not null and lower(trim(both '"' from coalesce(e.manager_email::text, ''))) = lower(trim(old.email)));
+  return new;
+end $f$;
+revoke all on function public.team_members_email_sync() from public, anon, authenticated;
+drop trigger if exists team_members_email_sync on public.team_members;
+create trigger team_members_email_sync after update of email on public.team_members for each row execute function public.team_members_email_sync();
