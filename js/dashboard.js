@@ -12,6 +12,8 @@
   let charts = [];
 
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  // a day as YYYY-MM-DD in LOCAL time (toISOString would give the UTC date, a day early in India)
+  const ymd = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   function bounds(r) {
     const c = rangeBounds(r), pv = rangePrev(r);
     return { cur: { start: c.from, end: c.to }, prev: pv ? { start: pv.from, end: pv.to } : null };
@@ -35,12 +37,12 @@
     const key = (d) => {
       d = new Date(d);
       if (unit === "month") return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-      if (unit === "week") { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.toISOString().slice(0, 10); }
-      return startOfDay(d).toISOString().slice(0, 10);
+      if (unit === "week") { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return ymd(x); }
+      return ymd(startOfDay(d));
     };
     const keys = [], seen = new Set();
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) { const k = key(d); if (!seen.has(k)) { seen.add(k); keys.push(k); } }
-    const lab = (k) => (unit === "month" ? new Date(k + "-01").toLocaleString("en-US", { month: "short", year: "2-digit" }) : new Date(k).toLocaleString("en-US", { month: "short", day: "numeric" }));
+    const lab = (k) => (unit === "month" ? new Date(k + "-01T00:00:00").toLocaleString("en-US", { month: "short", year: "2-digit" }) : new Date(k + "T00:00:00").toLocaleString("en-US", { month: "short", day: "numeric" }));
     const n = new Map(keys.map((k) => [k, 0])), c = new Map(keys.map((k) => [k, 0]));
     L.forEach((l) => { const k = key(l.createdAt); if (n.has(k)) n.set(k, n.get(k) + 1); });
     B.forEach((x) => { const k = key(bkDate(x)); if (c.has(k)) c.set(k, c.get(k) + 1); });

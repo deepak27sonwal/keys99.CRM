@@ -312,7 +312,7 @@ function openSiteVisit(lead, done) {
 function openBooking(lead, done) {
   openModal("Convert to Deal", html`<div class="form">
     ${field("Project *", "project", lead.project, "text", "required")}${field("Developer", "developer", lead.developer)}
-    ${field("Booking date *", "booking_date", new Date().toISOString().slice(0, 10), "date", "required")}${field("Booking value (₹) *", "booking_value", "", "number", 'required min="0" step="1"')}
+    ${field("Booking date *", "booking_date", dayKey(new Date()), "date", "required")}${field("Booking value (₹) *", "booking_value", "", "number", 'required min="0" step="1"')}
     ${field("Agreement rate (%) *", "agreement_rate", "", "number", 'required min="0" max="100" step="0.01"')}${selectField("Commission status", "commission_status", ["Pending", "Received"])}
     <p class="full muted" style="font-size:12px">Commission = booking value × agreement rate.</p></div>`,
     async (f) => {
