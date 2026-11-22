@@ -235,10 +235,13 @@ const Data = {
     if (error || !data || !data.length) return null;
     const hit = data.find((r) => digits(r.phone).slice(-10) === d); return hit ? this.fromRow(hit) : null;
   },
-  async phoneMatches(phone, project) {
-    const args = project && String(project).trim() ? { p_phone: phone, p_project: String(project).trim() } : { p_phone: phone };
+  async phoneMatches(phone, project, email) {
+    const em = String(email || "").trim(), pj = String(project || "").trim();
+    // phone and/or email, and optionally the project; the database counts a repeat by the same phone OR the same email
+    const args = em || pj ? { p_phone: phone || "", p_project: pj, p_email: em } : { p_phone: phone };
     const { data, error } = await this.client.rpc("phone_matches", args); if (error) throw error; return (data && data[0]) || null;
   },
+
   async getTemplates() { const { data, error } = await this.client.from("message_templates").select("*").order("id").limit(200); if (error) return []; return data || []; },
   async saveTemplate(id, t) {
     const row = { title: String(t.title || "").trim(), body: String(t.body || "").trim() }; if (!row.title || !row.body) throw new Error("Title and message are required");
