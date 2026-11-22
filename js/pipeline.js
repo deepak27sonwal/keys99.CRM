@@ -35,8 +35,8 @@
   }
   function card(l) {
     const chk = state.select ? html`<input type="checkbox" class="kb-chk" data-chk="${l.dbId}" ${state.sel.has(l.dbId) ? raw("checked") : raw("")} aria-label="Select ${l.name}">` : raw("");
-    return html`<div class="kb-card s-${slug(l.status)}" draggable="${!state.select}" data-id="${l.dbId}" tabindex="0" aria-label="${l.name}, ${l.status}">
-      <div class="kb-top">${chk}${avatar(l.name, 32)}<div class="kb-nm"><b>${l.name}</b>${l.project ? html`<small><i data-lucide="map-pin"></i>${l.project}</small>` : raw("")}</div>
+    return html`<div class="kb-card s-${slug(l.status)}" data-id="${l.dbId}" tabindex="0" aria-label="${l.name}, ${l.status}">
+      <div class="kb-top">${chk}${avatar(l.name, 32)}<div class="kb-nm"><b>${l.name}</b>${l.project ? html`<small><i data-lucide="map-pin"></i>${l.project}</small>` : raw("")}<small class="kb-who ${l.agent ? "" : "none"}" title="Assigned to ${l.agent || "nobody"}"><i data-lucide="user-check"></i>${l.agent || "Unassigned"}</small></div>
         <button class="kb-k" data-menu="${l.dbId}" aria-label="Actions for ${l.name}"><i data-lucide="more-vertical"></i></button></div>
       ${l.budget ? html`<div class="kb-bud">₹ ${l.budget.replace(/^₹\s*/, "")}</div>` : raw("")}
       ${(l.status === "Spam" || l.status === "Booking Cancelled") && l.lostReason ? html`<div class="kb-why">Reason: ${l.lostReason}</div>` : raw("")}
@@ -45,8 +45,7 @@
   function board(L) {
     return html`<div class="kb" role="list">${COLS.map((st) => { const items = L.filter((l) => l.status === st).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), shown = Math.max(STEP, state.shown[st] || STEP), more = items.length - shown;
       return html`<section class="kb-col s-${slug(st)}" data-col="${st}" role="listitem" aria-label="${st}, ${items.length} leads"><header class="kb-h"><b>${st}</b><span>${items.length} Leads</span></header>
-        <div class="kb-body" data-drop="${st}">${items.length ? items.slice(0, shown).map(card) : html`<div class="kb-empty">No leads here</div>`}${more > 0 ? html`<button class="kb-more" data-more="${st}">Show ${Math.min(STEP, more)} more · showing ${shown} of ${items.length}</button>` : items.length > STEP ? html`<div class="kb-end">Showing all ${items.length}</div>` : raw("")}</div>
-        <button class="kb-add" data-add="${st}"><i data-lucide="plus"></i>Add Lead</button></section>`; })}</div>`;
+        <div class="kb-body" data-drop="${st}">${items.length ? items.slice(0, shown).map(card) : html`<div class="kb-empty">No leads here</div>`}${more > 0 ? html`<button class="kb-more" data-more="${st}">Show ${Math.min(STEP, more)} more · showing ${shown} of ${items.length}</button>` : items.length > STEP ? html`<div class="kb-end">Showing all ${items.length}</div>` : raw("")}</div></section>`; })}</div>`;
   }
   function list(L) {
     const rank = (s) => COLS.indexOf(s), rows = [...L].sort((a, b) => rank(a.status) - rank(b.status));
@@ -150,22 +149,14 @@
     page.querySelector("#prange").onchange = (e) => { state.range = e.target.value; state.shown = {}; state.topReset = true; draw(); };
     page.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { state.view = b.dataset.view; draw(); }));
     page.querySelector("#padd").onclick = () => openAddLead(refresh);
-    page.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => openAddLead(refresh, { status: b.dataset.add })));
     const loadMore = (st) => { state.shown[st] = Math.max(STEP, state.shown[st] || STEP) + STEP; draw(); };
     page.querySelectorAll("[data-more]").forEach((b) => (b.onclick = () => loadMore(b.dataset.more)));
     page.querySelectorAll(".kb-body").forEach((z) => (z.onscroll = () => { if (performance.now() - restoredAt > 250 && z.querySelector("[data-more]") && z.scrollTop + z.clientHeight >= z.scrollHeight - 30) loadMore(z.dataset.drop); }));
     page.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); leadMenu(b, byId(b.dataset.menu)); }));
     page.querySelectorAll("[data-chk]").forEach((c) => (c.onchange = () => { const id = Number(c.dataset.chk); c.checked ? state.sel.add(id) : state.sel.delete(id); draw(); }));
     page.querySelectorAll(".kb-card").forEach((c) => {
-      c.onclick = (e) => { if (e.target.closest("a,button,input")) return; if (state.select) { const id = Number(c.dataset.id); state.sel.has(id) ? state.sel.delete(id) : state.sel.add(id); draw(); } else location.href = "customer.html?id=L-" + c.dataset.id; };
+      c.onclick = (e) => { if (e.target.closest("a,button,input") || performance.now() - dnd.endedAt < 400) return; if (state.select) { const id = Number(c.dataset.id); state.sel.has(id) ? state.sel.delete(id) : state.sel.add(id); draw(); } else location.href = "customer.html?id=L-" + c.dataset.id; };
       c.onkeydown = (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === c) { e.preventDefault(); c.click(); } };
-      c.ondragstart = (e) => { e.dataTransfer.setData("text/plain", c.dataset.id); e.dataTransfer.effectAllowed = "move"; c.classList.add("drag"); };
-      c.ondragend = () => { c.classList.remove("drag"); page.querySelectorAll(".kb-body.over").forEach((x) => x.classList.remove("over")); };
-    });
-    page.querySelectorAll("[data-drop]").forEach((z) => {
-      z.ondragover = (e) => { e.preventDefault(); z.classList.add("over"); };
-      z.ondragleave = (e) => { if (!z.contains(e.relatedTarget)) z.classList.remove("over"); };
-      z.ondrop = (e) => { e.preventDefault(); z.classList.remove("over"); moveTo(byId(e.dataTransfer.getData("text/plain")), z.dataset.drop); };
     });
     page.querySelectorAll("tr.lead-row").forEach((r) => (r.onclick = (e) => { if (!e.target.closest("a,button")) location.href = "customer.html?id=L-" + r.dataset.id; }));
     page.querySelector("#pselect").onclick = () => { state.select = !state.select; if (!state.select) state.sel.clear(); if (state.view !== "kanban") state.view = "kanban"; draw(); };
@@ -178,5 +169,54 @@
     page.querySelector("#bLost").onclick = lose("Mark " + chosen().length + " leads as lost", ["Budget mismatch", "Purchased elsewhere", "Not interested", "Not responding", "Other"]);
     page.querySelector("#bSpam").onclick = lose("Mark " + chosen().length + " leads as spam", ["Spam / fake enquiry", "Wrong number", "Duplicate", "Other"]);
   }
+  // ---- drag and drop with pointer events: mouse (move a few pixels), touch / pen (press and hold, so the board still scrolls), whole column is the drop area ----
+  const dnd = { s: null, endedAt: -1e9 };
+  const LONG = 260, MOVE = 6, EDGE = 70;
+  const colAt = (x, y) => { const el = document.elementFromPoint(x, y); return el ? el.closest(".kb-col") : null; };
+  function dndPlace(s) {
+    s.ghost.style.transform = `translate(${s.lastX - s.ox}px, ${s.lastY - s.oy}px) rotate(1.5deg)`;
+    const col = colAt(s.lastX, s.lastY); s.col = col;
+    page.querySelectorAll(".kb-body.over").forEach((b) => { if (!col || b.parentElement !== col) b.classList.remove("over"); });
+    if (col) col.querySelector(".kb-body").classList.add("over");
+  }
+  function dndLoop() {
+    const s = dnd.s; if (!s || !s.active) return;
+    const kb = page.querySelector(".kb");
+    if (kb) { const r = kb.getBoundingClientRect(), speed = 18; if (s.lastX < r.left + EDGE) kb.scrollLeft -= speed; else if (s.lastX > r.right - EDGE) kb.scrollLeft += speed; }
+    if (s.lastY < EDGE) window.scrollBy(0, -14); else if (s.lastY > window.innerHeight - EDGE) window.scrollBy(0, 14);
+    dndPlace(s); s.raf = requestAnimationFrame(dndLoop);
+  }
+  function dndBegin(s) {
+    clearTimeout(s.timer); s.active = true;
+    const r = s.c.getBoundingClientRect(); s.ox = s.x - r.left; s.oy = s.y - r.top;
+    const g = s.c.cloneNode(true); g.removeAttribute("data-id"); g.removeAttribute("tabindex"); g.classList.add("kb-ghost"); g.style.width = r.width + "px"; s.ghost = g; document.body.appendChild(g);
+    s.c.classList.add("drag"); document.body.classList.add("kb-dragging"); if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* not allowed */ } }
+    dndPlace(s); s.raf = requestAnimationFrame(dndLoop);
+  }
+  function dndEnd(drop) {
+    const s = dnd.s; if (!s) return; dnd.s = null; clearTimeout(s.timer); cancelAnimationFrame(s.raf);
+    if (!s.active) return;
+    s.ghost && s.ghost.remove(); s.c.classList.remove("drag"); document.body.classList.remove("kb-dragging");
+    page.querySelectorAll(".kb-body.over").forEach((b) => b.classList.remove("over"));
+    dnd.endedAt = performance.now();                                       // the click that follows a drop must not open the lead
+    if (drop && s.col) moveTo(byId(s.id), s.col.dataset.col);
+  }
+  page.addEventListener("pointerdown", (e) => {
+    if (state.select || state.view !== "kanban" || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const c = e.target.closest(".kb-card"); if (!c || e.target.closest("a,button,input,select,textarea")) return;
+    const s = dnd.s = { c, id: c.dataset.id, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, type: e.pointerType, pid: e.pointerId, active: false, ghost: null, col: null, timer: 0, raf: 0, ox: 0, oy: 0 };
+    if (e.pointerType !== "mouse") s.timer = setTimeout(() => { if (dnd.s === s) dndBegin(s); }, LONG);
+  });
+  document.addEventListener("pointermove", (e) => {
+    const s = dnd.s; if (!s || e.pointerId !== s.pid) return;
+    s.lastX = e.clientX; s.lastY = e.clientY;
+    if (!s.active) { const d = Math.hypot(e.clientX - s.x, e.clientY - s.y); if (s.type === "mouse") { if (d > MOVE) dndBegin(s); } else if (d > 10) { clearTimeout(s.timer); dnd.s = null; } return; }   // a touch that moves before the hold is just a scroll
+    e.preventDefault(); dndPlace(s);
+  });
+  document.addEventListener("pointerup", (e) => { if (dnd.s && e.pointerId === dnd.s.pid) dndEnd(true); });
+  document.addEventListener("pointercancel", (e) => { if (dnd.s && e.pointerId === dnd.s.pid) dndEnd(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && dnd.s && dnd.s.active) dndEnd(false); });
+  document.addEventListener("touchmove", (e) => { if (dnd.s && dnd.s.active) e.preventDefault(); }, { passive: false });    // once a card is picked up, the finger moves the card, not the page
+  page.addEventListener("contextmenu", (e) => { if (dnd.s && dnd.s.active) e.preventDefault(); });
   draw();
 })();
