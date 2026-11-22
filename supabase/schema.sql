@@ -15,7 +15,7 @@ alter table public.enquiries
 
 alter table public.enquiries
   add constraint enquiries_status_check
-  check (status in ('New Leads','Contacted','Spam','Interested','Visit Scheduled','Visit Done','On Negotiations','Token Done','Booking Done','Post Sale'));
+  check (status in ('New Leads','Contacted','Spam','Interested','Visit Scheduled','Visit Done','VC Done','On Negotiations','Token Done','Booking Done','Booking Cancelled','Post Sale'));
 
 create index if not exists enquiries_status_idx     on public.enquiries (status);
 create index if not exists enquiries_created_at_idx on public.enquiries (created_at desc);
@@ -1267,3 +1267,8 @@ language sql stable security definer set search_path = '' as $f$
   where auth.uid() is not null and (select count(*) from m) > 0 $f$;
 revoke all on function public.phone_matches(text, text, text) from public, anon;
 grant execute on function public.phone_matches(text, text, text) to authenticated;
+
+-- Lead stages: "VC Done" (after Visit Done) and "Booking Cancelled" (after Booking Done). Additive; existing rows are untouched.
+alter table public.enquiries drop constraint if exists enquiries_status_check;
+alter table public.enquiries add constraint enquiries_status_check
+  check (status in ('New Leads','Contacted','Spam','Interested','Visit Scheduled','Visit Done','VC Done','On Negotiations','Token Done','Booking Done','Booking Cancelled','Post Sale'));

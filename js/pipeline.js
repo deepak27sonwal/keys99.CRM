@@ -2,7 +2,7 @@
 (async function () {
   const page = await mountShell("pipeline");
   if (!page) return;
-  const COLS = [...PIPELINE, "Spam"];
+  const COLS = [...STATUSES.filter((s) => s !== "Spam"), "Spam"];     // Booking Cancelled sits right after Booking Done
   const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
   const state = { leads: [], bookings: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set(), shown: {} };
   let restoredAt = 0;                                // scroll events caused by putting the scroll position back must not load more
@@ -39,7 +39,7 @@
       <div class="kb-top">${chk}${avatar(l.name, 32)}<div class="kb-nm"><b>${l.name}</b>${l.project ? html`<small><i data-lucide="map-pin"></i>${l.project}</small>` : raw("")}</div>
         <button class="kb-k" data-menu="${l.dbId}" aria-label="Actions for ${l.name}"><i data-lucide="more-vertical"></i></button></div>
       ${l.budget ? html`<div class="kb-bud">₹ ${l.budget.replace(/^₹\s*/, "")}</div>` : raw("")}
-      ${l.status === "Spam" && l.lostReason ? html`<div class="kb-why">Reason: ${l.lostReason}</div>` : raw("")}
+      ${(l.status === "Spam" || l.status === "Booking Cancelled") && l.lostReason ? html`<div class="kb-why">Reason: ${l.lostReason}</div>` : raw("")}
       <div class="kb-bot">${fuChip(l)}${priorityChip(l)}<span class="kb-acts"><a href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call ${l.name}"><i data-lucide="phone"></i></a><a href="${waHref(l.mobile)}" data-lead="${l.dbId}" target="_blank" rel="noopener" aria-label="WhatsApp ${l.name}"><i data-lucide="message-circle"></i></a></span></div></div>`;
   }
   function board(L) {
@@ -67,7 +67,7 @@
     if (chart) { chart.destroy(); chart = null; }
     const keepLeft = (page.querySelector(".kb") || {}).scrollLeft || 0, keepTop = {}; page.querySelectorAll(".kb-body").forEach((b) => (keepTop[b.dataset.drop] = b.scrollTop));
     const L = scoped(), counts = {}; L.forEach((l) => (counts[l.status] = (counts[l.status] || 0) + 1));
-    const ids = new Set(L.map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
+    const ids = new Set(L.filter((l) => l.status !== "Booking Cancelled").map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
     const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), comm = state.bookings.filter((b) => ids.has(b.enquiry_id)).reduce((t, b) => t + Number(b.commission_amount || 0), 0);
     const kpis = [["Total Leads", L.length.toLocaleString("en-IN"), "", "users", 1], ["Active in Pipeline", active, "", "filter"], ["In Negotiation", counts["On Negotiations"] || 0, "", "handshake"],
       ["Booking Done", booked, "", "calendar-check"], ["Estimated Commission", fmtMoney(comm), "", "check-circle-2", 0, 1], ["Conversion Rate", pct(booked, L.length) + "%", "", "trophy"]];
@@ -84,7 +84,7 @@
       <div class="kpis k6 pl-kpis">${kpis.map(kpiCard)}</div>
       ${state.view === "kanban" ? board(L) : list(L)}
       <div class="pl-bottom">
-        <section class="card p"><h3 class="sec">Pipeline Summary</h3><div class="pl-sum">${funnel(counts, L.length)}<ul class="pl-leg">${PIPELINE.map((st) => html`<li class="s-${slug(st)}"><i></i><span>${st}</span><b>${counts[st] || 0}</b><small>(${pct(counts[st] || 0, L.length)}%)</small></li>`)}<li class="s-Spam"><i></i><span>Spam</span><b>${counts.Spam || 0}</b><small>(${pct(counts.Spam || 0, L.length)}%)</small></li></ul></div></section>
+        <section class="card p"><h3 class="sec">Pipeline Summary</h3><div class="pl-sum">${funnel(counts, L.length)}<ul class="pl-leg">${PIPELINE.map((st) => html`<li class="s-${slug(st)}"><i></i><span>${st}</span><b>${counts[st] || 0}</b><small>(${pct(counts[st] || 0, L.length)}%)</small></li>`)}<li class="s-Booking-Cancelled"><i></i><span>Booking Cancelled</span><b>${counts["Booking Cancelled"] || 0}</b><small>(${pct(counts["Booking Cancelled"] || 0, L.length)}%)</small></li><li class="s-Spam"><i></i><span>Spam</span><b>${counts.Spam || 0}</b><small>(${pct(counts.Spam || 0, L.length)}%)</small></li></ul></div></section>
         <section class="card p"><h3 class="sec">Conversion &amp; Performance</h3><div class="chart-box"><canvas id="pchart" aria-label="Leads, bookings and conversion rate for the last six months"></canvas></div></section>
         <section class="card p"><h3 class="sec">Lead Actions</h3><div class="pl-act">
           <button class="btn ${state.select ? "gold" : "outline"}" id="pselect"><i data-lucide="check-square"></i>${state.select ? "Selecting: " + nSel + " chosen" : "Select leads"}</button>
@@ -122,6 +122,7 @@
   async function moveTo(l, status) {
     if (!l || l.status === status) return;
     if (status === "Spam") return openSpam(l, async () => { await refresh(); keepVisible(l.dbId, "Spam"); });
+    if (status === "Booking Cancelled") return openCancelBooking(l, async () => { await refresh(); keepVisible(l.dbId, status); });
     const old = l.status; l.status = status;
     const idx = scoped().filter((x) => x.status === status).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).indexOf(l); state.shown[status] = Math.max(STEP, state.shown[status] || STEP, idx + 1);   // the card you just dropped stays visible
     draw();
@@ -164,7 +165,7 @@
     });
     page.querySelectorAll("tr.lead-row").forEach((r) => (r.onclick = (e) => { if (!e.target.closest("a,button")) location.href = "customer.html?id=L-" + r.dataset.id; }));
     page.querySelector("#pselect").onclick = () => { state.select = !state.select; if (!state.select) state.sel.clear(); if (state.view !== "kanban") state.view = "kanban"; draw(); };
-    page.querySelector("#bStage").onclick = () => openModal("Update stage for " + chosen().length + " leads", html`<div class="form">${selectField("New stage", "status", PIPELINE, "", "full")}</div>`, async (f) => each(chosen(), (l) => Data.updateLead(l.dbId, { status: f.status }), "Stage updated"), "Update");
+    page.querySelector("#bStage").onclick = () => openModal("Update stage for " + chosen().length + " leads", html`<div class="form">${selectField("New stage", "status", STATUSES.filter((s) => s !== "Spam"), "", "full")}</div>`, async (f) => each(chosen(), (l) => Data.updateLead(l.dbId, { status: f.status }), "Stage updated"), "Update");
     page.querySelector("#bTransfer").onclick = () => openTransfer(chosen(), async () => { state.sel.clear(); await refresh(); });
     const bA = page.querySelector("#bAgent"); if (bA) bA.onclick = () => { const names = memberNames(); if (!names.length) return toast("Add a team member first (Agents & Teams)"); openModal("Assign " + chosen().length + " leads", html`<div class="form">${selectField("Agent", "agent", names, "", "full")}</div>`, async (f) => each(chosen(), (l) => Data.updateLead(l.dbId, { agent: f.agent }), "Leads assigned"), "Assign"); };
     page.querySelector("#bFollow").onclick = () => openModal("Schedule follow-up for " + chosen().length + " leads", html`<div class="form">${field("Date & time *", "follow_up", "", "datetime-local", "required", "full")}<label class="full">Note (optional)<textarea name="note" rows="2"></textarea></label></div>`, async (f) => each(chosen(), (l) => Data.scheduleFollowUp(l, fromLocalInput(f.follow_up), (f.note || "").trim()), "Follow-ups scheduled"), "Schedule");

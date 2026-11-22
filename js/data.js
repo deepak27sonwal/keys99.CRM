@@ -251,7 +251,7 @@ const Data = {
   async templatesCached() { if (!this._tpl) this._tpl = await this.getTemplates(); return this._tpl; },
   // follow-ups and tasks that are due (for reminders and the sidebar badge)
   async getDue(untilIso) {
-    const f = await this.client.from("enquiries").select("id,name,follow_up,status").not("follow_up", "is", null).lte("follow_up", untilIso).not("status", "in", "(Spam,Booking Done,Post Sale)").order("follow_up").limit(100);
+    const f = await this.client.from("enquiries").select("id,name,follow_up,status").not("follow_up", "is", null).lte("follow_up", untilIso).not("status", "in", "(Spam,Booking Done,Booking Cancelled,Post Sale)").order("follow_up").limit(100);
     const t = await this.client.from("tasks").select("id,title,due_at").is("done_at", null).not("due_at", "is", null).lte("due_at", untilIso).order("due_at").limit(100);
     return { followUps: f.error ? [] : f.data || [], tasks: t.error ? [] : t.data || [] };
   },
@@ -272,7 +272,7 @@ const Data = {
   // follow-ups and manual tasks due by the end of today (overdue ones included), for the two alert icons
   async getFollowUpAlerts() {
     const end = new Date(); end.setHours(23, 59, 59, 999);
-    const r = await this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", end.toISOString()).not("status", "in", "(Spam,Booking Done,Post Sale)"), ALERT_LEAD_COLS);
+    const r = await this.fetchAll("enquiries", (q) => q.not("follow_up", "is", null).lte("follow_up", end.toISOString()).not("status", "in", "(Spam,Booking Done,Booking Cancelled,Post Sale)"), ALERT_LEAD_COLS);
     return r.map((x) => this.fromRow(x)).sort((x, y) => new Date(x.followUpTs) - new Date(y.followUpTs));
   },
   async getTaskAlerts() {

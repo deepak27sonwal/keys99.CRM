@@ -1,8 +1,9 @@
 // Small modal helpers shared by the leads and customer pages.
 // Lead stages, in display order. "Spam" sits second-to-contacted by design; it is not part of the sales funnel.
-const STATUSES = ["New Leads", "Contacted", "Spam", "Interested", "Visit Scheduled", "Visit Done", "On Negotiations", "Token Done", "Booking Done", "Post Sale"];
-const PIPELINE = STATUSES.filter((s) => s !== "Spam");               // funnel / progress order
-const CLOSED = ["Spam", "Booking Done", "Post Sale"];               // no follow-up needed any more
+const STATUSES = ["New Leads", "Contacted", "Spam", "Interested", "Visit Scheduled", "Visit Done", "VC Done", "On Negotiations", "Token Done", "Booking Done", "Booking Cancelled", "Post Sale"];
+const FUNNEL_OUT = ["Spam", "Booking Cancelled"];                    // shown as stages, but not part of the sales funnel
+const PIPELINE = STATUSES.filter((s) => !FUNNEL_OUT.includes(s));   // funnel / progress order
+const CLOSED = ["Spam", "Booking Done", "Booking Cancelled", "Post Sale"];               // no follow-up needed any more
 const BOOKED = ["Booking Done", "Post Sale"];                       // counted as bookings / conversions
 
 // Suggestions while typing: a list under a text box that narrows as you type (matches anywhere in the name, starts-with first),
@@ -333,6 +334,10 @@ function openBooking(lead, done) {
       await Data.updateLead(lead.dbId, { status: "Booking Done" });
       toast("Deal recorded"); done && done();
     });
+}
+function openCancelBooking(lead, done) {
+  openModal("Cancel booking", html`<div class="form">${selectField("Reason", "reason", ["Customer changed mind", "Loan not approved", "Budget issue", "Bought elsewhere", "Documentation issue", "Other"], "", "full")}</div>`,
+    async (f) => { await Data.updateLead(lead.dbId, { status: "Booking Cancelled", lostReason: f.reason }); toast("Booking cancelled"); done && done(); }, "Confirm");
 }
 function openSpam(lead, done) {
   openModal("Mark as Spam", html`<div class="form">${selectField("Reason", "reason", ["Spam / fake enquiry", "Wrong number", "Duplicate", "Not interested", "Budget mismatch", "Not responding", "Other"], "", "full")}</div>`,
