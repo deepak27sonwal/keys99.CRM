@@ -18,23 +18,25 @@ function attachSuggest(input, getItems, onPick, opts = {}) {
   pop.className = "sg-pop"; pop.id = id; pop.setAttribute("role", "listbox"); pop.hidden = true; host.appendChild(pop);
   input.setAttribute("role", "combobox"); input.setAttribute("aria-autocomplete", "list"); input.setAttribute("aria-expanded", "false"); input.setAttribute("aria-controls", id); input.autocomplete = "off";
   const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
-  let shown = [], active = -1;
+  let shown = [], active = -1, typed = false, silent = false;     // silent = the field is being filled by a pick, so the input event it fires must not reopen the list; typed = the user has typed since the list was opened (until then, `all` mode shows every value, not only the ones matching the current text)
   const hide = () => { pop.hidden = true; active = -1; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); };
   const mark = () => { [...pop.children].forEach((li, i) => { li.classList.toggle("on", i === active); li.setAttribute("aria-selected", i === active ? "true" : "false"); if (i === active) { input.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); } }); };
   const place = () => { const r = input.getBoundingClientRect(), below = innerHeight - r.bottom, h = Math.min(pop.scrollHeight, 240), up = below < h + 12 && r.top > below; pop.style.left = r.left + "px"; pop.style.width = r.width + "px"; pop.style.maxHeight = Math.max(100, Math.min(240, (up ? r.top : below) - 12)) + "px"; pop.style.top = up ? Math.max(8, r.top - Math.min(h, r.top - 12) - 4) + "px" : r.bottom + 4 + "px"; };
   const esc2 = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const render = () => {
     if (!input.isConnected) return pop.remove();
-    const q = norm(input.value), all = (getItems() || []).filter(Boolean);
+    const q = opts.all && !typed ? "" : norm(input.value), all = [...new Set((getItems() || []).filter(Boolean))];
     shown = all.filter((x) => !q || norm(x).includes(q)).sort((a, b) => (norm(b).startsWith(q) - norm(a).startsWith(q)) || String(a).localeCompare(String(b))).slice(0, opts.max || 8);
-    if (!shown.length) return hide();
+    if (!shown.length) { if (!opts.all || !q) return hide(); pop.innerHTML = `<li class="sg-none" aria-disabled="true">No match. Keep typing to add "${esc2(input.value.trim())}" as a new one.</li>`; pop.hidden = false; input.setAttribute("aria-expanded", "true"); active = -1; return place(); }
     const hi = (t) => { const i = q ? norm(t).indexOf(q) : -1; return i < 0 ? esc2(t) : esc2(t.slice(0, i)) + "<b>" + esc2(t.slice(i, i + q.length)) + "</b>" + esc2(t.slice(i + q.length)); };
-    pop.innerHTML = shown.map((t, i) => `<li role="option" id="${id}-${i}" data-i="${i}">${hi(String(t))}</li>`).join("");
+    const cur = norm(input.value);
+    pop.innerHTML = shown.map((t, i) => `<li role="option" id="${id}-${i}" data-i="${i}" ${opts.all && cur && norm(t) === cur ? 'class="cur"' : ""}>${hi(String(t))}</li>`).join("");
     pop.hidden = false; input.setAttribute("aria-expanded", "true"); active = -1; place();
   };
-  const pick = (i) => { const v = shown[i]; hide(); if (onPick) onPick(v); else { input.value = v; input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new Event("change", { bubbles: true })); } };
-  input.addEventListener("input", render); input.addEventListener("focus", render);
-  input.addEventListener("blur", () => setTimeout(hide, 120));
+  const pick = (i) => { const v = shown[i]; hide(); if (onPick) onPick(v); else { silent = true; input.value = v; input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new Event("change", { bubbles: true })); silent = false; } };
+  input.addEventListener("input", () => { if (silent) return; typed = true; render(); }); let blurT = 0;     // a late "hide" from an earlier blur must not close the list after the field was focused again
+  input.addEventListener("focus", () => { clearTimeout(blurT); typed = false; render(); });
+  input.addEventListener("blur", () => { blurT = setTimeout(hide, 120); });
   input.addEventListener("keydown", (e) => {
     if (pop.hidden) { if (e.key === "ArrowDown") render(); return; }
     if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % shown.length; mark(); }
@@ -45,7 +47,8 @@ function attachSuggest(input, getItems, onPick, opts = {}) {
   }, true);
   pop.addEventListener("mousedown", (e) => { const li = e.target.closest("li"); if (li) { e.preventDefault(); pick(Number(li.dataset.i)); } });
   window.addEventListener("resize", () => { if (!pop.hidden) place(); });
-  return { refresh: render, hide };
+  const toggle = () => { if (!pop.hidden) return hide(); typed = false; input.focus(); render(); };
+  return { refresh: render, hide, toggle };
 }
 // ---------- form validation (every entry form goes through openModal) ----------
 const V = {
@@ -126,6 +129,15 @@ function openModal(title, body, onSubmit, submitLabel = "Save") {
 }
 const field = (label, name, value = "", type = "text", attrs = "", cls = "") =>
   html`<label class="${cls}">${label}<input name="${name}" type="${type}" value="${value}" ${raw(attrs)}></label>`;
+// A pick-or-type field: a text input with a chevron that opens the full list of values already used; anything typed that is not in the list is kept as a new value.
+const comboField = (label, name, value = "", { cls = "", placeholder = "" } = {}) =>
+  html`<label class="${cls}">${label}<span class="combo-in"><input name="${name}" type="text" value="${value}" ${raw(placeholder ? `placeholder="${esc(placeholder)}"` : "")} autocomplete="off"><button type="button" class="combo-btn" tabindex="-1" aria-label="Show ${label} list"><i data-lucide="chevron-down"></i></button></span></label>`;
+function wireCombo(root, name, getItems) {
+  const input = root.querySelector(`input[name="${name}"]`); if (!input) return null;
+  const sg = attachSuggest(input, getItems, null, { all: true, max: 60 }), btn = input.parentElement.querySelector(".combo-btn");
+  if (btn) btn.addEventListener("mousedown", (e) => { e.preventDefault(); sg.toggle(); });
+  return sg;
+}
 const selectField = (label, name, options, value = "", cls = "") =>
   html`<label class="${cls}">${label}<select name="${name}">${options.map((o) => html`<option ${o === value ? raw("selected") : raw("")}>${o}</option>`)}</select></label>`;
 
@@ -139,14 +151,21 @@ const CONFIGS = {
   Other: ["Studio", "Serviced Apartment", "Penthouse", "Co-living", "Other"],
 };
 // Markup: the Type select + the Configuration dropdown. A type that is not in the list (older data) is kept as an option. `name` is the saved field.
-const configPicker = ({ type = "", value = "", name = "bhk", typeLabel = "Property type", label = "Configuration (BHK)" } = {}) => html`${selectField(typeLabel, "property_type", ["", ...Object.keys(CONFIGS), ...(type && !CONFIGS[type] ? [type] : [])], type || "")}
-  <div class="full ms-wrap"><span class="ms-l">${label}</span><details class="ms" id="msBox"><summary id="msSum">Choose a type first</summary><div class="ms-list" id="msList"></div></details><input type="hidden" name="${name}" id="msVal" value="${value || ""}"></div>`;
+const configPicker = ({ type = "", value = "", name = "bhk", typeLabel = "Property type", label = "Configuration (BHK)", search = false } = {}) => html`${selectField(typeLabel, "property_type", ["", ...Object.keys(CONFIGS), ...(type && !CONFIGS[type] ? [type] : [])], type || "")}
+  <div class="full ms-wrap"><span class="ms-l">${label}</span><details class="ms" id="msBox"><summary id="msSum">Choose a type first</summary>${search ? raw('<div class="ms-search"><input type="search" id="msQ" placeholder="Search configurations…" aria-label="Search configurations" autocomplete="off"></div>') : raw("")}<div class="ms-list" id="msList"></div></details><input type="hidden" name="${name}" id="msVal" value="${value || ""}"></div>`;
 // Wires the Type select to the checklist inside an open form (several can be chosen; saved as "2 BHK, 3 BHK").
 function wireConfigs(root) {
   const type = root.querySelector('[name="property_type"]'), list = root.querySelector("#msList"), sum = root.querySelector("#msSum"), val = root.querySelector("#msVal"), box = root.querySelector("#msBox");
   if (!type || !list) return;
   let chosen = String(val.value || "").split(",").map((x) => x.trim()).filter(Boolean);
   const sync = () => { val.value = chosen.join(", "); sum.textContent = chosen.length ? chosen.join(", ") : type.value ? "Select configurations" : "Choose a type first"; sum.classList.toggle("empty", !chosen.length); };
+  const q = root.querySelector("#msQ");
+  const applyQ = () => {           // the search box only hides rows, so ticked options stay ticked and counted
+    if (!q) return; const t = q.value.trim().toLowerCase(); let shown = 0;
+    list.querySelectorAll(".ms-o").forEach((l) => { const hit = !t || l.textContent.toLowerCase().includes(t); l.hidden = !hit; if (hit) shown++; });
+    let none = list.querySelector(".ms-nomatch"); if (!shown && list.querySelector(".ms-o")) { if (!none) { none = document.createElement("p"); none.className = "ms-none ms-nomatch"; none.textContent = "No match."; list.appendChild(none); } } else if (none) none.remove();
+  };
+  if (q) q.addEventListener("input", applyQ);
   const build = () => {
     const opts = CONFIGS[type.value] || [];
     const known = Object.values(CONFIGS).flat();   // a pick that belongs to some type is dropped when it does not fit the current one (or no type is chosen); custom text from older entries is kept
@@ -154,6 +173,7 @@ function wireConfigs(root) {
     const extra = chosen.filter((c) => !opts.includes(c));
     list.innerHTML = !type.value ? '<p class="ms-none">Pick a type first.</p>' : [...opts, ...extra].map((o) => `<label class="ms-o"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") || '<p class="ms-none">No presets for this type.</p>';
     list.querySelectorAll("input").forEach((c) => (c.onchange = () => { chosen = [...list.querySelectorAll("input:checked")].map((x) => x.value); sync(); }));
+    applyQ();
     box.classList.toggle("off", !type.value); if (!type.value) box.open = false; sync();
   };
   type.addEventListener("change", build); build();

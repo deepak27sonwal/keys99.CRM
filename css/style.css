@@ -1580,3 +1580,13 @@ body.kb-dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}
 .kb-card .kb-who.none{color:var(--muted)}
 .kb-card .kb-who [data-lucide]{width:13px;height:13px;flex:none}
 body.kb-dragging .kb{scroll-snap-type:none}   /* snapping would pull the board back while it auto-scrolls under the dragged card */
+
+/* Searchable pick-or-type fields (Developers / Projects forms) */
+.combo-in{position:relative;display:block}
+.combo-in input{width:100%;padding-right:36px}
+.combo-btn{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;background:transparent;color:var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.combo-btn:hover{background:var(--b-f1f5f9);color:var(--text)}.combo-btn [data-lucide]{width:16px;height:16px}
+.sg-pop li.cur{font-weight:600}.sg-pop li.cur::after{content:"✓";float:right;color:var(--brand-700)}
+.sg-pop li.sg-none{cursor:default;color:var(--muted);font-size:13px}.sg-pop li.sg-none:hover{background:none}
+.ms-search{padding:8px 8px 0}.ms-search input{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;background:var(--card);color:var(--text)}
+.ms-o[hidden]{display:none}
