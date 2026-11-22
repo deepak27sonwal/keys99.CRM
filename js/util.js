@@ -11,8 +11,18 @@ function html(strings, ...vals) {
   });
   return raw(out);
 }
+// Swaps a page's markup. Horizontally scrolling chip rows (.tabs-pill on phones) keep their scroll position, and the chosen chip is brought fully
+// into view, so a click never makes the row jump back to the start with the chosen chip out of sight.
 function render(el, tpl) {
+  const keep = [...el.querySelectorAll(".tabs-pill")].map((r) => r.scrollLeft);
   el.innerHTML = tpl.__raw;
+  el.querySelectorAll(".tabs-pill").forEach((row, i) => {
+    if (row.scrollWidth <= row.clientWidth + 1) return;
+    row.scrollLeft = keep[i] || 0;
+    const a = row.querySelector(".pill.active"); if (!a) return;
+    const r = a.getBoundingClientRect(), b = row.getBoundingClientRect(), pad = 12;
+    if (r.left < b.left + pad) row.scrollLeft -= b.left + pad - r.left; else if (r.right > b.right - pad) row.scrollLeft += r.right - (b.right - pad);
+  });
   if (window.Dropdown) Dropdown.upgrade(el);
   if (window.lucide) lucide.createIcons();
 }
