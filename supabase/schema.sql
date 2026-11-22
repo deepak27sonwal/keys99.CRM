@@ -1118,3 +1118,65 @@ language sql stable security definer set search_path = '' as $f$
   where auth.uid() is not null and (select count(*) from m) > 0 $f$;
 revoke all on function public.phone_matches(text, text) from public, anon;
 grant execute on function public.phone_matches(text, text) to authenticated;
+
+-- ===== A repeat only stays with the earlier owner when that person is on the project's team (or the project has no team at all) =====
+-- the people assigned to a project: registered team members, or members whose own project list matches it
+create or replace function public.project_team(p_project text) returns table(member_id bigint) language plpgsql stable security definer set search_path = '' as $f$
+declare n text := public.norm_project(p_project); pid bigint;
+begin
+  if length(n) < 3 then return; end if;
+  pid := public.project_for_name(p_project);
+  return query
+    select m.id from public.team_members m
+    left join public.project_members pm on pm.member_id = m.id and pm.project_id = pid
+    where m.status = 'Active'
+      and (pm.project_id is not null
+           or exists (select 1 from unnest(m.projects) pr2 where length(public.norm_project(pr2)) >= 3 and (n like public.norm_project(pr2) || '%' or public.norm_project(pr2) like n || '%')));
+end $f$;
+revoke all on function public.project_team(text) from public, anon, authenticated;
+
+create or replace function public.repeat_owner(p_phone text, p_project text)
+returns table(name text, email text, from_lead bigint, from_project text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d)
+  select t.name, t.email, o.id, o.project
+  from k
+  cross join lateral (
+    select e.id, e.project, e.manager_name #>> '{}' as owner,
+           case when jsonb_typeof(e.manager_email) = 'string' then nullif(lower(trim(e.manager_email #>> '{}')), '') end as owner_email
+    from public.enquiries e
+    where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d
+      and jsonb_typeof(e.manager_name) = 'string' and nullif(trim(e.manager_name #>> '{}'), '') is not null
+      and public.same_project(e.project, p_project)
+    order by e.created_at desc limit 1) o
+  join public.team_members t on t.status = 'Active'
+    and (lower(trim(t.name)) = lower(trim(o.owner)) or (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email))
+  where not exists (select 1 from public.project_team(p_project))            -- the project has no team: keep the old behaviour
+     or t.id in (select pt.member_id from public.project_team(p_project) pt)   -- otherwise the earlier owner must be on its team
+  order by (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email) desc, (lower(trim(t.name)) = lower(trim(o.owner))) desc, t.id
+  limit 1 $f$;
+revoke all on function public.repeat_owner(text, text) from public, anon, authenticated;
+
+create or replace function public.keep_repeat_with_owner() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare o record; seen boolean;
+begin
+  if auth.uid() is not null then return new; end if;          -- someone adding a lead by hand decides the owner themselves
+  select * into o from public.repeat_owner(new.phone, new.project);
+  if o.name is null then
+    select exists (select 1 from public.enquiries e where length(right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10)) = 10
+      and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10)) into seen;
+    if seen then
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat check', 'type', 'doc', 'title', 'New enquiry',
+        'description', 'This number enquired before, but it is not a repeat for this project (another project, or the earlier owner is not on this project''s team), so it is treated as a new enquiry.'));
+    end if;
+    return new;
+  end if;
+  new.manager_name := to_jsonb(o.name);
+  new.manager_email := case when coalesce(o.email, '') = '' then null else to_jsonb(o.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat enquiry', 'type', 'doc', 'title', 'Repeat enquiry',
+    'description', 'This number enquired before about the same project (latest earlier lead L-' || o.from_lead || '), so the lead stays with ' || o.name));
+  return new;
+exception when others then
+  raise warning 'keep_repeat_with_owner failed: %', sqlerrm;
+  return new;
+end $f$;
