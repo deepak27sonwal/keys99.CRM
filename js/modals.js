@@ -248,17 +248,25 @@ function wireHolidayNote(root, name) {
   inp.addEventListener("change", check); inp.addEventListener("input", check); check();
 }
 // Warns while typing a mobile number that has enquired before (counts every enquiry, including other people's; no contact details are shown).
+// A repeat only counts for the same project: a number that enquired about other projects only is treated as a new enquiry.
 function wireDuplicateCheck(root) {
   const mob = root.querySelector('[name="mobile"]'); if (!mob || !mob.closest("label")) return;
+  const proj = root.querySelector('[name="project"]');
   const note = document.createElement("div"); note.className = "dup-note full"; note.setAttribute("role", "status"); note.hidden = true; mob.closest("label").after(note);
   let timer, last = "";
   const check = async () => {
-    const d = digits(mob.value).slice(-10); if (d.length < 10) { note.hidden = true; last = ""; return; } if (d === last) return; last = d;
-    try { const r = await Data.phoneMatches(mob.value); if (!r) { note.hidden = true; return; }
-      note.innerHTML = `<b>Already in the CRM:</b> this number has enquired ${esc(r.cnt)} time${r.cnt === 1 ? "" : "s"}, last on ${esc(fmtDay(r.last_at))}${r.owner ? ", with " + esc(r.owner) : ""}${r.project ? " for " + esc(r.project) : ""}. You can still add it.`; note.hidden = false;
+    const d = digits(mob.value).slice(-10), pj = proj ? proj.value.trim() : ""; if (d.length < 10) { note.hidden = true; last = ""; return; } const key = d + "|" + pj; if (key === last) return; last = key;
+    try { const r = await Data.phoneMatches(mob.value, pj); if (!r) { note.hidden = true; return; }
+      const same = pj ? Number(r.same_cnt) : Number(r.cnt), times = `${esc(r.cnt)} time${r.cnt === 1 ? "" : "s"}`, tail = `, last on ${esc(fmtDay(r.last_at))}${r.owner ? ", with " + esc(r.owner) : ""}${r.project ? " for " + esc(r.project) : ""}`;
+      note.innerHTML = pj && same === 0
+        ? `<b>Known number:</b> it has enquired ${times}${tail}, but never about ${esc(pj)}, so it counts as a <b>new enquiry</b> for this project. You can still add it.`
+        : pj && same < r.cnt ? `<b>Already in the CRM:</b> this number has enquired ${times} (${same} about ${esc(pj)})${tail}. You can still add it.`
+        : `<b>Already in the CRM:</b> this number has enquired ${times}${tail}. You can still add it.`;
+      note.hidden = false;
     } catch { note.hidden = true; }
   };
-  mob.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(check, 350); }); mob.addEventListener("blur", check);
+  const later = () => { clearTimeout(timer); timer = setTimeout(check, 350); };
+  mob.addEventListener("input", later); mob.addEventListener("blur", check); if (proj) { proj.addEventListener("input", later); proj.addEventListener("change", check); proj.addEventListener("blur", check); }
 }
 async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.

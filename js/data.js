@@ -235,7 +235,10 @@ const Data = {
     if (error || !data || !data.length) return null;
     const hit = data.find((r) => digits(r.phone).slice(-10) === d); return hit ? this.fromRow(hit) : null;
   },
-  async phoneMatches(phone) { const { data, error } = await this.client.rpc("phone_matches", { p_phone: phone }); if (error) throw error; return (data && data[0]) || null; },
+  async phoneMatches(phone, project) {
+    const args = project && String(project).trim() ? { p_phone: phone, p_project: String(project).trim() } : { p_phone: phone };
+    const { data, error } = await this.client.rpc("phone_matches", args); if (error) throw error; return (data && data[0]) || null;
+  },
   async getTemplates() { const { data, error } = await this.client.from("message_templates").select("*").order("id").limit(200); if (error) return []; return data || []; },
   async saveTemplate(id, t) {
     const row = { title: String(t.title || "").trim(), body: String(t.body || "").trim() }; if (!row.title || !row.body) throw new Error("Title and message are required");
