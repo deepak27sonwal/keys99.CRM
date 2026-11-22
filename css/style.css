@@ -1561,3 +1561,8 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 .hr-t td{vertical-align:middle}.hr-on{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:600}.hr-on i{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.2)}
 .tm-hours .tiles4{margin-top:4px}
 @media(max-width:900px){.hr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.hr-k:last-child{grid-column:1/-1}.hr-akpis{grid-template-columns:repeat(2,minmax(0,1fr))}.g-hours{grid-template-columns:1fr}.hr-filters .select{min-width:0;width:100%}.hr-filters label{flex:1 1 140px}.hr-chart{height:210px}}
+
+/* Assignee on site visit cards */
+.vc-who{color:var(--t-475569)}.vc-who b{font-weight:600;color:var(--text)}.vc-who.none,.vc-who.none b{color:var(--muted);font-weight:400}
+.vc-who [data-lucide]{width:14px;height:14px}
+.up-list .vc-who{display:flex;align-items:center;gap:5px;margin-top:2px}

@@ -34,9 +34,10 @@
   const kebab = (id) => html`<button class="icon-btn kebab" data-menu="${id}" aria-label="More actions"><i data-lucide="more-vertical"></i></button>`;
 
   function visitCard(v) {
-    return html`<div class="vcard vs-${v.status} ${state.selId === v.id ? "sel" : ""}" data-vid="${v.id}" tabindex="0" role="button" aria-label="${v.name}, ${range2(v)}">
+    return html`<div class="vcard vs-${v.status} ${state.selId === v.id ? "sel" : ""}" data-vid="${v.id}" tabindex="0" role="button" aria-label="${v.name}, ${range2(v)}, assigned to ${v.agent}">
       <div class="vc-main"><div class="vc-time">${range2(v)}</div><div class="vc-name">${avatar(v.name, 30)}<b>${v.name}</b></div>
-        <div class="vc-line"><i data-lucide="phone"></i>${v.mobile || "—"}</div><div class="vc-line"><i data-lucide="building-2"></i>${place(v)}</div></div>
+        <div class="vc-line"><i data-lucide="phone"></i>${v.mobile || "—"}</div><div class="vc-line"><i data-lucide="building-2"></i>${place(v)}</div>
+        <div class="vc-line vc-who ${v.agent === "Unassigned" ? "none" : ""}" title="Assigned to ${v.agent}"><i data-lucide="user-check"></i>${v.agent}</div></div>
       <div class="vc-side"><span class="badge b-${v.status}">${v.status}</span>${kebab(v.id)}</div></div>`;
   }
 
@@ -86,7 +87,7 @@
     const locked = v.status === "Cancelled";
     return html`<section class="card p sv-det">
       <div class="ch"><i data-lucide="map-pin"></i><h3>Site Visit Details</h3><div class="row" style="margin-left:auto"><a class="btn sm" href="site-visit.html?id=${v.id}"><i data-lucide="expand"></i>Full page</a><button class="btn sm" id="editVisit"><i data-lucide="pencil"></i>Edit</button>${kebab(v.id)}</div></div>
-      <div class="det-top"><div class="thumb big">${buildingSvg()}</div><div><h4>${v.project}</h4><div class="vc-line"><i data-lucide="map-pin"></i>${v.place || "—"}</div><div class="vc-line"><i data-lucide="calendar"></i>${fmtLongDay(v.start)}</div><div class="vc-line"><i data-lucide="clock"></i>${range2(v)}</div><span class="badge b-${v.status}">${v.status}</span></div></div>
+      <div class="det-top"><div class="thumb big">${buildingSvg()}</div><div><h4>${v.project}</h4><div class="vc-line"><i data-lucide="map-pin"></i>${v.place || "—"}</div><div class="vc-line"><i data-lucide="calendar"></i>${fmtLongDay(v.start)}</div><div class="vc-line"><i data-lucide="clock"></i>${range2(v)}</div><div class="vc-line vc-who ${v.agent === "Unassigned" ? "none" : ""}"><i data-lucide="user-check"></i>Assigned to <b>${v.agent}</b></div><span class="badge b-${v.status}">${v.status}</span></div></div>
       <div class="sub-card"><div class="ch"><i data-lucide="user"></i><h3>Customer Information</h3></div><div class="cust">${avatar(v.name, 52)}<div class="cust-i"><a href="customer.html?id=${encodeURIComponent(l.id || "")}"><b>${v.name}</b></a>
         <div class="vc-line"><i data-lucide="phone"></i><a href="${telHref(v.mobile)}" data-lead="${v.raw.enquiry_id}">${v.mobile || "—"}</a>${v.mobile ? html`<a href="${waHref(v.mobile)}" data-lead="${v.raw.enquiry_id}" target="_blank" rel="noopener" aria-label="WhatsApp"><i data-lucide="message-circle" class="wa-t"></i></a>` : raw("")}</div>
         ${l.email ? html`<div class="vc-line"><i data-lucide="mail"></i>${l.email}</div>` : raw("")}</div><div class="cust-s"><span class="idchip"><small>Lead ID</small>${l.id || "—"}</span>${l.status ? badge(l.status) : raw("")}</div></div></div>
@@ -108,7 +109,7 @@
   function upcomingCard() {
     const up = V.filter((v) => v.start > now() && OPEN.includes(v.status)).slice(0, 4);
     return html`<section class="card p sv-up"><div class="ch"><i data-lucide="calendar-clock"></i><h3>Upcoming Site Visits</h3><button class="more" id="viewAll" style="background:none;border:0;cursor:pointer">View All<i data-lucide="arrow-right"></i></button></div>
-      ${up.length ? html`<ul class="up-list">${up.map((v) => html`<li class="vs-${v.status}" data-vid="${v.id}" tabindex="0"><i data-lucide="clock"></i><div class="grow"><b>${fmtLongDay(v.start)} · ${fmtTime(v.start)}</b><small>${v.name} | ${place(v)}</small></div><span class="badge b-${v.status}">${v.status}</span></li>`)}</ul>` : html`<div class="empty-sm">No upcoming site visits.</div>`}</section>`;
+      ${up.length ? html`<ul class="up-list">${up.map((v) => html`<li class="vs-${v.status}" data-vid="${v.id}" tabindex="0"><i data-lucide="clock"></i><div class="grow"><b>${fmtLongDay(v.start)} · ${fmtTime(v.start)}</b><small>${v.name} | ${place(v)}</small><small class="vc-who ${v.agent === "Unassigned" ? "none" : ""}"><i data-lucide="user-check"></i>${v.agent}</small></div><span class="badge b-${v.status}">${v.status}</span></li>`)}</ul>` : html`<div class="empty-sm">No upcoming site visits.</div>`}</section>`;
   }
 
   // ---------- page ----------
