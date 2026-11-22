@@ -134,6 +134,10 @@ async function copyText(text, okMsg = "Copied") {
 function fmtWait(min) { return min < 60 ? Math.floor(min) + " min" : min < 1440 ? Math.floor(min / 60) + " h" : Math.floor(min / 1440) + " d"; }
 // ---- shared date ranges for the filters on every page (local midnight to midnight; "to" is exclusive) ----
 const RANGE_LABELS = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 3 months", month: "This month", lastmonth: "Last month" };
+// A user-chosen "From - To" period (both dates included). Pages set it with setCustomRange() and then use the key "custom".
+let CUSTOM_RANGE = null;
+const setCustomRange = (from, to) => { CUSTOM_RANGE = { from, to }; };
+const parseYmd = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); if (!m) return null; const d = new Date(+m[1], +m[2] - 1, +m[3]); return d.getMonth() === +m[2] - 1 ? d : null; };
 function rangeBounds(key, now = new Date()) {
   const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate()), day = (n) => new Date(sod.getFullYear(), sod.getMonth(), sod.getDate() + n);
   switch (key) {
@@ -144,6 +148,7 @@ function rangeBounds(key, now = new Date()) {
     case "90d": return { from: day(-89), to: day(1) };
     case "month": return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
     case "lastmonth": return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 1) };
+    case "custom": { const a = CUSTOM_RANGE && parseYmd(CUSTOM_RANGE.from), z = CUSTOM_RANGE && parseYmd(CUSTOM_RANGE.to); if (!a || !z || a > z) return { from: null, to: null }; return { from: a, to: new Date(z.getFullYear(), z.getMonth(), z.getDate() + 1) }; }
     default: return { from: null, to: null };                                   // "all" (or an unknown value): no limit
   }
 }
