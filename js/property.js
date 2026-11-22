@@ -156,14 +156,18 @@ async function mountPropertyPage(kind) {
     const r = (e && e.reg) || {}, seed = !e ? {} : e.reg ? {} : { name: e.name };
     const v = (k) => r[k] || seed[k] || "";
     const devNames = [...new Set([...state.regDev.map((d) => d.name), ...state.regProj.map((x) => x.developer), ...state.leads.map((l) => String(l.developer || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const body = isProj
-      ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${field("Developer", "developer", v("developer") || (e && e.devs[0]) || "", "text", 'placeholder="Start typing a developer name" autocomplete="off"')}
-          ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${locPicker(ms, { city: v("city"), locality: v("location") || (e && e.locs[0]) || "", cityName: "city", locName: "location", locLabel: "Location / area", fallback: html`${field("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${field("City", "city", v("city"))}` })}
-          ${configPicker({ type: r.property_type || "", value: v("configurations"), name: "configurations", typeLabel: "Type", label: "Configurations" })}
-          ${field("Price range", "price_range", v("price_range"), "text", 'placeholder="₹ 70L – 1.2Cr"')}${field("Possession", "possession", v("possession"), "text", 'placeholder="Dec 2027"')}${field("RERA no.", "rera_no", v("rera_no"), "text", "", "full")}
+    const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+    const priceNames = uniq(state.regProj.map((x) => x.price_range)), possNames = uniq(state.regProj.map((x) => x.possession)), contactNames = uniq(state.regDev.map((x) => x.contact_person));
+    const cityNames = uniq([...state.regProj.map((x) => x.city), ...state.regDev.map((x) => x.city), ...state.leads.map((l) => String(l.location || "").split(",").pop())]), areaNames = uniq([...state.regProj.map((x) => x.location), ...aggregate().flatMap((x) => x.locs || [])]);
+    const body0 = isProj
+      ? html`<div class="form">${field("Project name *", "name", v("name"), "text", "required", "full")}${comboField("Developer", "developer", v("developer") || (e && e.devs[0]) || "", { placeholder: "Pick a developer or type a new one" })}
+          ${selectField("Status", "status", ["Upcoming", "New Launch", "Under Construction", "Ready to Move"], r.status || "New Launch")}${locPicker(ms, { city: v("city"), locality: v("location") || (e && e.locs[0]) || "", cityName: "city", locName: "location", locLabel: "Location / area", fallback: html`${comboField("Location / area", "location", v("location") || (e && e.locs[0]) || "")}${comboField("City", "city", v("city"))}` })}
+          ${configPicker({ type: r.property_type || "", value: v("configurations"), name: "configurations", typeLabel: "Type", label: "Configurations", search: true })}
+          ${comboField("Price range", "price_range", v("price_range"), { placeholder: "₹ 70L – 1.2Cr" })}${comboField("Possession", "possession", v("possession"), { placeholder: "Dec 2027" })}${field("RERA no.", "rera_no", v("rera_no"), "text", "", "full")}
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`
-      : html`<div class="form">${field("Developer name *", "name", v("name"), "text", "required", "full")}${field("Contact person", "contact_person", v("contact_person"))}${field("Phone", "phone", v("phone"), "tel")}${field("Email", "email", v("email"), "email")}${field("Website", "website", v("website"))}${masterSelect("City", "city", ms.cities.map((x) => x.name), v("city"))}
+      : html`<div class="form">${field("Developer name *", "name", v("name"), "text", "required", "full")}${comboField("Contact person", "contact_person", v("contact_person"))}${field("Phone", "phone", v("phone"), "tel")}${field("Email", "email", v("email"), "email")}${field("Website", "website", v("website"))}${masterSelect("City", "city", ms.cities.map((x) => x.name), v("city"))}
           <label class="full">Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label></div>`;
+    const body = { ...body0, __raw: body0.__raw.replace(/<select /g, "<select data-search ") };   // every list on these forms gets a search box, however short
     openModal((e && e.reg ? "Edit " : "Add ") + NOUN.toLowerCase(), body, async (f) => {
       const row = { ...f }; delete row.id;
       // leads link to a project / developer by name, so two registered ones may not share a name
@@ -177,7 +181,9 @@ async function mountPropertyPage(kind) {
       toast(NOUN + (e && e.reg ? " updated" : " saved")); state.open = norm(f.name); await refresh();
     }, e && e.reg ? "Save" : "Add " + NOUN);
     const modal = document.querySelector(".overlay.open .modal") || document;
-    wireLocations(modal, ms, "city", "location"); if (isProj) { wireConfigs(modal); const dev = modal.querySelector('[name="developer"]'); if (dev) attachSuggest(dev, () => devNames); }   // developer names suggest as you type
+    wireLocations(modal, ms, "city", "location"); if (isProj) { wireConfigs(modal); wireCombo(modal, "developer", () => devNames); wireCombo(modal, "price_range", () => priceNames); wireCombo(modal, "possession", () => possNames); }
+    else wireCombo(modal, "contact_person", () => contactNames);
+    wireCombo(modal, "city", () => cityNames); wireCombo(modal, "location", () => areaNames);       // only present when the master City / Location lists are empty (free-text fallback)
   }
 
   function draw() {
@@ -185,7 +191,7 @@ async function mountPropertyPage(kind) {
     const all = aggregate(), list = visible(all), opts = (k) => [...new Set(all.flatMap((e) => (k === "developer" ? e.devs : e.locs)))].sort();
     const L = all.flatMap((e) => e.leads), booked = all.reduce((t, e) => t + e.booked, 0), comm = all.reduce((t, e) => t + e.comm, 0), visits = all.reduce((t, e) => t + e.visits.length, 0);
     const kpis = [[isProj ? "Projects" : "Developers", all.length.toLocaleString("en-IN"), "", isProj ? "landmark" : "building-2", 1], ["Total Leads", L.length.toLocaleString("en-IN"), "", "users"], ["Site Visits", visits, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Commission", fmtMoney(comm), "", "coins", 0, 1], ["Conversion", pct(booked, L.length) + "%", "", "trending-up"]];
-    const sel = (key, label, vals) => html`<select class="select" data-f="${key}"><option value="">${label}: All</option>${vals.map((v) => html`<option ${state.f[key] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
+    const sel = (key, label, vals) => html`<select class="select" data-search data-f="${key}"><option value="">${label}: All</option>${vals.map((v) => html`<option ${state.f[key] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
     render(page, html`
       <div class="page-head"><div><h1>${isProj ? "Projects" : "Developers"}</h1><p class="sub">${isProj ? "How every project is performing: leads, site visits, bookings and commission." : "Your developers at a glance: their projects, leads, bookings and commission."}</p></div>
         <div class="btns"><button class="btn gold" id="ppReg"><i data-lucide="plus"></i>Add ${NOUN}</button><button class="btn outline" id="ppNew"><i data-lucide="user-plus"></i>Add Lead</button></div></div>
