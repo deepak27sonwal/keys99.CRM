@@ -67,10 +67,11 @@
     if (chart) { chart.destroy(); chart = null; }
     const keepLeft = (page.querySelector(".kb") || {}).scrollLeft || 0, keepTop = {}; page.querySelectorAll(".kb-body").forEach((b) => (keepTop[b.dataset.drop] = b.scrollTop));
     const L = scoped(), counts = {}; L.forEach((l) => (counts[l.status] = (counts[l.status] || 0) + 1));
-    const ids = new Set(L.filter((l) => l.status !== "Booking Cancelled").map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
-    const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), comm = state.bookings.filter((b) => ids.has(b.enquiry_id)).reduce((t, b) => t + Number(b.commission_amount || 0), 0);
+    const bkDates = bookDatesOf(state.bookings), bookedL = pool().filter((l) => { const d = bookedAt(l, bkDates); return d && inRangeTs(d, state.range); });   // booked = moved to Booking Done / Post Sale inside the period
+    const ids = new Set(bookedL.map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
+    const booked = bookedL.length, comm = state.bookings.filter((b) => ids.has(b.enquiry_id)).reduce((t, b) => t + Number(b.commission_amount || 0), 0);
     const kpis = [["Total Leads", L.length.toLocaleString("en-IN"), "", "users", 1], ["Active in Pipeline", active, "", "filter"], ["In Negotiation", counts["On Negotiations"] || 0, "", "handshake"],
-      ["Booking Done", booked, "", "calendar-check"], ["Estimated Commission", fmtMoney(comm), "", "check-circle-2", 0, 1], ["Conversion Rate", pct(booked, L.length) + "%", "", "trophy"]];
+      ["Booking Done", booked, "", "calendar-check"], ["Estimated Commission", fmtMoney(comm), "", "check-circle-2", 0, 1], ["Conversion Rate", Math.min(100, pct(booked, L.length)) + "%", "", "trophy"]];
     const types = [...new Set(state.leads.map((l) => l.propertyType).filter(Boolean))].sort();
     const projMap = new Map(); L.forEach((l) => { if (!l.project) return; const p = projMap.get(l.project) || { t: 0, b: 0 }; p.t++; if (BOOKED.includes(l.status)) p.b++; projMap.set(l.project, p); });
     const tops = [...projMap].map(([n, p]) => [n, pct(p.b, p.t), p.t]).sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 5), topMax = Math.max(1, ...tops.map((t) => t[1]));
@@ -100,13 +101,13 @@
   function drawChart() {
     const cv = page.querySelector("#pchart"); if (!cv || !window.Chart) return;
     const now = new Date(), months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)), mk = (d) => d.getFullYear() + "-" + d.getMonth();
-    // One cohort per month: the leads CREATED that month, and how many of those have booked (so the rate can never pass 100%).
-    const lm = new Map(), bm = new Map(), P = pool(), withBooking = new Set(state.bookings.map((x) => x.enquiry_id));
-    P.forEach((l) => { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); if (BOOKED.includes(l.status) || withBooking.has(l.dbId)) bm.set(k, (bm.get(k) || 0) + 1); });
+    // Leads are plotted in the month they were CREATED; bookings in the month the lead was moved to Booking Done / Post Sale (so a booking today moves this month's bar).
+    const lm = new Map(), bm = new Map(), P = pool(), bkDates = bookDatesOf(state.bookings);
+    P.forEach((l) => { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); const bd = bookedAt(l, bkDates); if (bd) { const bk = mk(bd); bm.set(bk, (bm.get(bk) || 0) + 1); } });
     const ls = months.map((d) => lm.get(mk(d)) || 0), bs = months.map((d) => bm.get(mk(d)) || 0), grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
     chart = new Chart(cv, { data: { labels: months.map((d) => d.toLocaleString("en-US", { month: "short" })), datasets: [
-      { type: "bar", label: "Leads created", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Booked (of that month's leads)", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
-      { type: "line", label: "Conversion Rate (%)", data: months.map((d, i) => pct(bs[i], ls[i])), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
+      { type: "bar", label: "Leads created", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Bookings (Booking Done / Post Sale)", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
+      { type: "line", label: "Conversion Rate (%)", data: months.map((d, i) => Math.min(100, pct(bs[i], ls[i]))), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false }, ticks }, y: { beginAtZero: true, grid, ticks: { ...ticks, precision: 0 } }, y1: { position: "right", beginAtZero: true, grid: { display: false }, ticks } } } });
   }
 

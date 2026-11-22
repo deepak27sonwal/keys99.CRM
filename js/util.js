@@ -143,6 +143,20 @@ function rangePrev(key, now = new Date()) {
   if (key === "month" || key === "lastmonth") { const m = key === "month" ? now.getMonth() - 1 : now.getMonth() - 2; return { from: new Date(now.getFullYear(), m, 1), to: new Date(now.getFullYear(), m + 1, 1) }; }
   const len = b.to - b.from; return { from: new Date(b.from.getTime() - len), to: b.from };
 }
+// When a lead entered Booking Done / Post Sale (null when it is not in one of them now). Uses the stage history ("Stage changed" entries);
+// a lead moved there before that history existed falls back to its booking record date, then to its created date.
+// `bookDates` = Map(enquiry_id -> earliest booking_date "YYYY-MM-DD") from the bookings table (optional).
+function bookedAt(lead, bookDates) {
+  if (!lead || !BOOKED.includes(lead.status)) return null;
+  let since = null;
+  (lead.acts || []).filter((a) => a && a.type === "stage" && a.at).sort((a, b) => new Date(a.at) - new Date(b.at)).forEach((a) => {
+    if (BOOKED.includes(a.to)) { if (!BOOKED.includes(a.from)) since = a.at; } else since = null;
+  });
+  if (since) return new Date(since);
+  const rec = bookDates && bookDates.get(lead.dbId);
+  return rec ? new Date(rec + "T00:00:00") : new Date(lead.createdAt);
+}
+const bookDatesOf = (bookings) => { const m = new Map(); (bookings || []).forEach((b) => { if (!b.booking_date) return; const cur = m.get(b.enquiry_id); if (!cur || b.booking_date < cur) m.set(b.enquiry_id, b.booking_date); }); return m; };
 const inRangeTs = (ts, key, now = new Date()) => { const b = rangeBounds(key, now); if (!b.from) return true; const d = new Date(ts); return d >= b.from && d < b.to; };
 // the same project? (mirrors the database rule): a missing project can't be "another project"; otherwise equal names or one name starting with the other
 const normProj = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
