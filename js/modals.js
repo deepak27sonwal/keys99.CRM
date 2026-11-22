@@ -230,16 +230,24 @@ const joinLocation = (f) => [f.locality, f.city].filter(Boolean).join(", ");
 
 async function openAddLead(done, preset = {}) {
   const m = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] }));
+  const props = await Data.getPropertyNames().catch(() => ({ projects: [], developers: [] }));
   openModal("Add Lead", html`<div class="form">
     ${field("Name *", "name", "", "text", "required")}${field("Mobile * (10 digits)", "mobile", "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
     ${field("Email", "email", "", "email")}${field("Requirement", "requirement", "", "text", 'placeholder="Buy • 2 BHK"')}
     ${field("Budget", "budget", "", "text", 'placeholder="₹ 70L – 1.2Cr"')}${configPicker()}
-    ${field("Project", "project", preset.project || "")}
-    ${field("Developer", "developer", preset.developer || "")}${locPicker(m, { fallback: field("Location", "location") })}
+    ${comboField("Project", "project", preset.project || "", { placeholder: "Pick a project or type a new one" })}
+    ${comboField("Developer", "developer", preset.developer || "", { placeholder: "Pick a developer or type a new one" })}${locPicker(m, { fallback: field("Location", "location") })}
     ${selectField("Source", "source", ["Website", "Meta Ads", "Google Ads", "Referral", "WhatsApp", "Walk-in", "Others"])}
     ${selectField("Status", "status", STATUSES, preset.status || "")}</div>`,
     async (f) => { if ("city" in f) f.location = joinLocation(f); if (!f.requirement && (f.property_type || f.bhk)) f.requirement = [f.property_type, f.bhk].filter(Boolean).join(" · "); await Data.addLead(f); toast("Lead added"); done && done(); });
   const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m); wireDuplicateCheck(mod);
+  // registered projects / developers as searchable pick lists; choosing a registered project fills in its developer (unless one was typed)
+  const pj = mod.querySelector('input[name="project"]'), dv = mod.querySelector('input[name="developer"]'), kk = (s) => String(s || "").trim().toLowerCase(); let autoDev = !dv || !dv.value;
+  wireCombo(mod, "project", () => props.projects.map((p) => p.name)); wireCombo(mod, "developer", () => props.developers);
+  if (pj && dv) {
+    dv.addEventListener("input", () => { autoDev = !dv.value.trim(); });
+    pj.addEventListener("change", () => { const hit = props.projects.find((p) => kk(p.name) === kk(pj.value)); if (hit && hit.developer && (autoDev || !dv.value.trim())) { dv.value = hit.developer; autoDev = true; dv.dispatchEvent(new Event("change", { bubbles: true })); } });
+  }
 }
 // Transfer one or many leads to another team member. Admins can pick anyone; employees can pick other employees that have a login (the database decides).
 async function openTransfer(leads, done) {
