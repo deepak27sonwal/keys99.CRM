@@ -52,10 +52,11 @@
   // Funnel: each stage shows how many leads have reached it (that stage or any later one), so it only ever narrows.
   // Spam is outside the funnel. "here" = leads currently sitting in the stage.
   function buildFunnel(L) {
-    const live = L.filter((l) => l.status !== "Spam"), at = (l) => PIPELINE.indexOf(l.status);
+    const live = L.filter((l) => !FUNNEL_OUT.includes(l.status)), at = (l) => PIPELINE.indexOf(l.status);
     const reached = PIPELINE.map((_, i) => live.filter((l) => at(l) >= i).length);
     const here = PIPELINE.map((st) => L.filter((l) => l.status === st).length);
-    return { reached, here, spam: L.length - live.length, total: live.length };
+    const cancelled = L.filter((l) => l.status === "Booking Cancelled").length;
+    return { reached, here, spam: L.length - live.length - cancelled, cancelled, total: live.length };
   }
   function funnelView(f) {
     if (!f.total) return html`<div class="empty-sm">${f.spam ? "No leads in the pipeline for this period. " + f.spam + " marked Spam." : "No leads in this period."}</div>`;
@@ -69,7 +70,7 @@
     };
     const conv = ((f.reached[n - 2] / f.total) * 100).toFixed(1).replace(/\.0$/, "");   // reached Booking Done or later
     return html`<svg class="f-svg" viewBox="0 0 ${W} ${n * (H + GAP) - GAP}" role="img" aria-label="Sales pipeline funnel: ${PIPELINE.map((st, i) => st + " " + f.reached[i]).join(", ")}">${PIPELINE.map(seg)}</svg>
-      <div class="f-foot"><span>Reached Booking Done: <b>${conv}%</b></span><span>Spam (not in funnel): <b>${f.spam}</b></span></div>`;
+      <div class="f-foot"><span>Reached Booking Done: <b>${conv}%</b></span><span>Booking cancelled: <b>${f.cancelled}</b></span><span>Spam (not in funnel): <b>${f.spam}</b></span></div>`;
   }
 
   function draw() {

@@ -595,7 +595,7 @@ table{width:100%;border-collapse:collapse}
 
 /* ---------- stage colours: the single source of truth (sales funnel, badges, card accents, tabs) ---------- */
 .s-New-Leads{--stage:#2563eb}.s-Contacted{--stage:#b45309}.s-Spam{--stage:#b91c1c}.s-Interested{--stage:#7c3aed}.s-Visit-Scheduled{--stage:#4d7c0f}
-.s-Visit-Done{--stage:#0f766e}.s-On-Negotiations{--stage:#4f46e5}.s-Token-Done{--stage:#c2410c}.s-Booking-Done{--stage:#047857}.s-Post-Sale{--stage:#0369a1}
+.s-Visit-Done{--stage:#0f766e}.s-VC-Done{--stage:#0e7490}.s-Booking-Cancelled{--stage:#be123c}.s-On-Negotiations{--stage:#4f46e5}.s-Token-Done{--stage:#c2410c}.s-Booking-Done{--stage:#047857}.s-Post-Sale{--stage:#0369a1}
 .badge[class*=" s-"]{background:var(--stage);color:#fff}
 .f-seg polygon{fill:var(--stage)}
 .pill.has-stage::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--stage);margin-right:7px;vertical-align:1px}

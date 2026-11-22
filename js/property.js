@@ -62,7 +62,7 @@ async function mountPropertyPage(kind) {
     state.bookings.forEach((b) => { if (!inRangeIds.has(b.enquiry_id)) return; const g = groupFor(isProj ? b.project : b.developer || devOfProject.get(norm(b.project)), b.enquiry_id); if (g) (bOf.get(g) || bOf.set(g, []).get(g)).push(b); });
     return [...groups.values()].map((g) => {
       const visits = vOf.get(g) || [], bookings = bOf.get(g) || [], stage = {}; g.leads.forEach((l) => (stage[l.status] = (stage[l.status] || 0) + 1));
-      const bookedIds = new Set(bookings.map((b) => b.enquiry_id)), booked = g.leads.filter((l) => BOOKED.includes(l.status) || bookedIds.has(l.dbId)).length;
+      const bookedIds = new Set(bookings.map((b) => b.enquiry_id)), booked = g.leads.filter((l) => l.status !== "Booking Cancelled" && (BOOKED.includes(l.status) || bookedIds.has(l.dbId))).length;
       const reg = g.reg || null, extra = reg ? [isProj ? reg.developer : "", reg.city, reg.location].filter(Boolean) : [];
       return { ...g, reg, name: reg ? reg.name : top(g.names)[0][0], stage, visits, bookings, booked, conv: pct(booked, g.leads.length), active: g.leads.filter((l) => !CLOSED.includes(l.status)).length,
         value: bookings.reduce((t, b) => t + Number(b.booking_value || 0), 0), comm: bookings.reduce((t, b) => t + Number(b.commission_amount || 0), 0),
