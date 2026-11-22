@@ -379,6 +379,16 @@ const Data = {
   // ---- registered developers and projects (the Property pages); leads still point to them by name
   async getDevelopers() { return this.fetchAll("developers"); },
   async getProjects() { return this.fetchAll("projects"); },
+  // Registered project and developer names for pick lists (cached for 5 minutes; a failed read just gives empty lists so the fields stay free text).
+  async getPropertyNames() {
+    if (this._props && Date.now() - this._props.at < 300000) return this._props;
+    let projects = [], developers = [];
+    try { const [p, dv] = await Promise.all([this.getProjects(), this.getDevelopers()]); projects = p.filter((x) => x.name).map((x) => ({ name: x.name, developer: x.developer || "" })); developers = dv.map((x) => x.name).filter(Boolean); }
+    catch { /* free-text fallback */ }
+    const uniq = (a) => [...new Set(a)].sort((x, y) => x.localeCompare(y));
+    this._props = { at: Date.now(), projects: projects.sort((a, b) => a.name.localeCompare(b.name)), developers: uniq([...developers, ...projects.map((p) => p.developer).filter(Boolean)]) };
+    return this._props;
+  },
   async saveProperty(table, id, row) {
     const clean = {}; Object.entries(row).forEach(([k, v]) => (clean[k] = typeof v === "string" ? (v.trim() || null) : v));
     if (!clean.name) throw new Error("Name is required");
