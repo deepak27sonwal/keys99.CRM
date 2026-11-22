@@ -1,5 +1,5 @@
 // Shared by the leads list (history button) and the customer profile: one lead's activity, newest first.
-const IC = { call: ["#16a34a", "phone"], visit: ["#3b82f6", "calendar-check"], doc: ["#e8a91f", "file-text"], new: ["#94a3b8", "plus"], deal: ["#0f7a6b", "handshake"] };
+const IC = { call: ["#16a34a", "phone"], visit: ["#3b82f6", "calendar-check"], doc: ["#e8a91f", "file-text"], new: ["#94a3b8", "plus"], deal: ["#0f7a6b", "handshake"], stage: ["#7c3aed", "arrow-right-left"] };
 function buildTimeline(cust) {
   const t = [];
   cust.related.forEach((r, i) => {
