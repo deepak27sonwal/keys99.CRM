@@ -24,13 +24,14 @@
   const sum = (a, f) => a.reduce((t, x) => t + (Number(f(x)) || 0), 0);
   const group = (arr, keyFn) => { const m = new Map(); arr.forEach((x) => { const k = keyFn(x); (m.get(k) || m.set(k, []).get(k)).push(x); }); return m; };
 
+  const bkDates = bookDatesOf(bookings);   // booked = leads now in Booking Done / Post Sale, dated when they were moved there
   function stats(b) {
-    const L = leads.filter((l) => inR(l.createdAt, b)), V = visits.filter((v) => inR(v.visit_at, b)), B = bookings.filter((x) => inR(bkDate(x), b));
-    return { L, V, B, total: L.length, fresh: L.filter((l) => l.status === "New Leads").length, qualified: L.filter((l) => l.status === "Interested").length,
+    const L = leads.filter((l) => inR(l.createdAt, b)), V = visits.filter((v) => inR(v.visit_at, b)), B = bookings.filter((x) => inR(bkDate(x), b)), BK = leads.filter((l) => { const d = bookedAt(l, bkDates); return d && inR(d, b); });
+    return { L, V, B, BK, total: L.length, fresh: L.filter((l) => l.status === "New Leads").length, qualified: L.filter((l) => l.status === "Interested").length,
       due: sum(B.filter((x) => x.commission_status === "Pending"), (x) => x.commission_amount), recv: sum(B.filter((x) => x.commission_status === "Received"), (x) => x.commission_amount) };
   }
 
-  function trendBuckets(b, L, B) {
+  function trendBuckets(b, L, BK) {
     const first = L.length ? new Date(Math.min(...L.map((l) => +new Date(l.createdAt)))) : new Date();
     const start = b.start || startOfDay(first), end = b.end || new Date(), span = (end - start) / 86400000;
     const unit = span <= 31 ? "day" : span <= 200 ? "week" : "month";
@@ -45,7 +46,7 @@
     const lab = (k) => (unit === "month" ? new Date(k + "-01T00:00:00").toLocaleString("en-US", { month: "short", year: "2-digit" }) : new Date(k + "T00:00:00").toLocaleString("en-US", { month: "short", day: "numeric" }));
     const n = new Map(keys.map((k) => [k, 0])), c = new Map(keys.map((k) => [k, 0]));
     L.forEach((l) => { const k = key(l.createdAt); if (n.has(k)) n.set(k, n.get(k) + 1); });
-    B.forEach((x) => { const k = key(bkDate(x)); if (c.has(k)) c.set(k, c.get(k) + 1); });
+    BK.forEach((l) => { const k = key(bookedAt(l, bkDates)); if (c.has(k)) c.set(k, c.get(k) + 1); });
     return { labels: keys.map(lab), leads: keys.map((k) => n.get(k)), conv: keys.map((k) => c.get(k)) };
   }
 
@@ -82,7 +83,7 @@
       ["New Leads", cur.fresh.toLocaleString("en-IN"), d(cur.fresh, prev && prev.fresh), "user-plus"],
       ["Interested Leads", cur.qualified.toLocaleString("en-IN"), d(cur.qualified, prev && prev.qualified), "clipboard-check"],
       ["Site Visits", cur.V.length, d(cur.V.length, prev && prev.V.length), "calendar-check"],
-      ["Bookings", cur.B.length, d(cur.B.length, prev && prev.B.length), "handshake"],
+      ["Bookings", cur.BK.length, d(cur.BK.length, prev && prev.BK.length), "handshake"],
       ["Brokerage (Due)", fmtMoney(cur.due), d(cur.due, prev && prev.due), "coins"],
       ["Brokerage (Received)", fmtMoney(cur.recv), d(cur.recv, prev && prev.recv), "coins", 0, 1],
     ];
@@ -114,7 +115,7 @@
     const medal = ["#f3c04c", "#cbd5e1", "#fb923c"];
     const monthsBack = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1));
     const comm = monthsBack.map((m) => sum(bookings.filter((x) => x.commission_status === "Received" && (() => { const dt = new Date((x.received_on || x.booking_date) + "T00:00:00"); return dt.getFullYear() === m.getFullYear() && dt.getMonth() === m.getMonth(); })()), (x) => x.commission_amount) / 1e5);
-    const tb = trendBuckets(bd.cur, cur.L, cur.B);
+    const tb = trendBuckets(bd.cur, cur.L, cur.BK);
     const hour = now.getHours(), greet = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
     const more = (href = "leads.html") => html`<a class="more" href="${href}">View All<i data-lucide="arrow-right"></i></a>`;
 
@@ -139,7 +140,7 @@
       </div>
       <div class="grid g-3">
         <section class="card p"><div class="ch"><i data-lucide="wallet"></i><h3>Bookings &amp; Commission</h3></div>
-          <div class="bc"><div><div class="box">Total Bookings<b>${cur.B.length}</b></div><div class="box">Commission Due<b>${fmtMoney(cur.due)}</b></div><div class="box">Commission Received<b>${fmtMoney(cur.recv)}</b></div></div>
+          <div class="bc"><div><div class="box">Total Bookings<b>${cur.BK.length}</b></div><div class="box">Commission Due<b>${fmtMoney(cur.due)}</b></div><div class="box">Commission Received<b>${fmtMoney(cur.recv)}</b></div></div>
           <div><div style="font-size:12px;font-weight:600">Monthly Commission Received (₹ L)</div><div class="chart-box" style="height:170px"><canvas id="comm"></canvas></div></div></div></section>
         <section class="card p"><div class="ch"><i data-lucide="building-2"></i><h3>Developer-wise Bookings</h3></div>
           ${devs.length ? html`<table class="mini-t"><thead><tr><th>Developer</th><th>Bookings</th><th>Commission</th></tr></thead><tbody>${devs.map(([n, b, c]) => html`<tr><td><b style="font-weight:500">${n}</b></td><td>${b}</td><td><b>${fmtMoney(c)}</b></td></tr>`)}</tbody></table>` : html`<div class="empty-sm">No bookings in this period.</div>`}</section>
