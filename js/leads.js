@@ -66,7 +66,9 @@
     const filtered = state.tab === "All Leads" ? b : b.filter((l) => l.status === state.tab);
     const pages = Math.max(1, Math.ceil(filtered.length / PAGE)); state.page = Math.min(state.page, pages);
     const rows = filtered.slice((state.page - 1) * PAGE, state.page * PAGE);
-    const rep = new Map(); state.leads.forEach((x) => { const k = digits(x.mobile).slice(-10); if (k.length === 10) rep.set(k, (rep.get(k) || 0) + 1); });     // how many times each number enquired
+    // how many times each number enquired about the SAME project (a number asking about another project is a new enquiry), and about other projects
+    const byPhone = new Map(); state.leads.forEach((x) => { const k = digits(x.mobile).slice(-10); if (k.length === 10) (byPhone.get(k) || byPhone.set(k, []).get(k)).push(x); });
+    const repOf = (l) => { const g = byPhone.get(digits(l.mobile).slice(-10)) || []; const same = g.filter((o) => sameProject(o.project, l.project)).length; return { same, other: g.length - same }; };
     const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), visits = (counts["Visit Scheduled"] || 0) + (counts["Visit Done"] || 0);
     const kpis = [["Total Leads", b.length.toLocaleString("en-IN"), "", "users", 1], ["New Leads", counts["New Leads"] || 0, "", "user-plus"], ["Interested", counts.Interested || 0, "", "clipboard-check"],
       ["Visits", visits, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Conversion Rate", b.length ? ((booked / b.length) * 100).toFixed(2) + "%" : "0%", "", "trending-up"]];
@@ -84,7 +86,7 @@
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
-            <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b>${(rep.get(digits(l.mobile).slice(-10)) || 0) > 1 ? html`<span class="rep-chip" title="This number has enquired ${rep.get(digits(l.mobile).slice(-10))} times">Repeat ×${rep.get(digits(l.mobile).slice(-10))}</span>` : raw("")}</div></td><td data-label="Mobile">${l.mobile}</td>
+            <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b>${(() => { const c = repOf(l); return c.same > 1 ? html`<span class="rep-chip" title="This number has enquired ${c.same} times about this project${c.other ? " and also about " + c.other + " other enquir" + (c.other === 1 ? "y" : "ies") + " for other projects" : ""}">Repeat ×${c.same}</span>` : raw(""); })()}</div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
             <td data-label="Source">${sourceChip(l)}${l.src && l.src.form ? html`<small class="src-form" title="${l.src.form}">${l.src.form}</small>` : raw("")}</td>
             <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status"><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></td>

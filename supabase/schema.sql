@@ -1023,3 +1023,98 @@ end $f$;
 revoke all on function public.team_members_email_sync() from public, anon, authenticated;
 drop trigger if exists team_members_email_sync on public.team_members;
 create trigger team_members_email_sync after update of email on public.team_members for each row execute function public.team_members_email_sync();
+
+-- ===== A repeat enquiry only counts for the SAME project: the same person asking about another project is a new enquiry for that project's team =====
+-- "same project" when either side has no project (unknown, cannot be "another project"), when both resolve to the same registered project,
+-- or, for unregistered names, when the normalised names are equal or one starts with the other (e.g. "Tanish Urbania" = "Tanish Urbania, Charholi, Pune")
+create or replace function public.same_project(a text, b text) returns boolean language sql stable security definer set search_path = '' as $f$
+  select case
+    when length(public.norm_project(a)) < 3 or length(public.norm_project(b)) < 3 then true
+    when public.project_for_name(a) is not null and public.project_for_name(b) is not null then public.project_for_name(a) = public.project_for_name(b)
+    else public.norm_project(a) = public.norm_project(b) or public.norm_project(a) like public.norm_project(b) || '%' or public.norm_project(b) like public.norm_project(a) || '%'
+  end $f$;
+revoke all on function public.same_project(text, text) from public, anon, authenticated;
+
+-- the owner of the latest earlier enquiry from this number about the same project (email beats name, as before)
+create or replace function public.repeat_owner(p_phone text, p_project text)
+returns table(name text, email text, from_lead bigint, from_project text)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d)
+  select t.name, t.email, o.id, o.project
+  from k
+  cross join lateral (
+    select e.id, e.project, e.manager_name #>> '{}' as owner,
+           case when jsonb_typeof(e.manager_email) = 'string' then nullif(lower(trim(e.manager_email #>> '{}')), '') end as owner_email
+    from public.enquiries e
+    where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d
+      and jsonb_typeof(e.manager_name) = 'string' and nullif(trim(e.manager_name #>> '{}'), '') is not null
+      and public.same_project(e.project, p_project)
+    order by e.created_at desc limit 1) o
+  join public.team_members t on t.status = 'Active'
+    and (lower(trim(t.name)) = lower(trim(o.owner)) or (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email))
+  order by (o.owner_email is not null and lower(trim(coalesce(t.email, ''))) = o.owner_email) desc, (lower(trim(t.name)) = lower(trim(o.owner))) desc, t.id
+  limit 1 $f$;
+revoke all on function public.repeat_owner(text, text) from public, anon, authenticated;
+
+create or replace function public.keep_repeat_with_owner() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare o record; seen boolean;
+begin
+  if auth.uid() is not null then return new; end if;          -- someone adding a lead by hand decides the owner themselves
+  select * into o from public.repeat_owner(new.phone, new.project);
+  if o.name is null then
+    -- a known number, but only for other projects: leave a note and let the project's team (auto-assign) take it as a new enquiry
+    select exists (select 1 from public.enquiries e where length(right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10)) = 10
+      and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10)) into seen;
+    if seen then
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat check', 'type', 'doc', 'title', 'New enquiry',
+        'description', 'This number enquired before, but about another project, so this is treated as a new enquiry (not a repeat).'));
+    end if;
+    return new;
+  end if;
+  new.manager_name := to_jsonb(o.name);
+  new.manager_email := case when coalesce(o.email, '') = '' then null else to_jsonb(o.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat enquiry', 'type', 'doc', 'title', 'Repeat enquiry',
+    'description', 'This number enquired before about the same project (latest earlier lead L-' || o.from_lead || '), so the lead stays with ' || o.name));
+  return new;
+exception when others then
+  raise warning 'keep_repeat_with_owner failed: %', sqlerrm;
+  return new;
+end $f$;
+
+create or replace function public.auto_assign_enquiry() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare on_ boolean; a record; has_mgr boolean;
+begin
+  select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
+  if not coalesce(on_, false) then return new; end if;
+  if public.my_member_id() is not null then return new; end if;
+  if auth.uid() is null and exists (select 1 from public.repeat_owner(new.phone, new.project)) then return new; end if;
+  perform pg_advisory_xact_lock(727001);
+  select * into a from public.assignee_detail(new.project);
+  if a.id is null then return new; end if;
+  has_mgr := new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb);
+  if not a.matched and has_mgr then return new; end if;
+  new.manager_name := to_jsonb(a.name);
+  new.manager_email := case when a.email is null then null else to_jsonb(a.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
+    'description', 'Assigned to ' || a.name || ' · ' || a.reason));
+  update public.team_members set last_assigned_at = clock_timestamp() where team_members.id = a.id;
+  return new;
+exception when others then
+  raise warning 'auto_assign_enquiry failed: %', sqlerrm;
+  return new;
+end $f$;
+
+-- the Add Lead warning / Repeat badge: how many earlier enquiries from this number were about the same project
+create or replace function public.phone_matches(p_phone text, p_project text)
+returns table(cnt integer, last_at timestamptz, owner text, project text, same_cnt integer)
+language sql stable security definer set search_path = '' as $f$
+  with k as (select right(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), 10) as d),
+  m as (select e.created_at, e.project, case when jsonb_typeof(e.manager_name) = 'string' then e.manager_name #>> '{}' end as owner
+        from public.enquiries e, k where length(k.d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = k.d)
+  select (select count(*) from m)::integer, (select max(created_at) from m),
+         (select m2.owner from m m2 order by m2.created_at desc limit 1), (select m3.project from m m3 order by m3.created_at desc limit 1),
+         (select count(*) from m m4 where public.same_project(m4.project, p_project))::integer
+  where auth.uid() is not null and (select count(*) from m) > 0 $f$;
+revoke all on function public.phone_matches(text, text) from public, anon;
+grant execute on function public.phone_matches(text, text) to authenticated;

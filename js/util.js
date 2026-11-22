@@ -144,6 +144,9 @@ function rangePrev(key, now = new Date()) {
   const len = b.to - b.from; return { from: new Date(b.from.getTime() - len), to: b.from };
 }
 const inRangeTs = (ts, key, now = new Date()) => { const b = rangeBounds(key, now); if (!b.from) return true; const d = new Date(ts); return d >= b.from && d < b.to; };
+// the same project? (mirrors the database rule): a missing project can't be "another project"; otherwise equal names or one name starting with the other
+const normProj = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+const sameProject = (a, b) => { const x = normProj(a), y = normProj(b); return x.length < 3 || y.length < 3 || x === y || x.startsWith(y) || y.startsWith(x); };
 const WAIT_ALERT_MIN = 15;
 
 // ---- calendar helpers ----
