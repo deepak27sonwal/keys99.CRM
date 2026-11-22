@@ -1272,3 +1272,26 @@ grant execute on function public.phone_matches(text, text, text) to authenticate
 alter table public.enquiries drop constraint if exists enquiries_status_check;
 alter table public.enquiries add constraint enquiries_status_check
   check (status in ('New Leads','Contacted','Spam','Interested','Visit Scheduled','Visit Done','VC Done','On Negotiations','Token Done','Booking Done','Booking Cancelled','Post Sale'));
+
+-- Every change of a lead's stage is written to its history (drag and drop, edit form, profile, bulk and automatic moves alike).
+create or replace function public.log_stage_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status is distinct from old.status then
+    begin
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'type', 'stage', 'title', 'Stage changed',
+        'description', coalesce(old.status, '—') || ' → ' || coalesce(new.status, '—')
+          || case when new.lost_reason is distinct from old.lost_reason and coalesce(btrim(new.lost_reason), '') <> '' then E'\nReason: ' || new.lost_reason else '' end,
+        'from', old.status, 'to', new.status,
+        'at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'by', coalesce(auth.jwt() ->> 'email', '')));
+    exception when others then raise warning 'log_stage_change skipped: %', sqlerrm;
+    end;
+  end if;
+  return new;
+end $$;
+revoke all on function public.log_stage_change() from public, anon, authenticated;
+drop trigger if exists enquiries_log_stage_change on public.enquiries;
+create trigger enquiries_log_stage_change before update of status on public.enquiries
+  for each row execute function public.log_stage_change();

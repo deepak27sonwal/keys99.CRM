@@ -91,7 +91,12 @@
     on("#keep", () => toast("Lead stays active")); on("#spam", () => openSpam(lead, done));
     on("#reopen", async () => { if (lead.status !== "Spam") return toast("Lead is already active"); await Data.updateLead(lead.dbId, { status: "New Leads", lostReason: "" }); toast("Lead reopened"); done(); });
     const ss = page.querySelector("#statusSel");
-    if (ss) ss.onchange = async () => { try { await Data.updateLead(lead.dbId, { status: ss.value }); toast("Status updated"); done(); } catch (e) { alert("Could not update: " + e.message); } };
+    if (ss) ss.onchange = async () => {
+      const to = ss.value, from = lead.status;
+      if (to === from) return;
+      if (needsReason(to)) { ss.value = from; return (to === "Spam" ? openSpam : openCancelBooking)(lead, done); }    // asks the reason first; the select stays on the old value until it is saved
+      try { await Data.updateLead(lead.dbId, { status: to, ...(needsReason(from) ? { lostReason: "" } : {}) }); toast("Status updated"); done(); } catch (e) { ss.value = from; alert("Could not update: " + e.message); }
+    };
   }
   draw();
 })();

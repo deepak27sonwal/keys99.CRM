@@ -4,6 +4,10 @@ const STATUSES = ["New Leads", "Contacted", "Spam", "Interested", "Visit Schedul
 const FUNNEL_OUT = ["Spam", "Booking Cancelled"];                    // shown as stages, but not part of the sales funnel
 const PIPELINE = STATUSES.filter((s) => !FUNNEL_OUT.includes(s));   // funnel / progress order
 const CLOSED = ["Spam", "Booking Done", "Booking Cancelled", "Post Sale"];               // no follow-up needed any more
+const STAGE_REASONS = {   // stages that need a reason wherever the status is changed (pipeline drag, Edit lead, lead profile, bulk)
+  "Spam": ["Spam / fake enquiry", "Wrong number", "Duplicate", "Not interested", "Budget mismatch", "Not responding", "Other"],
+  "Booking Cancelled": ["Customer changed mind", "Loan not approved", "Budget issue", "Bought elsewhere", "Documentation issue", "Other"] };
+const needsReason = (status) => Object.prototype.hasOwnProperty.call(STAGE_REASONS, status);
 const BOOKED = ["Booking Done", "Post Sale"];                       // counted as bookings / conversions
 
 // Suggestions while typing: a list under a text box that narrows as you type (matches anywhere in the name, starts-with first),
@@ -271,6 +275,19 @@ function wireDuplicateCheck(root) {
   const later = () => { clearTimeout(timer); timer = setTimeout(check, 350); };
   [mob, proj, mail].filter(Boolean).forEach((el) => { el.addEventListener("input", later); el.addEventListener("blur", check); el.addEventListener("change", check); });
 }
+// A required "Reason" pick that appears under Status only when the lead is moved to Spam or Booking Cancelled.
+const reasonField = () => html`<label class="full" data-reason style="display:none">Reason *<select name="reason" disabled data-placeholder="Select a reason…"><option value="">Select a reason…</option></select></label>`;
+function wireReason(root, current) {
+  const st = root.querySelector('select[name="status"]'), r = root.querySelector('select[name="reason"]'); if (!st || !r) return;
+  const lab = r.closest("label");
+  const sync = () => {
+    const on = st.value !== current && needsReason(st.value);
+    lab.style.display = on ? "" : "none"; r.disabled = !on; r.dataset.req = on ? "1" : "";
+    r.innerHTML = '<option value="">Select a reason…</option>' + (on ? STAGE_REASONS[st.value].map((o) => `<option>${esc(o)}</option>`).join("") : "");
+    r.value = ""; if (r._dd) r._dd.refresh();
+  };
+  st.addEventListener("change", sync); sync();
+}
 async function openEditLead(lead, done) {
   // "Assigned agent" is a pick from the team (Agents & Teams) so the name always matches and the lead's email address follows the person.
   let team = []; try { team = await Data.getTeamCached(); } catch { team = []; }
@@ -284,20 +301,20 @@ async function openEditLead(lead, done) {
         ${cur && (!match || match.status !== "Active") ? html`<option value="${cur}" selected>${cur} (${match ? "inactive" : "not on team"})</option>` : raw("")}</select></label>`
     : field("Assigned agent", "agent", cur);
   openModal("Edit " + lead.name, html`<div class="form">
-    ${selectField("Status", "status", STATUSES, lead.status)}${field("Next follow-up", "follow_up", toLocalInput(lead.followUpTs), "datetime-local")}
+    ${selectField("Status", "status", STATUSES, lead.status)}${reasonField()}${field("Next follow-up", "follow_up", toLocalInput(lead.followUpTs), "datetime-local")}
     ${agentField}${selectField("Priority", "priority", ["", "A (High Priority)", "B (Medium)", "C (Low)"], lead.priority)}
     ${field("Budget", "budget", lead.budget)}${locPicker(m, { city: at.city, locality: at.locality, fallback: field("Location", "location", lead.location) })}
     ${configPicker({ type: lead.propertyType, value: lead.bhk })}
     <label class="full">Notes<textarea name="notes" rows="3">${lead.notes}</textarea></label></div>`,
     async (f) => {
       const changed = !emp && k(f.agent) !== k(cur), who = team.find((m) => k(m.name) === k(f.agent));
-      const patch = { status: f.status, followUp: fromLocalInput(f.follow_up), ...(emp ? {} : { agent: f.agent }), priority: f.priority, budget: f.budget, location: "city" in f ? joinLocation(f) : f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
+      const patch = { status: f.status, ...(f.status === lead.status ? {} : needsReason(f.status) ? { lostReason: f.reason } : needsReason(lead.status) ? { lostReason: "" } : {}), followUp: fromLocalInput(f.follow_up), ...(emp ? {} : { agent: f.agent }), priority: f.priority, budget: f.budget, location: "city" in f ? joinLocation(f) : f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
       if (changed && team.length) patch.agentEmail = who ? who.email : null;     // a team member brings their own email; unassigning clears it
       await Data.updateLead(lead.dbId, patch);
       if (changed) { try { await Data.addActivity(lead, "Assigned", f.agent ? "Assigned to " + f.agent + (cur ? " (was " + cur + ")" : "") : "Unassigned (was " + cur + ")"); } catch { /* the assignment itself is saved */ } }
       toast("Saved"); done && done();
     });
-  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m);
+  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m); wireReason(mod, lead.status);
 }
 function openNote(lead, done) {
   openModal("Add Note", html`<div class="form"><label class="full">Note *<textarea name="text" rows="4" required></textarea></label></div>`,
@@ -336,11 +353,11 @@ function openBooking(lead, done) {
     });
 }
 function openCancelBooking(lead, done) {
-  openModal("Cancel booking", html`<div class="form">${selectField("Reason", "reason", ["Customer changed mind", "Loan not approved", "Budget issue", "Bought elsewhere", "Documentation issue", "Other"], "", "full")}</div>`,
+  openModal("Cancel booking", html`<div class="form">${selectField("Reason", "reason", STAGE_REASONS["Booking Cancelled"], "", "full")}</div>`,
     async (f) => { await Data.updateLead(lead.dbId, { status: "Booking Cancelled", lostReason: f.reason }); toast("Booking cancelled"); done && done(); }, "Confirm");
 }
 function openSpam(lead, done) {
-  openModal("Mark as Spam", html`<div class="form">${selectField("Reason", "reason", ["Spam / fake enquiry", "Wrong number", "Duplicate", "Not interested", "Budget mismatch", "Not responding", "Other"], "", "full")}</div>`,
+  openModal("Mark as Spam", html`<div class="form">${selectField("Reason", "reason", STAGE_REASONS.Spam, "", "full")}</div>`,
     async (f) => { await Data.updateLead(lead.dbId, { status: "Spam", lostReason: f.reason }); toast("Marked as spam"); done && done(); }, "Confirm");
 }
 
