@@ -4,14 +4,14 @@
   if (!page) return;
   const COLS = [...STATUSES.filter((s) => s !== "Spam"), "Spam"];     // Booking Cancelled sits right after Booking Done
   const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
-  const state = { leads: [], bookings: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set(), shown: {} };
+  const state = { leads: [], bookings: [], visits: [], team: [], view: "kanban", type: "", range: "month", select: false, sel: new Set(), shown: {} };
   let restoredAt = 0;                                // scroll events caused by putting the scroll position back must not load more
   const STEP = 5;                                  // each column shows its 5 newest leads, and 5 more every time it is scrolled to the bottom
   let chart = null;
 
   async function load() {
     try {
-      [state.leads, state.bookings] = await Promise.all([Data.getLeads(), Data.getBookings()]);
+      [state.leads, state.bookings, state.visits] = await Promise.all([Data.getLeads(), Data.getBookings(), Data.getSiteVisits()]);
       try { state.team = await Data.getTeamCached(); } catch { state.team = []; }
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load the pipeline: ' + esc(e.message) + "</div>"; return false; }
     state.sel = new Set([...state.sel].filter((id) => state.leads.some((l) => l.dbId === id)));
@@ -104,9 +104,12 @@
     // Leads are plotted in the month they were CREATED; bookings in the month the lead was moved to Booking Done / Post Sale (so a booking today moves this month's bar).
     const lm = new Map(), bm = new Map(), P = pool(), bkDates = bookDatesOf(state.bookings);
     P.forEach((l) => { const k = mk(new Date(l.createdAt)); lm.set(k, (lm.get(k) || 0) + 1); const bd = bookedAt(l, bkDates); if (bd) { const bk = mk(bd); bm.set(bk, (bm.get(bk) || 0) + 1); } });
-    const ls = months.map((d) => lm.get(mk(d)) || 0), bs = months.map((d) => bm.get(mk(d)) || 0), grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
+    const vm = new Map(), poolIds = new Set(P.map((l) => l.dbId));
+    state.visits.forEach((v) => { if (!poolIds.has(v.enquiry_id) || !v.visit_at) return; const k = mk(new Date(v.visit_at)); vm.set(k, (vm.get(k) || 0) + 1); });   // visits by the month they are scheduled for
+    const vs = months.map((d) => vm.get(mk(d)) || 0), ls = months.map((d) => lm.get(mk(d)) || 0), bs = months.map((d) => bm.get(mk(d)) || 0), grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
     chart = new Chart(cv, { data: { labels: months.map((d) => d.toLocaleString("en-US", { month: "short" })), datasets: [
       { type: "bar", label: "Leads created", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Bookings (Booking Done / Post Sale)", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
+      { type: "bar", label: "Site visits", data: vs, backgroundColor: "#3b82f6", borderRadius: 4, yAxisID: "y" },
       { type: "line", label: "Conversion Rate (%)", data: months.map((d, i) => Math.min(100, pct(bs[i], ls[i]))), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false }, ticks }, y: { beginAtZero: true, grid, ticks: { ...ticks, precision: 0 } }, y1: { position: "right", beginAtZero: true, grid: { display: false }, ticks } } } });
   }

@@ -31,7 +31,7 @@
       due: sum(B.filter((x) => x.commission_status === "Pending"), (x) => x.commission_amount), recv: sum(B.filter((x) => x.commission_status === "Received"), (x) => x.commission_amount) };
   }
 
-  function trendBuckets(b, L, BK) {
+  function trendBuckets(b, L, BK, V) {
     const first = L.length ? new Date(Math.min(...L.map((l) => +new Date(l.createdAt)))) : new Date();
     const start = b.start || startOfDay(first), end = b.end || new Date(), span = (end - start) / 86400000;
     const unit = span <= 31 ? "day" : span <= 200 ? "week" : "month";
@@ -44,10 +44,11 @@
     const keys = [], seen = new Set();
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) { const k = key(d); if (!seen.has(k)) { seen.add(k); keys.push(k); } }
     const lab = (k) => (unit === "month" ? new Date(k + "-01T00:00:00").toLocaleString("en-US", { month: "short", year: "2-digit" }) : new Date(k + "T00:00:00").toLocaleString("en-US", { month: "short", day: "numeric" }));
-    const n = new Map(keys.map((k) => [k, 0])), c = new Map(keys.map((k) => [k, 0]));
+    const n = new Map(keys.map((k) => [k, 0])), c = new Map(keys.map((k) => [k, 0])), vs = new Map(keys.map((k) => [k, 0]));
     L.forEach((l) => { const k = key(l.createdAt); if (n.has(k)) n.set(k, n.get(k) + 1); });
     BK.forEach((l) => { const k = key(bookedAt(l, bkDates)); if (c.has(k)) c.set(k, c.get(k) + 1); });
-    return { labels: keys.map(lab), leads: keys.map((k) => n.get(k)), conv: keys.map((k) => c.get(k)) };
+    V.forEach((v) => { const k = key(v.visit_at); if (vs.has(k)) vs.set(k, vs.get(k) + 1); });   // site visits by the day they are scheduled for (same set as the Site Visits card)
+    return { labels: keys.map(lab), leads: keys.map((k) => n.get(k)), conv: keys.map((k) => c.get(k)), visits: keys.map((k) => vs.get(k)) };
   }
 
   // Funnel: each stage shows how many leads have reached it (that stage or any later one), so it only ever narrows.
@@ -115,7 +116,7 @@
     const medal = ["#f3c04c", "#cbd5e1", "#fb923c"];
     const monthsBack = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1));
     const comm = monthsBack.map((m) => sum(bookings.filter((x) => x.commission_status === "Received" && (() => { const dt = new Date((x.received_on || x.booking_date) + "T00:00:00"); return dt.getFullYear() === m.getFullYear() && dt.getMonth() === m.getMonth(); })()), (x) => x.commission_amount) / 1e5);
-    const tb = trendBuckets(bd.cur, cur.L, cur.BK);
+    const tb = trendBuckets(bd.cur, cur.L, cur.BK, cur.V);
     const hour = now.getHours(), greet = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
     const more = (href = "leads.html") => html`<a class="more" href="${href}">View All<i data-lucide="arrow-right"></i></a>`;
 
@@ -125,7 +126,7 @@
       ${calStrip}
       <div class="kpis k7">${kpis.map(kpiCard)}</div>
       <div class="grid g-top">
-        <section class="card p"><div class="ch"><h3>Lead Trend</h3><div class="legend"><span><i style="background:#0f7a6b"></i>New Leads</span><span><i style="background:#e8a91f"></i>Bookings</span></div></div><div class="chart-box"><canvas id="trend"></canvas></div></section>
+        <section class="card p"><div class="ch"><h3>Lead Trend</h3><div class="legend"><span><i style="background:#0f7a6b"></i>New Leads</span><span><i style="background:#e8a91f"></i>Bookings</span><span><i style="background:#3b82f6"></i>Site Visits</span></div></div><div class="chart-box"><canvas id="trend"></canvas></div></section>
         <section class="card p"><div class="ch"><h3>Lead Source</h3></div>${srcs.length ? html`<div class="donut-wrap"><div class="donut"><canvas id="src"></canvas><div class="mid"><b>${cur.total}</b><span>Total Leads</span></div></div>
           <ul class="dl-list">${srcs.map(([n, v], i) => html`<li><i style="background:${COLORS[i]}"></i><span>${n}</span><em>${Math.round((v / cur.total) * 100)}%</em></li>`)}</ul></div>` : html`<div class="empty-sm">No leads in this period.</div>`}</section>
         <section class="card p funnel"><div class="ch"><h3>Sales Pipeline</h3>${more()}</div>${funnelView(funnel)}</section>
@@ -152,7 +153,8 @@
     const grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
     charts.push(new Chart(document.getElementById("trend"), { type: "line", data: { labels: tb.labels, datasets: [
       { label: "New Leads", data: tb.leads, borderColor: "#0f7a6b", backgroundColor: "rgba(15,122,107,.15)", fill: true, tension: .35, pointBackgroundColor: "#fff", pointBorderWidth: 2, pointRadius: tb.labels.length > 40 ? 0 : 3 },
-      { label: "Bookings", data: tb.conv, borderColor: "#e8a91f", backgroundColor: "rgba(232,169,31,.12)", fill: true, tension: .35, pointBackgroundColor: "#fff", pointBorderWidth: 2, pointRadius: tb.labels.length > 40 ? 0 : 3 }] },
+      { label: "Bookings", data: tb.conv, borderColor: "#e8a91f", backgroundColor: "rgba(232,169,31,.12)", fill: true, tension: .35, pointBackgroundColor: "#fff", pointBorderWidth: 2, pointRadius: tb.labels.length > 40 ? 0 : 3 },
+      { label: "Site Visits", data: tb.visits, borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.10)", fill: true, tension: .35, pointBackgroundColor: "#fff", pointBorderWidth: 2, pointRadius: tb.labels.length > 40 ? 0 : 3 }] },
       options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { ...ticks, maxTicksLimit: 8 } }, y: { grid, ticks: { ...ticks, precision: 0 }, beginAtZero: true } } } }));
     if (srcs.length) charts.push(new Chart(document.getElementById("src"), { type: "doughnut", data: { labels: srcs.map((s) => s[0]), datasets: [{ data: srcs.map((s) => s[1]), backgroundColor: COLORS, borderWidth: 0 }] },
       options: { maintainAspectRatio: false, cutout: "68%", plugins: { legend: { display: false } } } }));
