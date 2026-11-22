@@ -933,7 +933,7 @@ table{width:100%;border-collapse:collapse}
 .kb-col{flex:0 0 272px;scroll-snap-align:start;display:flex;flex-direction:column;background:var(--b-f8fafb);border:1px solid var(--line);border-radius:14px;min-width:0}
 .kb-h{display:flex;flex-direction:column;align-items:center;padding:10px 8px;border-radius:13px 13px 0 0;background:color-mix(in srgb,var(--stage,#94a3b8) 14%,var(--b-ffffff));border-bottom:3px solid var(--stage,var(--bd-94a3b8));text-align:center}
 .kb-h b{font-size:14px}.kb-h span{font-size:12px;color:var(--muted)}
-.kb-body{flex:none;height:clamp(280px,58vh,430px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:10px;display:flex;flex-direction:column;gap:10px}
+.kb-body{flex:none;height:clamp(280px,58vh,430px);overflow-y:auto;overscroll-behavior-y:contain;overscroll-behavior-x:auto;scrollbar-width:thin;padding:10px;display:flex;flex-direction:column;gap:10px}
 .kb-body>.kb-card{flex:none}.kb-more{flex:none;border:1px dashed var(--line);background:var(--b-ffffff);border-radius:10px;padding:9px;font:600 12.5px inherit;color:var(--muted);cursor:pointer}.kb-more:hover{background:var(--b-f1f5f9)}.kb-end{flex:none;text-align:center;font-size:12px;color:var(--muted);padding:4px 0}
 .kb-body.over{background:color-mix(in srgb,var(--stage,#94a3b8) 12%,var(--b-ffffff));outline:2px dashed var(--stage,var(--bd-94a3b8));outline-offset:-4px}
 .kb-empty{margin:auto;font-size:12.5px;color:var(--muted);padding:16px 0}
