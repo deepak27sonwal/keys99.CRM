@@ -7,8 +7,11 @@
   let hols = [], meets = [];
   try { [hols, meets] = await Promise.all([Data.getHolidays(), Data.getMeetings()]); } catch { /* the calendar strip is optional */ }
   const byId = new Map(leads.map((l) => [l.dbId, l]));
-  const RANGES = { today: "Today", yesterday: "Yesterday", "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time" };
-  const state = { range: "30d" };
+  const RANGES = { today: "Today", yesterday: "Yesterday", "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time", custom: "Custom range…" };
+  const state = { range: "30d", cFrom: "", cTo: "", cErr: "" };
+  const ymdOf = (dt) => dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0");
+  const shortD = (s) => { const dt = parseYmd(s); return dt ? dt.toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric" }) : ""; };
+  const rangeName = () => (state.range === "custom" ? (state.cFrom && state.cTo && !state.cErr ? shortD(state.cFrom) + " – " + shortD(state.cTo) : "Custom range") : RANGES[state.range]);
   let charts = [];
 
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -77,6 +80,7 @@
 
   function draw() {
     charts.forEach((c) => c.destroy()); charts = [];
+    if (state.range === "custom") setCustomRange(state.cFrom, state.cTo);
     const bd = bounds(state.range), cur = stats(bd.cur), prev = bd.prev ? stats(bd.prev) : null;
     const d = (a, b) => (prev ? pct(a, b) : "");
     const kpis = [
@@ -121,8 +125,10 @@
     const more = (href = "leads.html") => html`<a class="more" href="${href}">View All<i data-lucide="arrow-right"></i></a>`;
 
     render(page, html`
-      <div class="page-head"><div><h1>${greet}! 👋</h1><p class="sub">Here's your Keys99 business overview · ${RANGES[state.range]}.</p></div>
-        <select class="select" id="range" aria-label="Date range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
+      <div class="page-head"><div><h1>${greet}! 👋</h1><p class="sub">Here's your Keys99 business overview · ${rangeName()}.</p></div>
+        <div class="range-box"><select class="select" id="range" aria-label="Date range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select>
+          ${state.range === "custom" ? html`<div class="range-custom"><label>From<input type="date" id="cFrom" value="${state.cFrom}" max="${state.cTo || ""}"></label><label>To<input type="date" id="cTo" value="${state.cTo}" min="${state.cFrom || ""}"></label></div>` : raw("")}</div></div>
+      ${state.range === "custom" && state.cErr ? html`<div class="ban pend range-err" role="alert"><i data-lucide="triangle-alert"></i><div><b>${state.cErr}</b><small>Showing all time until the dates are fixed.</small></div></div>` : raw("")}
       ${calStrip}
       <div class="kpis k7">${kpis.map(kpiCard)}</div>
       <div class="grid g-top">
@@ -136,7 +142,7 @@
           ${upcoming.length ? html`<ul class="list">${upcoming.map((v) => { const l = byId.get(v.enquiry_id) || {}; const dt = new Date(v.visit_at); return html`<li><div class="datebox">${dt.toLocaleString("en-US", { month: "short" })}<b>${String(dt.getDate()).padStart(2, "0")}</b></div><span class="muted" style="width:64px;font-size:12px">${dt.toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><div class="grow"><b style="font-weight:500">${v.project || l.project || "—"}</b><small>${l.name || ""}</small></div>${l.mobile ? html`<a href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call"><i data-lucide="phone" class="green-t"></i></a>` : raw("")}<span class="badge b-${v.status}">${v.status}</span></li>`; })}</ul>` : html`<div class="empty-sm">No upcoming site visits.</div>`}</section>
         <section class="card p"><div class="ch"><i data-lucide="circle-check"></i><h3>Today's Follow-ups (${todays.length})</h3></div>
           ${todays.length ? html`<ul class="list">${todays.slice(0, 4).map((l) => html`<li><span class="avatar av-soft" style="width:36px;height:36px;font-size:12px">${l.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}</span><div class="grow"><b>${l.name}</b><small>${l.notes || l.requirement || "Follow up"}</small></div><span class="muted" style="font-size:12px">${new Date(l.followUpTs).toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" })}</span><a href="${telHref(l.mobile)}" data-lead="${l.dbId}" aria-label="Call"><i data-lucide="phone" class="green-t"></i></a></li>`)}</ul>` : html`<div class="empty-sm">No follow-ups scheduled for today.</div>`}</section>
-        <section class="card p"><div class="ch"><i data-lucide="users-round"></i><h3>Top Performing Agents <small class="muted" style="font-weight:400">(${RANGES[state.range]})</small></h3></div>
+        <section class="card p"><div class="ch"><i data-lucide="users-round"></i><h3>Top Performing Agents <small class="muted" style="font-weight:400">(${rangeName()})</small></h3></div>
           ${agents.length ? html`<ul class="list">${agents.map(([n, b, a], i) => html`<li><span class="medal" style="background:${medal[i]}">${i + 1}</span>${avatar(n, 36)}<div class="grow"><b>${n}</b></div><span class="muted" style="font-size:12px">${b} Booking${b > 1 ? "s" : ""}</span><span class="pill-g">${fmtMoney(a)}</span></li>`)}</ul>` : html`<div class="empty-sm">No bookings in this period.</div>`}</section>
       </div>
       <div class="grid g-3">
@@ -149,7 +155,20 @@
           ${recent.length ? html`<ul class="list">${recent.map((l) => html`<li>${avatar(l.name, 34)}<div class="grow"><a href="customer.html?id=${encodeURIComponent(l.id)}"><b>${l.name}</b></a><small>${l.requirement || l.project || l.source}</small></div><div style="text-align:right">${badge(l.status)}<div class="muted" style="font-size:11px;margin-top:2px">${relTime(l.createdAt)}</div></div></li>`)}</ul>` : html`<div class="empty-sm">No leads yet.</div>`}</section>
       </div>`);
 
-    document.getElementById("range").onchange = (e) => { state.range = e.target.value; draw(); };
+    document.getElementById("range").onchange = (e) => {
+      state.range = e.target.value;
+      if (state.range === "custom" && !state.cFrom) { const t = new Date(); state.cTo = ymdOf(t); t.setDate(t.getDate() - 6); state.cFrom = ymdOf(t); state.cErr = ""; }   // starts as the last 7 days
+      draw();
+    };
+    const cf = document.getElementById("cFrom"), ct = document.getElementById("cTo");
+    if (cf && ct) {
+      const apply = () => {
+        const a = parseYmd(cf.value), z = parseYmd(ct.value); state.cFrom = cf.value; state.cTo = ct.value;
+        state.cErr = !a || !z ? "Choose both a From and a To date." : a > z ? "The From date must be on or before the To date." : (z - a) / 864e5 > 1830 ? "Please choose a period of 5 years or less." : "";
+        draw();
+      };
+      cf.onchange = apply; ct.onchange = apply;
+    }
     const grid = { color: Theme.grid() }, ticks = { font: { size: 11 } };
     charts.push(new Chart(document.getElementById("trend"), { type: "line", data: { labels: tb.labels, datasets: [
       { label: "New Leads", data: tb.leads, borderColor: "#0f7a6b", backgroundColor: "rgba(15,122,107,.15)", fill: true, tension: .35, pointBackgroundColor: "#fff", pointBorderWidth: 2, pointRadius: tb.labels.length > 40 ? 0 : 3 },

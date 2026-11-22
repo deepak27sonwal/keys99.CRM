@@ -1566,3 +1566,11 @@ label.has-err input,label.has-err textarea,label.has-err select,label.has-err .d
 .vc-who{color:var(--t-475569)}.vc-who b{font-weight:600;color:var(--text)}.vc-who.none,.vc-who.none b{color:var(--muted);font-weight:400}
 .vc-who [data-lucide]{width:14px;height:14px}
 .up-list .vc-who{display:flex;align-items:center;gap:5px;margin-top:2px}
+
+/* Dashboard custom date range */
+.range-box{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.range-custom{display:flex;gap:8px;flex-wrap:wrap}
+.range-custom label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+.range-custom input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;color:var(--text);background:var(--card);min-height:36px}
+.range-err{margin-bottom:12px}
+@media(max-width:900px){.range-box{justify-content:flex-start;width:100%}.range-box .select{flex:1 1 150px}.range-custom{width:100%}.range-custom label{flex:1 1 130px}.range-custom input{width:100%}}
