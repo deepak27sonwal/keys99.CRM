@@ -167,6 +167,8 @@ const Data = {
   // ---- social media integrations (leads arrive via the capture-lead Edge Function) ----
   // ---- who is signed in, logins and tasks ----
   // null = signed in but no access row yet. role is "admin" or "employee"; employees carry their team-member row.
+  // Me plus everyone who reports to me, directly or further down (rows from the my_team() function); empty for people with nobody under them.
+  async getMyTeam() { const { data, error } = await this.client.rpc("my_team"); if (error) throw error; return data || []; },
   async getMe(sess) {
     const { data: au, error } = await this.client.from("app_users").select("role,member_id,active").eq("user_id", sess.user.id).maybeSingle();
     if (error) throw error;
@@ -362,7 +364,8 @@ const Data = {
     return { kind: f.kind === "rm" ? "rm" : "agent", name: String(f.name || "").trim(), phone: digits(f.phone) ? String(f.phone).trim() : null, email: String(f.email || "").trim().toLowerCase() || null,
       designation: String(f.designation || "").trim() || null, team: String(f.team || "").trim() || null, department: String(f.department || "").trim() || null, location: String(f.location || "").trim() || null, locality: String(f.locality || "").trim() || null,
       monthly_target: Math.max(0, Number(f.monthly_target) || 0), daily_cap: Number(f.daily_cap) > 0 ? Math.floor(Number(f.daily_cap)) : null, joined_on: f.joined_on || null,
-      projects: [...new Set((Array.isArray(f.projects) ? f.projects : []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 40), status: f.status === "Inactive" ? "Inactive" : "Active" };
+      projects: [...new Set((Array.isArray(f.projects) ? f.projects : []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 40), status: f.status === "Inactive" ? "Inactive" : "Active",
+      ...("reports_to" in f ? { reports_to: Number(f.reports_to) > 0 ? Number(f.reports_to) : null } : {}) };      // only touched when the form sends it
   },
   async saveMember(id, f) {
     const row = this.teamRow(f), s = await this.session();

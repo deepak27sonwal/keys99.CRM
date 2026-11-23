@@ -2,7 +2,7 @@
   const page = await mountShell("dashboard");
   if (!page) return;
   let leads, visits, bookings;
-  try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); }
+  try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); ({ leads, visits, bookings } = Scope.apply({ leads, visits, bookings })); }
   catch (e) { page.innerHTML = '<div class="card empty">Could not load data: ' + esc(e.message) + "</div>"; return; }
   let hols = [], meets = [];
   try { [hols, meets] = await Promise.all([Data.getHolidays(), Data.getMeetings()]); } catch { /* the calendar strip is optional */ }

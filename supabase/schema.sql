@@ -1295,3 +1295,131 @@ revoke all on function public.log_stage_change() from public, anon, authenticate
 drop trigger if exists enquiries_log_stage_change on public.enquiries;
 create trigger enquiries_log_stage_change before update of status on public.enquiries
   for each row execute function public.log_stage_change();
+
+-- ===== Reporting managers: "Reports to" on team members; a manager sees and works the leads of everyone below them =====
+alter table public.team_members add column if not exists reports_to bigint references public.team_members(id) on delete set null;
+alter table public.team_members drop constraint if exists team_members_reports_to_not_self;
+alter table public.team_members add constraint team_members_reports_to_not_self check (reports_to is null or reports_to <> id);
+
+-- a reporting line may not loop back on itself (A -> B -> A)
+create or replace function public.team_members_no_loop() returns trigger language plpgsql set search_path = '' as $f$
+begin
+  if new.reports_to is not null and exists (
+    with recursive up(id) as (select new.reports_to union select t.reports_to from public.team_members t join up on t.id = up.id where t.reports_to is not null)
+    select 1 from up where up.id = new.id) then
+    raise exception 'That would make a reporting loop: this person is already above the chosen manager';
+  end if;
+  return new;
+end $f$;
+drop trigger if exists team_members_no_loop on public.team_members;
+create trigger team_members_no_loop before insert or update of reports_to on public.team_members for each row execute function public.team_members_no_loop();
+
+-- the signed-in employee plus everyone below them in the reporting chain (empty for admins and for people without a team row)
+create or replace function public.my_team_ids() returns setof bigint language sql stable security definer set search_path = '' as $f$
+  with recursive down(id) as (
+    select public.my_member_id() where public.my_member_id() is not null
+    union select t.id from public.team_members t join down d on t.reports_to = d.id)
+  select id from down $f$;
+-- a lead's owner (name or email) is me or someone who reports to me, directly or further down
+create or replace function public.is_in_my_team(p_name jsonb, p_email jsonb) returns boolean language sql stable security definer set search_path = '' as $f$
+  select exists (select 1 from public.team_members t
+    where t.id in (select public.my_team_ids())
+      and ((nullif(trim(p_name #>> '{}'), '') is not null and lower(trim(p_name #>> '{}')) = lower(trim(t.name)))
+        or (nullif(trim(p_email #>> '{}'), '') is not null and lower(trim(p_email #>> '{}')) = lower(trim(t.email))))) $f$;
+-- one of my team's logins
+create or replace function public.is_my_team_user(p_user uuid) returns boolean language sql stable security definer set search_path = '' as $f$
+  select exists (select 1 from public.app_users u where u.user_id = p_user and u.member_id in (select public.my_team_ids())) $f$;
+-- rows for the app: me first, then my team (depth 0 = me)
+create or replace function public.my_team()
+returns table(id bigint, name text, designation text, team text, reports_to bigint, monthly_target numeric, status text, kind text, email text, has_login boolean, depth integer)
+language sql stable security definer set search_path = '' as $f$
+  with recursive down(id, depth) as (
+    select public.my_member_id(), 0 where public.my_member_id() is not null
+    union select t.id, d.depth + 1 from public.team_members t join down d on t.reports_to = d.id)
+  select t.id, t.name, t.designation, t.team, t.reports_to, t.monthly_target, t.status, t.kind, t.email,
+         exists (select 1 from public.app_users u where u.member_id = t.id and u.active), d.depth
+  from down d join public.team_members t on t.id = d.id order by d.depth, t.name $f$;
+revoke all on function public.my_team_ids() from public, anon; grant execute on function public.my_team_ids() to authenticated;
+revoke all on function public.is_in_my_team(jsonb, jsonb) from public, anon; grant execute on function public.is_in_my_team(jsonb, jsonb) to authenticated;
+revoke all on function public.is_my_team_user(uuid) from public, anon; grant execute on function public.is_my_team_user(uuid) to authenticated;
+revoke all on function public.my_team() from public, anon; grant execute on function public.my_team() to authenticated;
+
+-- policies (added next to the own-rows rules; visits and bookings follow the lead automatically)
+drop policy if exists "manager read team enquiries" on public.enquiries;
+create policy "manager read team enquiries" on public.enquiries for select to authenticated using (public.is_in_my_team(manager_name, manager_email));
+drop policy if exists "manager update team enquiries" on public.enquiries;
+create policy "manager update team enquiries" on public.enquiries for update to authenticated using (public.is_in_my_team(manager_name, manager_email)) with check (public.is_in_my_team(manager_name, manager_email));
+drop policy if exists "manager add team enquiries" on public.enquiries;
+create policy "manager add team enquiries" on public.enquiries for insert to authenticated with check (public.is_in_my_team(manager_name, manager_email));
+drop policy if exists "manager read team tasks" on public.tasks;
+create policy "manager read team tasks" on public.tasks for select to authenticated using (assigned_to in (select public.my_team_ids()));
+drop policy if exists "manager update team tasks" on public.tasks;
+create policy "manager update team tasks" on public.tasks for update to authenticated using (assigned_to in (select public.my_team_ids())) with check (assigned_to in (select public.my_team_ids()));
+drop policy if exists "manager add team tasks" on public.tasks;
+create policy "manager add team tasks" on public.tasks for insert to authenticated with check (assigned_to in (select public.my_team_ids()));
+drop policy if exists "manager read team members" on public.team_members;
+create policy "manager read team members" on public.team_members for select to authenticated using (id in (select public.my_team_ids()));
+drop policy if exists "own or admin reads active time" on public.active_time;
+create policy "own or admin reads active time" on public.active_time for select to authenticated using (user_id = auth.uid() or public.is_admin() or public.is_my_team_user(user_id));
+
+-- hours: managers also get their team's days
+create or replace function public.active_time_report(p_from date, p_to date, p_user uuid default null)
+returns table(user_id uuid, member_id bigint, name text, team text, role text, day date, minutes integer, last_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $f$
+declare adm boolean := public.is_admin();
+begin
+  if auth.uid() is null then return; end if;
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 800 then raise exception 'Choose a valid date range (up to 800 days)'; end if;
+  return query
+    select a.user_id, u.member_id, coalesce(t.name, au.email::text), t.team, u.role, a.day, a.minutes, a.last_at
+    from public.active_time a
+    join public.app_users u on u.user_id = a.user_id
+    left join public.team_members t on t.id = u.member_id
+    left join auth.users au on au.id = a.user_id
+    where a.day between p_from and p_to
+      and (adm or a.user_id = auth.uid() or u.member_id in (select public.my_team_ids()))
+      and (p_user is null or a.user_id = p_user)
+    order by a.day, 3, a.user_id;
+end $f$;
+
+-- transfers: managers can move any lead of their team to anyone in their team (themselves included)
+create or replace function public.transfer_targets()
+returns table(id bigint, name text, designation text, department text, kind text)
+language sql stable security definer set search_path = '' as $f$
+  select t.id, t.name, t.designation, t.department, t.kind from public.team_members t
+  where auth.uid() is not null and t.status = 'Active' and (
+    public.is_admin()
+    or (public.my_member_id() is not null
+        and exists (select 1 from public.app_users u where u.member_id = t.id and u.role = 'employee' and u.active)
+        and (t.id <> public.my_member_id() or exists (select 1 from public.team_members x where x.reports_to = public.my_member_id()))))      -- a manager may also pick themselves (take a team lead over)
+  order by t.name $f$;
+create or replace function public.transfer_leads(p_ids bigint[], p_member_id bigint, p_note text default null)
+returns integer language plpgsql security definer set search_path = '' as $f$
+declare tgt record; me_id bigint := public.my_member_id(); n integer; uemail text := coalesce(auth.jwt() ->> 'email', ''); adm boolean := public.is_admin();
+        has_login boolean; tgt_team boolean; is_mgr boolean;
+begin
+  if auth.uid() is null or not (adm or me_id is not null) then raise exception 'You are not allowed to transfer leads'; end if;
+  if coalesce(array_length(p_ids, 1), 0) = 0 then return 0; end if;
+  if array_length(p_ids, 1) > 500 then raise exception 'Transfer at most 500 leads at a time'; end if;
+  select * into tgt from public.team_members where team_members.id = p_member_id and status = 'Active';
+  if not found then raise exception 'That team member is not available'; end if;
+  is_mgr := me_id is not null and exists (select 1 from public.team_members x where x.reports_to = me_id);
+  tgt_team := tgt.id in (select public.my_team_ids());
+  has_login := exists (select 1 from public.app_users u where u.member_id = tgt.id and u.role = 'employee' and u.active);
+  if not adm then
+    if tgt.id = me_id and not is_mgr then raise exception 'Choose someone other than yourself'; end if;
+    if not has_login then raise exception 'You can only transfer to a team member who has a login'; end if;
+  end if;
+  update public.enquiries e set
+    manager_name = to_jsonb(tgt.name),
+    manager_email = case when coalesce(tgt.email, '') = '' then null else to_jsonb(tgt.email) end,
+    activities = coalesce(e.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', uemail, 'type', 'doc', 'title', 'Transferred',
+      'description', 'Transferred from ' || coalesce(nullif(e.manager_name #>> '{}', ''), 'Unassigned') || ' to ' || tgt.name || coalesce(' · ' || nullif(trim(p_note), ''), '')))
+  where e.id = any (p_ids)
+    and (adm
+         or (public.is_mine(e.manager_name, e.manager_email) and tgt.id <> coalesce(me_id, -1))                 -- my own lead: to another employee with a login
+         or (public.is_in_my_team(e.manager_name, e.manager_email) and tgt_team))                               -- a team lead: to someone in my team
+    and not (jsonb_typeof(e.manager_name) = 'string' and lower(trim(e.manager_name #>> '{}')) = lower(trim(tgt.name)));
+  get diagnostics n = row_count;
+  return n;
+end $f$;

@@ -5,7 +5,7 @@ const NAV = [
   ["Calendar", "calendar.html", "calendar-days", "calendar"],
   { group: "Sales", id: "sales", icon: "trending-up", items: [
     ["Leads Management", "leads.html", "user-search", "leads"], ["Customers", "customer.html", "users", "customer"], ["Sales Pipeline", "pipeline.html", "filter", "pipeline"],
-    ["Site Visits", "site-visits.html", "map-pin", "visits"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "tasks.html", "list-checks", "tasks"], ["Commissions", "#", "wallet"]] },
+    ["Site Visits", "site-visits.html", "map-pin", "visits"], ["My Team", "team.html", "users-round", "team"], ["Bookings & Deals", "#", "file-signature"], ["Tasks & Follow-ups", "tasks.html", "list-checks", "tasks"], ["Commissions", "#", "wallet"]] },
   { group: "Property", id: "property", icon: "building-2", items: [["Developers", "developers.html", "building-2", "developers"], ["Projects", "projects.html", "landmark", "projects"]] },
   { group: "Manage", id: "manage", icon: "briefcase", items: [
     ["Agents & Teams", "agents.html", "users-round", "agents"], ["Marketing & Campaigns", "#", "megaphone"], ["Integrations", "integrations.html", "plug-zap", "integrations"],
@@ -14,14 +14,18 @@ const NAV = [
 ];
 const niceName = (e) => String(e || "").split("@")[0].split(/[._-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || "You";
 const navLink = ([label, href, icon, key], active) => html`<a href="${href}" class="${key && key === active ? "active" : ""}" ${key && key === active ? raw('aria-current="page"') : raw("")}><i data-lucide="${icon}"></i>${label}</a>`;
-const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks", "calendar", "profile"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
+const EMP_KEYS = ["dashboard", "leads", "customer", "pipeline", "visits", "tasks", "team", "calendar", "profile"], ADMIN_KEYS = ["agents", "integrations", "projects", "developers", "settings"];
 // employees only get the pages that work on their own leads; everything else is hidden (and blocked by the database anyway)
-const navFor = (role) => role === "employee"
-  ? NAV.map((n) => (Array.isArray(n) ? (EMP_KEYS.includes(n[3]) ? n : null) : { ...n, items: n.items.filter((it) => EMP_KEYS.includes(it[3])) })).filter((n) => n && (Array.isArray(n) || n.items.length))
-  : NAV;
-function navHtml(active, role) {
+// "My Team" is only for people who have someone reporting to them
+const navFor = (role, mgr) => {
+  const keep = (it) => it[3] !== "team" || mgr;
+  return role === "employee"
+    ? NAV.map((n) => (Array.isArray(n) ? (EMP_KEYS.includes(n[3]) && keep(n) ? n : null) : { ...n, items: n.items.filter((it) => EMP_KEYS.includes(it[3]) && keep(it)) })).filter((n) => n && (Array.isArray(n) || n.items.length))
+    : NAV.map((n) => (Array.isArray(n) ? (keep(n) ? n : null) : { ...n, items: n.items.filter(keep) })).filter(Boolean);
+};
+function navHtml(active, role, mgr) {
   let saved = {}; try { saved = JSON.parse(localStorage.getItem("k99.nav") || "{}"); } catch { /* no saved choice */ }
-  return navFor(role).map((n) => {
+  return navFor(role, mgr).map((n) => {
     if (Array.isArray(n)) return navLink(n, active);
     const has = n.items.some((it) => it[3] && it[3] === active), open = has || saved[n.id] === true;     // the group holding this page is always open
     return html`<div class="ng ${open ? "open" : ""}" data-g="${n.id}"><button type="button" class="ng-h ${has ? "has-active" : ""}" aria-expanded="${open}" aria-controls="ng-${n.id}"><i data-lucide="${n.icon}"></i><span>${n.group}</span><i class="ng-c" data-lucide="chevron-down"></i></button>
@@ -29,6 +33,7 @@ function navHtml(active, role) {
   });
 }
 
+const SCOPED = ["dashboard", "leads", "pipeline", "tasks", "visits"];   // pages a manager can narrow to "my team / my leads / one person"
 async function mountShell(active) {
   const root = document.getElementById("root");
   if (!Data.configured) { root.innerHTML = '<div style="padding:40px;font-family:sans-serif">Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in <code>js/config.js</code>.</div>'; return null; }
@@ -39,6 +44,8 @@ async function mountShell(active) {
   try { me = await Data.getMe(sess); } catch (e) { root.innerHTML = '<div style="padding:40px;font-family:sans-serif">Could not check your access: ' + esc(e.message || e) + '. <a href="">Try again</a></div>'; return null; }
   if (me) me.uid = sess.user.id;
   window.ME = me;
+  if (me && me.role === "employee") { try { me.team = await Data.getMyTeam(); } catch { me.team = []; } me.isManager = me.team.length > 1; } else if (me) { me.team = []; me.isManager = false; }   // a manager = someone with people reporting to them
+  if (me && active === "team" && !me.isManager) { location.replace("index.html"); return null; }
   if (!me || !me.active) { accessScreen(root, me ? "Your login has been switched off. Please ask an admin." : "Your login has no access yet. Please ask an admin to set you up."); return null; }
   if (me.mustChange) { changePasswordScreen(root, email); return null; }
   if (me.role !== "admin" && ADMIN_KEYS.includes(active)) { location.replace("index.html"); return null; }
@@ -51,7 +58,7 @@ async function mountShell(active) {
         <button type="button" class="sb-close" id="sbClose" aria-label="Close menu"><i data-lucide="x"></i></button>
         <div class="logo"><b>Keys<span>99</span></b><em>CRM</em><small>Channel Partner CRM</small></div>
         <nav class="nav">
-          ${navHtml(active, me.role)}
+          ${navHtml(active, me.role, me.isManager)}
         </nav>
         <a class="sb-profile ${active === "profile" ? "active" : ""}" href="profile.html" aria-label="My profile" ${active === "profile" ? raw('aria-current="page"') : raw("")}>${avatar(who, 40, photo)}<span class="sb-pn"><b>${who}</b><small>${role}${me.member && me.member.designation ? " · " + me.member.designation : ""}</small></span><i data-lucide="chevron-right"></i></a>
         <div class="sidebar-art">${buildingSvg()}</div>
@@ -72,9 +79,11 @@ async function mountShell(active) {
             </button>
           </div>
         </header>
+        ${me.isManager && SCOPED.includes(active) ? Scope.bar() : raw("")}
         <main id="main"><div id="page"><div class="empty">Loading…</div></div></main>
       </div>
     </div>`);
+  if (me.isManager && SCOPED.includes(active)) Scope.wire(root);
   if (window.Theme) Theme.paint();
   const sb = document.getElementById("sidebar"), bd = document.getElementById("backdrop");
   const toggle = (open) => { sb.classList.toggle("open", open); bd.classList.toggle("open", open); };

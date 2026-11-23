@@ -12,6 +12,7 @@
   async function load() {
     try {
       [state.leads, state.bookings, state.visits] = await Promise.all([Data.getLeads(), Data.getBookings(), Data.getSiteVisits()]);
+      ({ leads: state.leads, bookings: state.bookings, visits: state.visits } = Scope.apply({ leads: state.leads, bookings: state.bookings, visits: state.visits }));
       try { state.team = await Data.getTeamCached(); } catch { state.team = []; }
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load the pipeline: ' + esc(e.message) + "</div>"; return false; }
     state.sel = new Set([...state.sel].filter((id) => state.leads.some((l) => l.dbId === id)));

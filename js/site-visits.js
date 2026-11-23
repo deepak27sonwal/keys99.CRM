@@ -8,7 +8,7 @@
 
   // ---------- data ----------
   async function load() {
-    try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); }
+    try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); ({ leads, visits, bookings } = Scope.apply({ leads, visits, bookings })); }
     catch (e) { page.innerHTML = '<div class="card empty">Could not load site visits: ' + esc(e.message) + "</div>"; return false; }
     byId = new Map(leads.map((l) => [l.dbId, l])); booked = new Set(bookings.map((b) => b.enquiry_id));
     V = visits.map(vm).sort((a, b) => a.start - b.start);
