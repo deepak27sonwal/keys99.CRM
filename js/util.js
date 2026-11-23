@@ -195,3 +195,30 @@ function expandMeeting(m, from, to) {
   }
   return out;
 }
+
+// ---- Reporting managers: which part of their team a manager is looking at ("team" = everyone below them, "mine" = only their own, "m:<id>" = one person) ----
+// The database already returns only what a manager may see; this narrows it. Saved on the device; people with nobody reporting to them are never affected.
+const Scope = {
+  isMgr: () => !!(window.ME && window.ME.isManager),
+  get() { try { return localStorage.getItem("k99.scope") || "team"; } catch { return "team"; } },
+  set(v) { try { localStorage.setItem("k99.scope", v); } catch { /* not saved */ } },
+  people() { return ((window.ME && window.ME.team) || []).filter((m) => m.id !== window.ME.memberId); },
+  label() { const s = this.get(); if (s === "mine") return "My leads"; if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? p.name : "My team"; } return "My team"; },
+  ownerOk(agent) {
+    if (!this.isMgr()) return true;
+    const s = this.get(), k = (x) => String(x || "").trim().toLowerCase();
+    if (s === "mine") return k(agent) === k(window.ME.name);
+    if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? k(agent) === k(p.name) : true; }
+    return true;
+  },
+  leads(list) { return this.isMgr() ? list.filter((l) => this.ownerOk(l.agent)) : list; },
+  // keep only the rows (visits, bookings, ...) that belong to the leads that stay in view
+  rows(rows, leads, key = "enquiry_id") { if (!this.isMgr() || this.get() === "team") return rows; const ids = new Set(leads.map((l) => l.dbId)); return rows.filter((r) => ids.has(r[key])); },
+  tasks(list) { if (!this.isMgr() || this.get() === "team") return list; const s = this.get(), id = s === "mine" ? window.ME.memberId : Number(s.slice(2)); return list.filter((t) => t.assigned_to === id); },
+  apply(o) { if (!this.isMgr()) return o; const leads = this.leads(o.leads || []); const out = { ...o, leads }; Object.keys(o).forEach((k) => { if (k !== "leads" && Array.isArray(o[k]) && k !== "tasks") out[k] = this.rows(o[k], leads); }); return out; },
+  bar() {
+    const s = this.get(), opts = [["team", "My team"], ["mine", "My leads"], ...this.people().map((m) => ["m:" + m.id, m.name])];
+    return html`<div class="scope-bar" role="group" aria-label="Whose leads to show"><span><i data-lucide="users-round"></i>Viewing</span><select class="select" id="scopeSel" data-search aria-label="Viewing">${opts.map(([v, l]) => html`<option value="${v}" ${v === s ? raw("selected") : raw("")}>${l}</option>`)}</select></div>`;
+  },
+  wire(root) { const el = root.querySelector("#scopeSel"); if (el) el.onchange = () => { this.set(el.value); location.reload(); }; },
+};

@@ -86,6 +86,10 @@
     pwTools();
   }
   // the email a person signs in with (and where their password codes go); also keeps their team record and their leads' alert address in step
+  // reporting lines: who is below a person (used to stop loops and to show team sizes)
+  const kids = (id) => state.members.filter((x) => x.reports_to === id);
+  const below = (id) => { const out = new Set(), walk = (i) => kids(i).forEach((x) => { if (!out.has(x.id)) { out.add(x.id); walk(x.id); } }); walk(id); return out; };
+  const managerOf = (m) => (m.reports_to ? state.members.find((x) => x.id === m.reports_to) : null);
   const clash = (email, selfId) => state.members.find((x) => x.id !== selfId && x.email && x.email.trim().toLowerCase() === email.trim().toLowerCase());
   async function changeLoginEmail(m, email) {
     const e = String(email || "").trim().toLowerCase(), c = clash(e, m.id);
@@ -156,7 +160,7 @@
     const kpis = [["Members", all.length, "", "users-round", 1], ["Active", active.length, "", "check-circle-2", 0, 1], ["Inactive", all.length - active.length, "", "user-x"],
       ["Month Target", target ? fmtMoney(target) : "—", "", "target"], ["Achieved", fmtMoney(achieved), "", "bar-chart-3"],
       ["Conversion", leadsAll ? fmtPct(pct(bookAll, leadsAll)) : "0%", "", "trophy"], ["Commission", fmtMoney(sumOf(all, (s) => s.commissionM)), "", "coins"]];
-    const tabs = [["all", "All Members", all.length], ["agent", "Agents", all.filter((m) => m.kind === "agent").length], ["rm", "Relationship Managers", all.filter((m) => m.kind === "rm").length], ["hours", "Active hours", null], ["routing", "Lead Routing", null]];
+    const tabs = [["all", "All Members", all.length], ["agent", "Agents", all.filter((m) => m.kind === "agent").length], ["rm", "Relationship Managers", all.filter((m) => m.kind === "rm").length], ["hours", "Active hours", null], ["reporting", "Reporting", null], ["routing", "Lead Routing", null]];
     const sel2 = (k, label) => html`<select class="select" data-f="${k}"><option value="">${label}: All</option>${uniq(k).map((v) => html`<option ${state.f[k] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
     const top = [...all].map((m) => [m, S(m).value]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 5), topMax = top.length ? top[0][1] : 1;
     const noTeamNote = state.leads.length && !state.owner.size && all.length ? html`<p class="sub" style="margin:0 0 12px">No lead is assigned to anyone in this list yet. A lead belongs to a person when its <b>Assigned agent</b> matches their name.</p>` : raw("");
@@ -168,12 +172,12 @@
         <div class="kpis k7">${kpis.map(kpiCard)}</div>
         ${autoCard(active)}
         <div class="tabs-pill">${tabs.map(([k, l, n]) => html`<button class="pill ${k === state.tab ? "active" : ""}" data-tab="${k}">${l}${n === null ? "" : " (" + n + ")"}</button>`)}</div>
-        ${state.tab === "routing" ? routingView() : state.tab === "hours" ? hoursView() : html`${noTeamNote}
+        ${state.tab === "routing" ? routingView() : state.tab === "reporting" ? reportingView() : state.tab === "hours" ? hoursView() : html`${noTeamNote}
         <div class="filters">${sel2("team", "Team")}<select class="select" data-f="status"><option value="">Status: All</option>${["Active", "Inactive"].map((v) => html`<option ${state.f.status === v ? raw("selected") : raw("")}>${v}</option>`)}</select>${sel2("location", "Location")}
           <input class="select team-q" id="q" type="search" placeholder="Search by name, mobile or email…" value="${state.q}" aria-label="Search team"></div>
         <div class="card table-wrap"><table class="team-t"><thead><tr>${["Member", "Team", "Projects", "Role", "Leads", "Site Visits", "Bookings", "Deal Value", "Commission", "Conversion", "Status", ""].map((h) => html`<th>${h}</th>`)}</tr></thead>
           <tbody>${rows.length ? rows.map((m) => { const s = S(m); return html`<tr class="tm-row ${m.id === state.selId ? "sel" : ""}" data-id="${m.id}" tabindex="0">
-            <td data-label="Member"><div class="row">${avatar(m.name, 34, avatarUrl(m.avatar_path))}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small>${loginBadge(m)}</div></div></td>
+            <td data-label="Member"><div class="row">${avatar(m.name, 34, avatarUrl(m.avatar_path))}<div><b>${m.name}</b><small>${m.phone || m.email || "—"}</small>${managerOf(m) ? html`<small class="rt-line"><i data-lucide="corner-down-right"></i>Reports to ${managerOf(m).name}</small>` : raw("")}${kids(m.id).length ? html`<span class="chip c-ok" title="${below(m.id).size} people below, ${kids(m.id).length} direct">Manager · team of ${below(m.id).size}</span>` : raw("")}${loginBadge(m)}</div></div></td>
             <td data-label="Team">${m.team || "—"}</td><td data-label="Projects" class="pjs">${pj(m.projects)}</td><td data-label="Role">${m.designation || KIND[m.kind]}${m.designation && m.designation !== KIND[m.kind] ? html`<small>${KIND[m.kind]}</small>` : raw("")}</td>
             <td data-label="Leads">${s.leads}</td><td data-label="Site Visits">${s.visits}</td><td data-label="Bookings">${s.bookings}</td>
             <td data-label="Deal Value">${s.value ? fmtMoney(s.value) : "—"}</td><td data-label="Commission">${s.commission ? fmtMoney(s.commission) : "—"}</td><td data-label="Conversion">${s.leads ? fmtPct(pct(s.booked, s.leads)) : "—"}</td>
@@ -205,6 +209,16 @@
     hr.loading = true; draw();
     try { hr.rows = await Data.getActiveTime(a, b); hr.err = ""; hr.key = k; } catch (e) { hr.err = e.message || String(e); }
     hr.loading = false; draw();
+  }
+  // the reporting tree: managers with the people under them; people nobody manages sit at the top
+  function reportingView() {
+    const all = state.members, ids = new Set(all.map((m) => m.id)), roots = all.filter((m) => !m.reports_to || !ids.has(m.reports_to)).sort((p, q) => (kids(q.id).length - kids(p.id).length) || p.name.localeCompare(q.name));
+    const node = (m, depth) => { const ks = kids(m.id).sort((p, q) => p.name.localeCompare(q.name)), s = (typeof stats !== "undefined" && stats.get(m.id)) || { leads: 0 };
+      const head = html`<div class="rp-n"><div class="row">${avatar(m.name, 30, avatarUrl(m.avatar_path))}<div><b>${m.name}</b><small>${[m.designation, m.team].filter(Boolean).join(" · ") || KIND[m.kind]}${m.status === "Active" ? "" : " · inactive"}</small></div></div><span class="rp-c">${s.leads} lead${s.leads === 1 ? "" : "s"}</span>${ks.length ? html`<span class="chip c-ok">${ks.length} direct · ${below(m.id).size} in team</span>` : raw("")}<button type="button" class="btn sm" data-edit-m="${m.id}"><i data-lucide="pencil"></i>Change manager</button></div>`;
+      return ks.length && depth < 12 ? html`<details class="rp" open><summary>${head}</summary><div class="rp-k">${ks.map((x) => node(x, depth + 1))}</div></details>` : html`<div class="rp rp-leaf">${head}</div>`; };
+    const mgrs = all.filter((m) => kids(m.id).length).length;
+    return html`<p class="sub" style="margin:0 0 12px">Set who each person <b>reports to</b> (Edit → Reports to, or Change manager here). A manager sees the leads, visits, bookings, tasks and hours of everyone below them, plus their own. Right now ${mgrs} ${mgrs === 1 ? "person manages" : "people manage"} a team.</p>
+      <section class="card p rp-tree">${roots.length ? roots.map((m) => node(m, 0)) : html`<div class="empty-sm">No team members yet.</div>`}</section>`;
   }
   function hoursView() {
     const [f, t] = Hours.span(hr.preset, hr.from, hr.to), td = dayKeyOf(0), yd = dayKeyOf(-1), mem = Number(hr.member) || 0;
@@ -309,7 +323,7 @@
         <div class="tm-head">${avatar(m.name, 64, avatarUrl(m.avatar_path))}<div><h3>${m.name}</h3><p>${m.designation || KIND[m.kind]}</p><span class="chip ${m.status === "Active" ? "c-ok" : "c-none"}">${m.status}</span></div></div>
         <ul class="tm-info">
           ${m.phone ? html`<li><i data-lucide="phone"></i><a href="${telHref(m.phone)}">${m.phone}</a></li>` : raw("")}${m.email ? html`<li><i data-lucide="mail"></i><a href="mailto:${m.email}">${m.email}</a></li>` : raw("")}
-          <li><i data-lucide="user-check"></i><span class="k">Type</span>${KIND[m.kind]}</li><li><i data-lucide="users"></i><span class="k">Team</span>${m.team || "—"}</li><li><i data-lucide="map-pin"></i><span class="k">Location</span>${m.location || "—"}</li>
+          <li><i data-lucide="user-check"></i><span class="k">Type</span>${KIND[m.kind]}</li><li><i data-lucide="corner-down-right"></i><span class="k">Reports to</span>${managerOf(m) ? managerOf(m).name : "—"}</li>${kids(m.id).length ? html`<li><i data-lucide="users-round"></i><span class="k">Manages</span>${kids(m.id).map((x) => x.name).join(", ")}</li>` : raw("")}<li><i data-lucide="users"></i><span class="k">Team</span>${m.team || "—"}</li><li><i data-lucide="map-pin"></i><span class="k">Location</span>${m.location || "—"}</li>
           <li class="pj-li"><i data-lucide="folder-kanban"></i><span class="k">Projects</span><span>${(m.projects || []).length ? pj(m.projects, 20) : "None yet"}</span></li><li><i data-lucide="shuffle"></i><span class="k">Last lead</span>${m.last_assigned_at ? relTime(m.last_assigned_at) : "—"}</li>
           <li><i data-lucide="calendar"></i><span class="k">Joined On</span>${m.joined_on ? new Date(m.joined_on + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</li><li><i data-lucide="id-card"></i><span class="k">Employee ID</span>${empId(m)}</li></ul>
         <div class="tm-target"><div><small>Monthly Target</small><b>${tgt ? fmtMoney(tgt) : "Not set"}</b></div><div><small>Achieved</small><b>${fmtMoney(s.achieved)}${tgt ? " (" + fmtPct(pct(s.achieved, tgt)) + ")" : ""}</b></div></div>
@@ -337,13 +351,19 @@
   }
 
   // ---------- add / edit ----------
+  // "Reports to": any active person except this one and the people already below them (that would make a loop); the current manager stays listed even if inactive
+  function reportsToField(m) {
+    const out = m ? below(m.id) : new Set(), cur = m ? m.reports_to : null;
+    const opts = state.members.filter((x) => (!m || (x.id !== m.id && !out.has(x.id))) && (x.status === "Active" || x.id === cur)).sort((p, q) => p.name.localeCompare(q.name));
+    return html`<label>Reports to<select name="reports_to" data-search data-placeholder="— Nobody —"><option value="">— Nobody (top of the team) —</option>${opts.map((x) => html`<option value="${x.id}" ${x.id === cur ? raw("selected") : raw("")}>${x.name}${x.designation ? " · " + x.designation : ""}${x.status === "Active" ? "" : " (inactive)"}</option>`)}</select></label>`;
+  }
   async function openMember(m, kind, done) {
     const k = m ? m.kind : kind, ms = await Data.mastersCached().catch(() => ({ teams: [], departments: [], cities: [], localities: [], designations: [] }));
     openModal(m ? "Edit " + m.name : k === "rm" ? "Add Relationship Manager" : "Add Agent", html`<div class="form">
       ${selectField("Type", "kind_label", ["Agent", "Relationship Manager"], KIND[k])}${selectField("Status", "status", ["Active", "Inactive"], m ? m.status : "Active")}
       ${field("Name *", "name", m ? m.name : "", "text", "required maxlength=\"120\"")}${field("Mobile * (10 digits)", "phone", m ? m.phone || "" : "", "tel", 'required pattern="[0-9+ \\-]{10,15}"')}
       ${field("Email", "email", m ? m.email || "" : "", "email")}${masterSelect("Team", "team", ms.teams.map((x) => x.name), m ? m.team || "" : "")}
-      ${masterSelect("Department", "department", ms.departments.map((x) => x.name), m ? m.department || "" : "")}${designationPicker(ms, { department: m ? m.department || "" : "", value: m ? m.designation || "" : "", placeholder: k === "rm" ? "Relationship Manager" : "Sales Executive" })}
+      ${reportsToField(m)}${masterSelect("Department", "department", ms.departments.map((x) => x.name), m ? m.department || "" : "")}${designationPicker(ms, { department: m ? m.department || "" : "", value: m ? m.designation || "" : "", placeholder: k === "rm" ? "Relationship Manager" : "Sales Executive" })}
       ${locPicker(ms, { city: m ? m.location || "" : "", locality: m ? m.locality || "" : "", cityName: "location", locName: "locality", fallback: html`${field("Location", "location", m ? m.location || "" : "", "text", 'placeholder="e.g. Pune"')}<input type="hidden" name="locality" value="${m ? m.locality || "" : ""}">` })}
       ${field("Monthly target (₹)", "monthly_target", m ? m.monthly_target || "" : "", "number", 'min="0" step="1000" placeholder="e.g. 10000000"')}${field("Daily lead limit", "daily_cap", m ? m.daily_cap || "" : "", "number", 'min="1" step="1" placeholder="No limit"')}${field("Joined on", "joined_on", m ? m.joined_on || "" : dayKey(new Date()), "date")}
       <div class="full proj-picker"><label>Projects (new leads for these go to this person)</label><div class="chips" data-chips></div>
@@ -382,6 +402,7 @@
   }
 
   function bind(list) {
+    page.querySelectorAll("[data-edit-m]").forEach((b) => (b.onclick = () => { const m = state.members.find((x) => x.id === Number(b.dataset.editM)); if (m) openMember(m, m.kind, refresh); }));
     page.querySelectorAll("[data-tab]").forEach((x) => (x.onclick = () => { state.tab = x.dataset.tab; state.page = 1; draw(); if (state.tab === "hours") loadHrs(); }));
     const ha = page.querySelector("#hrAdmin"); if (ha) Hours.wire(ha, hr, (k) => { if (k === "preset" || k === "from" || k === "to") loadHrs(); else { if (k === "team") hr.member = ""; draw(); } });
     page.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { state.f[x.dataset.f] = x.value; state.page = 1; draw(); }));

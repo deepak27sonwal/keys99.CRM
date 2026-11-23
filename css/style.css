@@ -1590,3 +1590,22 @@ body.kb-dragging .kb{scroll-snap-type:none}   /* snapping would pull the board b
 .sg-pop li.sg-none{cursor:default;color:var(--muted);font-size:13px}.sg-pop li.sg-none:hover{background:none}
 .ms-search{padding:8px 8px 0}.ms-search input{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;background:var(--card);color:var(--text)}
 .ms-o[hidden]{display:none}
+
+/* Reporting managers: "Viewing" bar and the My Team page */
+.scope-bar{display:flex;align-items:center;gap:10px;padding:8px 22px;background:var(--b-f1f5f9);border-bottom:1px solid var(--line);font-size:13px;color:var(--t-475569)}
+.scope-bar span{display:flex;align-items:center;gap:6px;font-weight:600}.scope-bar [data-lucide]{width:15px;height:15px}
+.scope-bar .select{min-width:190px;max-width:60vw}
+.tm-card .ch{flex-wrap:wrap;gap:10px}
+.tm-t th,.tm-t td{white-space:nowrap}.tm-t .num{text-align:right}.tm-t td.num small{display:block;color:var(--muted);font-size:11px}.tm-t td.warn{color:var(--t-b91c1c);font-weight:700}
+.tm-t tbody tr{cursor:pointer}.tm-t tbody tr:hover,.tm-t tbody tr.sel{background:var(--b-e8f4f1)}
+.tm-t td small{display:block;color:var(--muted);font-size:12px}
+.th-sort{border:0;background:none;font:inherit;font-weight:700;color:inherit;cursor:pointer;padding:0;white-space:nowrap}.th-sort.on{color:var(--brand-700)}
+.tm-det{margin-top:14px}.tm-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.tm-nums div{background:var(--b-f8fafc);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}.tm-nums b{display:block;font-size:18px;color:var(--text)}
+.tm-leads li{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.tm-leads li small{color:var(--muted)}.tm-leads li .muted{margin-left:auto;font-size:12px}
+@media(max-width:900px){.scope-bar{padding:8px 14px}.scope-bar .select{flex:1;min-width:0;max-width:none}.tm-nums{grid-template-columns:repeat(3,1fr)}}
+.rt-line{display:flex;align-items:center;gap:4px;color:var(--muted)}.rt-line [data-lucide]{width:12px;height:12px}
+.rp-tree{padding:8px 14px}.rp{margin:2px 0}.rp>summary{list-style:none;cursor:pointer}.rp>summary::-webkit-details-marker{display:none}
+.rp-n{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 6px;border-bottom:1px solid var(--line)}.rp-n .row{flex:1 1 220px}.rp-n small{display:block;color:var(--muted);font-size:12px}
+.rp-c{font-size:12px;color:var(--t-475569)}.rp-k{margin-left:22px;border-left:2px solid var(--line);padding-left:10px}
+.tm-card .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}   /* on phones the team table scrolls inside its card instead of stretching the page */

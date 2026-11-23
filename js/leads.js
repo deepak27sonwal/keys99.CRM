@@ -7,7 +7,7 @@
   const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "", priority: "" }, range: "all", page: 1, sig: "", checked: new Set() };
 
   async function load() {
-    try { state.leads = await Data.getLeads(); }
+    try { state.leads = Scope.leads(await Data.getLeads()); }
     catch (e) { page.innerHTML = '<div class="card empty">Could not load leads: ' + esc(e.message) + "</div>"; return false; }
     if (state.selected) state.selected = state.leads.find((l) => l.dbId === state.selected.dbId) || null;
     return true;

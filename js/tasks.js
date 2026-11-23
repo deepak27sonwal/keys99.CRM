@@ -3,7 +3,7 @@
 (async function () {
   const page = await mountShell("tasks");
   if (!page) return;
-  const me = window.ME, admin = me.role === "admin", meName = me.member ? me.member.name : "", PER = 8;
+  const me = window.ME, admin = me.role === "admin" || !!me.isManager, meName = me.member ? me.member.name : "", PER = 8;
   const TYPES = ["Call", "WhatsApp", "Meeting", "Site Visit", "Document", "Other"], PRIOS = ["High", "Medium", "Low"], STATUSES = ["Pending", "Completed", "Overdue", "Scheduled"];
   const TYPE_ICON = { "Follow-up": "phone-call", Call: "phone", WhatsApp: "message-circle", Meeting: "users", "Site Visit": "map-pin", Document: "file-text", Other: "list-checks" };
   const TABS = [["all", "All Tasks"], ["Follow-up", "Follow-ups"], ["Call", "Calls"], ["Meeting", "Meetings"], ["Site Visit", "Site Visits"], ["Document", "Documents"], ["other", "Others"]];
@@ -26,8 +26,8 @@
   async function load() {
     try {
       let warn = "";     // a failed site-visit load must not look like "no visits scheduled"
-      const [leads, tasks, visits, team] = await Promise.all([Data.getLeads(), Data.getTasks(), Data.getSiteVisits().catch((e) => { warn = "Site visits could not be loaded (" + (e.message || e) + "), so they are missing from this list."; return []; }), admin ? Data.getTeamCached() : Promise.resolve(me.member ? [me.member] : [])]);
-      Object.assign(state, { leads, tasks, visits, team, err: "", warn });
+      const [leads, tasks, visits, team] = await Promise.all([Data.getLeads(), Data.getTasks(), Data.getSiteVisits().catch((e) => { warn = "Site visits could not be loaded (" + (e.message || e) + "), so they are missing from this list."; return []; }), me.role === "admin" ? Data.getTeamCached() : me.isManager ? Promise.resolve(me.team) : Promise.resolve(me.member ? [me.member] : [])]);
+      const sl = Scope.leads(leads); Object.assign(state, { leads: sl, tasks: Scope.tasks(tasks), visits: Scope.rows(visits, sl), team, err: "", warn });
     } catch (e) { state.err = e.message || String(e); }
   }
 
