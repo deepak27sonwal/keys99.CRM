@@ -36,8 +36,8 @@
   }
   function card(l) {
     const chk = state.select ? html`<input type="checkbox" class="kb-chk" data-chk="${l.dbId}" ${state.sel.has(l.dbId) ? raw("checked") : raw("")} aria-label="Select ${l.name}">` : raw("");
-    return html`<div class="kb-card s-${slug(l.status)}" data-id="${l.dbId}" tabindex="0" aria-label="${l.name}, ${l.status}">
-      <div class="kb-top">${chk}${avatar(l.name, 32)}<div class="kb-nm"><b>${l.name}</b>${l.project ? html`<small><i data-lucide="map-pin"></i>${l.project}</small>` : raw("")}<small class="kb-who ${l.agent ? "" : "none"}" title="Assigned to ${l.agent || "nobody"}"><i data-lucide="user-check"></i>${l.agent || "Unassigned"}</small></div>
+    return html`<div class="kb-card s-${slug(l.status)} ${l.agent ? "" : "un-card"}" data-id="${l.dbId}" tabindex="0" aria-label="${l.name}, ${l.status}">
+      <div class="kb-top">${chk}${avatar(l.name, 32)}<div class="kb-nm"><b>${l.name}</b>${l.project ? html`<small><i data-lucide="map-pin"></i>${l.project}</small>` : raw("")}<small class="kb-who ${l.agent ? "" : "un"}" title="Assigned to ${l.agent || "nobody"}"><i data-lucide="${l.agent ? "user-check" : "user-x"}"></i>${l.agent || "Unassigned"}</small></div>
         <button class="kb-k" data-menu="${l.dbId}" aria-label="Actions for ${l.name}"><i data-lucide="more-vertical"></i></button></div>
       ${l.budget ? html`<div class="kb-bud">₹ ${l.budget.replace(/^₹\s*/, "")}</div>` : raw("")}
       ${(l.status === "Spam" || l.status === "Booking Cancelled") && l.lostReason ? html`<div class="kb-why">Reason: ${l.lostReason}</div>` : raw("")}

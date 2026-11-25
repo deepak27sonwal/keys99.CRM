@@ -126,11 +126,14 @@
     const hour = now.getHours(), greet = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
     const more = (href = "leads.html") => html`<a class="more" href="${href}">View All<i data-lucide="arrow-right"></i></a>`;
 
+    const unN = window.ME && window.ME.role === "admin" ? leads.filter((l) => !l.agent && l.status !== "Spam").length : 0;     // leads nobody owns: only admins can see them
+    const unStrip = unN ? html`<a class="un-strip" href="leads.html?unassigned=1" role="alert"><i data-lucide="user-x"></i><span><b>${unN} ${unN === 1 ? "lead is" : "leads are"} unassigned</b> — they have no project or no available owner. Assign them now.</span><span class="un-go">Assign<i data-lucide="arrow-right"></i></span></a>` : raw("");
     render(page, html`
       <div class="page-head"><div><h1>${greet}! 👋</h1><p class="sub">Here's your Keys99 business overview · ${rangeName()}.</p></div>
         <div class="range-box"><select class="select" id="range" aria-label="Date range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select>
           ${state.range === "custom" ? html`<div class="range-custom"><label>From<input type="date" id="cFrom" value="${state.cFrom}" max="${state.cTo || ""}"></label><label>To<input type="date" id="cTo" value="${state.cTo}" min="${state.cFrom || ""}"></label></div>` : raw("")}</div></div>
       ${state.range === "custom" && state.cErr ? html`<div class="ban pend range-err" role="alert"><i data-lucide="triangle-alert"></i><div><b>${state.cErr}</b><small>Showing all time until the dates are fixed.</small></div></div>` : raw("")}
+      ${unStrip}
       ${calStrip}
       <div class="kpis k7">${kpis.map(kpiCard)}</div>
       <div class="grid g-top">

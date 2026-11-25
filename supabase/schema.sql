@@ -1481,3 +1481,63 @@ create or replace function public.manager_alerts() returns jsonb language sql st
   select case when public.my_member_id() is null then jsonb_build_object('manager', false) else public.manager_alert_rows(public.my_member_id()) end $f$;
 revoke all on function public.manager_alerts() from public, anon;
 grant execute on function public.manager_alerts() to authenticated;
+
+-- ===== Leads with no project stay unassigned (no automatic owner, not even for a repeat enquiry) =====
+create or replace function public.keep_repeat_with_owner() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare o record; seen boolean; d text := right(regexp_replace(coalesce(new.phone, ''), '\D', '', 'g'), 10); em text := nullif(lower(trim(coalesce(new.email, ''))), '');
+begin
+  if auth.uid() is not null then return new; end if;          -- someone adding a lead by hand decides the owner themselves
+  if btrim(coalesce(new.project, '')) = '' then return new; end if;   -- no project = no automatic owner (the lead stays unassigned)
+  select * into o from public.repeat_owner(new.phone, new.project, new.email);
+  if o.name is null then
+    select exists (select 1 from public.enquiries e where (length(d) = 10 and right(regexp_replace(coalesce(e.phone, ''), '\D', '', 'g'), 10) = d)
+                                                       or (em is not null and lower(trim(coalesce(e.email, ''))) = em)) into seen;
+    if seen then
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat check', 'type', 'doc', 'title', 'New enquiry',
+        'description', 'This phone number or email enquired before, but it is not a repeat for this project (another project, or the earlier owner is not on this project''s team), so it is treated as a new enquiry.'));
+    end if;
+    return new;
+  end if;
+  new.manager_name := to_jsonb(o.name);
+  new.manager_email := case when coalesce(o.email, '') = '' then null else to_jsonb(o.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Repeat enquiry', 'type', 'doc', 'title', 'Repeat enquiry',
+    'description', 'This phone number or email enquired before about the same project (latest earlier lead L-' || o.from_lead || '), so the lead stays with ' || o.name));
+  return new;
+exception when others then
+  raise warning 'keep_repeat_with_owner failed: %', sqlerrm;
+  return new;
+end $f$;
+create or replace function public.auto_assign_enquiry() returns trigger language plpgsql security definer set search_path = '' as $f$
+declare on_ boolean; a record; has_mgr boolean;
+begin
+  select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
+  if not coalesce(on_, false) then return new; end if;
+  if public.my_member_id() is not null then return new; end if;
+  if btrim(coalesce(new.project, '')) = '' then          -- no project = no automatic owner: leave the lead unassigned and say why on its history
+    if not (new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb)) then
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Left unassigned',
+        'description', 'This lead has no project, so it was not assigned automatically.'));
+    end if;
+    return new;
+  end if;
+  if auth.uid() is null and exists (select 1 from public.repeat_owner(new.phone, new.project, new.email)) then return new; end if;
+  perform pg_advisory_xact_lock(727001);
+  select * into a from public.assignee_detail(new.project);
+  if a.id is null then return new; end if;
+  has_mgr := new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb);
+  if not a.matched and has_mgr then return new; end if;
+  new.manager_name := to_jsonb(a.name);
+  new.manager_email := case when a.email is null then null else to_jsonb(a.email) end;
+  new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+    'at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Auto-assigned',
+    'description', 'Assigned to ' || a.name || ' · ' || a.reason));
+  update public.team_members set last_assigned_at = clock_timestamp() where team_members.id = a.id;
+  return new;
+exception when others then
+  raise warning 'auto_assign_enquiry failed: %', sqlerrm;
+  return new;
+end $f$;
+-- the project from a connected form must be known before the repeat and auto-assign decisions: this trigger now sorts first
+drop trigger if exists enquiries_a_source_project on public.enquiries;
+drop trigger if exists enquiries_a0_source_project on public.enquiries;
+create trigger enquiries_a0_source_project before insert on public.enquiries for each row execute function public.route_source_to_project();
