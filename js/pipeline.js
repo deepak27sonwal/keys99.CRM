@@ -116,6 +116,7 @@
 
   const byId = (id) => state.leads.find((l) => l.dbId === Number(id));
   const refresh = async () => { if (await load()) draw(); };
+  Data.onRemote(refresh);
   // After a lead lands in a column, make sure that column is long enough to show it (it may be older than the 5 newest).
   function keepVisible(dbId, status) {
     const x = state.leads.find((q) => q.dbId === dbId); if (!x) return;

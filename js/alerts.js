@@ -44,7 +44,7 @@ window.Alerts = (function () {
       row: (t, P) => html`<li><button type="button" class="icon-btn al-done" data-done="${t.id}" aria-label="Mark ${t.title} done" title="Mark done" ${P.busy ? raw("disabled") : raw("")}><i data-lucide="circle"></i></button><a class="nf-ar" href="tasks.html" aria-label="Open ${t.title}"><span class="nf-t"><b>${t.title}</b><span>${t.type || "Task"} · ${when(t.due_at)}</span></span></a></li>`,
       wire: (panel, P, reload) => panel.querySelectorAll("[data-done]").forEach((b) => (b.onclick = async (e) => {
         e.stopPropagation(); P.busy = "1"; b.disabled = true;
-        try { await Data.updateTask(Number(b.dataset.done), { done_at: new Date().toISOString() }); toast("Task marked done"); window.dispatchEvent(new CustomEvent("k99:task-changed")); }
+        try { await Data.updateTask(Number(b.dataset.done), { done_at: new Date().toISOString() }); toast("Task marked done"); window.dispatchEvent(new CustomEvent("k99:remote-changed")); }
         catch (x) { toast("Could not update the task: " + (x.message || x)); }
         P.busy = ""; reload();
       })) });
