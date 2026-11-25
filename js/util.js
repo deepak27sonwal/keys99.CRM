@@ -207,7 +207,7 @@ const Scope = {
   // a lead belongs to a person by name, or by email when the name was changed after the lead was assigned (the database resolves owners the same way)
   ownerOk(agent, email) {
     if (!this.isMgr()) return true;
-    const s = this.get(), k = (x) => String(x || "").trim().toLowerCase(), is = (name, mail) => k(agent) === k(name) || (!!k(mail) && k(email) === k(mail));
+    const s = this.get(), k = (x) => String(x || "").trim().toLowerCase(), is = (name, mail) => (k(email) ? !!k(mail) && k(email) === k(mail) : k(agent) === k(name));   // a stored email identifies the owner; the name is only the fallback
     if (s === "mine") return is(window.ME.name, window.ME.member && window.ME.member.email);
     if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? is(p.name, p.email) : true; }
     return true;
