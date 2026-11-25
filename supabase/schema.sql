@@ -1609,3 +1609,28 @@ begin
   return new;
 end $$;
 
+
+-- ============ Booking Done details (configuration, wing, flat, project closing manager) ============
+alter table public.bookings
+  add column if not exists configuration text,
+  add column if not exists wing_no text,
+  add column if not exists flat_no text,
+  add column if not exists closing_manager_name text,
+  add column if not exists closing_manager_mobile text;
+
+-- How many OTHER live bookings already hold this flat (same project, wing and flat). Counts only: employees get a warning without seeing anyone else's booking.
+create or replace function public.flat_booked_elsewhere(p_project text, p_wing text, p_flat text, p_enquiry bigint default null)
+returns integer language sql stable security definer set search_path = '' as $$
+  select count(*)::int from public.bookings b
+  join public.enquiries e on e.id = b.enquiry_id
+  where auth.uid() is not null
+    and btrim(coalesce(p_flat,'')) <> ''
+    and lower(btrim(coalesce(b.flat_no,''))) = lower(btrim(p_flat))
+    and lower(btrim(coalesce(b.wing_no,''))) = lower(btrim(coalesce(p_wing,'')))
+    and b.enquiry_id is distinct from p_enquiry
+    and e.status <> 'Booking Cancelled'
+    and ( (public.project_for_name(b.project) is not null and public.project_for_name(b.project) = public.project_for_name(p_project))
+          or public.norm_project(b.project) = public.norm_project(p_project) );
+$$;
+revoke all on function public.flat_booked_elsewhere(text,text,text,bigint) from public, anon;
+grant execute on function public.flat_booked_elsewhere(text,text,text,bigint) to authenticated;
