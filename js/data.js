@@ -472,6 +472,16 @@ const Data = {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);
     if (error) throw error;
   },
+  // the latest booking row of a lead (null when none): used to pre-fill and edit instead of duplicating
+  async getLeadBooking(enquiryId) {
+    const { data, error } = await this.client.from("bookings").select("*").eq("enquiry_id", enquiryId).order("id", { ascending: false }).limit(1);
+    if (error) throw error; return (data && data[0]) || null;
+  },
+  async updateBooking(id, patch) { const { error } = await this.client.from("bookings").update(patch).eq("id", id); if (error) throw error; },
+  // how many other live bookings already hold this flat (a count only; a failed check never blocks saving)
+  async flatBookedElsewhere(project, wing, flat, enquiryId) {
+    try { const { data, error } = await this.client.rpc("flat_booked_elsewhere", { p_project: project, p_wing: wing || "", p_flat: flat, p_enquiry: enquiryId }); if (error) throw error; return Number(data) || 0; } catch { return 0; }
+  },
   async addBooking(b) {
     const s = await this.session();
     const { error } = await this.client.from("bookings").insert({ ...b, created_by: s ? s.user.email : null });

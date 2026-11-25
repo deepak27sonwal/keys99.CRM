@@ -64,10 +64,11 @@ const labelOf = (el) => { const l = el.closest("label"); const t = l ? [...l.chi
 function fieldError(el, form) {
   const val = String(el.value || "").trim(), name = el.name, label = labelOf(el), changed = el.dataset.init !== el.value;
   if (!val) return el.dataset.req === "1" ? (el.tagName === "SELECT" ? "Choose " : "Enter ") + label.toLowerCase() : "";
-  if (["name", "contact_person", "designation", "team", "developer", "project", "location", "city", "agent"].includes(name)) {
+  if (["name", "contact_person", "closing_manager_name", "designation", "team", "developer", "project", "location", "city", "agent"].includes(name)) {
     if (val.length < 2) return label + " needs at least 2 characters";
     if (!V.hasLetter(val)) return label + " must contain letters";
   }
+  if (name === "closing_manager_mobile" && !V.phone(val)) return "Enter a valid mobile number, e.g. 98765 43210";
   if (name === "mobile" || name === "phone") { if (!V.phone(val)) return "Enter a valid mobile number, e.g. 98765 43210"; }
   if (name === "email" && !V.email(val)) return "Enter a valid email address, e.g. name@example.com";
   if (name === "website" && !V.url(val)) return "Enter a valid website, e.g. example.com";
@@ -336,11 +337,14 @@ async function openEditLead(lead, done) {
     <label class="full">Notes<textarea name="notes" rows="3">${lead.notes}</textarea></label></div>`,
     async (f) => {
       const changed = !emp && k(f.agent) !== k(cur), who = team.find((m) => k(m.name) === k(f.agent));
+      const toBooking = needsBookingDetails(lead.status, f.status);     // Booking Done asks for the deal details after the other changes are saved
+      if (toBooking) f.status = lead.status;
       const patch = { status: f.status, ...(f.status === lead.status ? {} : needsReason(f.status) ? { lostReason: f.reason } : needsReason(lead.status) ? { lostReason: "" } : {}), followUp: fromLocalInput(f.follow_up), ...(emp ? {} : { agent: f.agent }), priority: f.priority, budget: f.budget, location: "city" in f ? joinLocation(f) : f.location, propertyType: f.property_type, bhk: f.bhk, notes: f.notes };
       if (changed && team.length) patch.agentEmail = who ? who.email : null;     // a team member brings their own email; unassigning clears it
       await Data.updateLead(lead.dbId, patch);
       if (changed) { try { await Data.addActivity(lead, "Assigned", f.agent ? "Assigned to " + f.agent + (cur ? " (was " + cur + ")" : "") : "Unassigned (was " + cur + ")"); } catch { /* the assignment itself is saved */ } }
       toast("Saved"); done && done();
+      if (toBooking) setTimeout(() => openBooking(lead, done), 0);
     });
   const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod); wireLocations(mod, m); wireReason(mod, lead.status);
 }
@@ -365,20 +369,41 @@ function openSiteVisit(lead, done) {
     });
   wireHolidayNote(document.querySelector(".overlay.open .modal"), "visit_at");
 }
-function openBooking(lead, done) {
-  openModal("Convert to Deal", html`<div class="form">
-    ${field("Project *", "project", lead.project, "text", "required")}${field("Developer", "developer", lead.developer)}
-    ${field("Booking date *", "booking_date", dayKey(new Date()), "date", "required")}${field("Booking value (₹) *", "booking_value", "", "number", 'required min="0" step="1"')}
-    ${field("Agreement rate (%) *", "agreement_rate", "", "number", 'required min="0" max="100" step="0.01"')}${selectField("Commission status", "commission_status", ["Pending", "Received"])}
-    <p class="full muted" style="font-size:12px">Commission = booking value × agreement rate.</p></div>`,
+// Moving a lead INTO Booking Done always asks for the booking details first (from any stage that is not already Booking Done / Post Sale).
+const needsBookingDetails = (from, to) => to === "Booking Done" && !BOOKED.includes(from);
+async function openBooking(lead, done) {
+  const props = await Data.getPropertyNames().catch(() => ({ projects: [], developers: [] }));
+  const old = await Data.getLeadBooking(lead.dbId).catch(() => null);     // a lead that was booked before is edited, not duplicated
+  const cfgOf = (txt) => { const m = String(txt || "").split(" · "); return m.length > 1 ? { type: m[0], value: m.slice(1).join(" · ") } : { type: lead.propertyType || "", value: lead.bhk || "" }; };
+  const cfg = old && old.configuration ? cfgOf(old.configuration) : { type: lead.propertyType || "", value: lead.bhk || "" };
+  const rate0 = old && Number(old.agreement_rate) ? String(Number(old.agreement_rate)) : "", val0 = old && Number(old.booking_value) ? String(Number(old.booking_value)) : "";
+  openModal(old ? "Booking details" : "Booking Done · details", html`<div class="form">
+    ${comboField("Project name *", "project", (old && old.project) || lead.project || "", { cls: "full", placeholder: "Search a project or type a new one" })}
+    ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date *", "booking_date", (old && old.booking_date) || dayKey(new Date()), "date", "required")}
+    ${configPicker({ type: cfg.type, value: cfg.value, label: "Configuration *" })}
+    ${field("Wing No", "wing_no", (old && old.wing_no) || "")}${field("Flat No *", "flat_no", (old && old.flat_no) || "", "text", "required")}
+    ${field("Agreement / Consideration value (₹) *", "booking_value", val0, "number", 'required min="1" step="1"', "full")}
+    ${field("Agreement rate (%) *", "agreement_rate", rate0, "number", 'required min="0" max="100" step="0.01"')}${selectField("Commission status", "commission_status", ["Pending", "Received"], (old && old.commission_status) || "Pending")}
+    ${field("Project closing manager name", "closing_manager_name", (old && old.closing_manager_name) || "")}${field("Closing manager mobile no", "closing_manager_mobile", (old && old.closing_manager_mobile) || "", "tel", 'pattern="[0-9+ \\-]{10,15}" placeholder="10 digits"')}
+    <p class="full muted" style="font-size:12px">Commission = agreement value × agreement rate.</p></div>`,
     async (f) => {
-      const value = Number(f.booking_value), rate = Number(f.agreement_rate);
-      await Data.addBooking({ enquiry_id: lead.dbId, project: f.project, developer: f.developer || null, booking_date: f.booking_date,
-        booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100, commission_status: f.commission_status,
-        received_on: f.commission_status === "Received" ? f.booking_date : null });
-      await Data.updateLead(lead.dbId, { status: "Booking Done" });
-      toast("Deal recorded"); done && done();
+      const value = Number(f.booking_value), rate = Number(f.agreement_rate), config = [f.property_type, f.bhk].filter(Boolean).join(" · ");
+      if (!f.property_type || !f.bhk) throw new Error("choose the configuration (property type and BHK)");
+      if (!(value > 0)) throw new Error("enter the agreement value");
+      const taken = await Data.flatBookedElsewhere(f.project, f.wing_no, f.flat_no, lead.dbId);
+      if (taken && !confirm("Flat " + f.flat_no + (f.wing_no ? ", wing " + f.wing_no : "") + " is already booked on " + f.project + " by another lead. Save anyway?")) throw new Error("not saved");
+      const row = { project: f.project, developer: f.developer || null, booking_date: f.booking_date, booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100,
+        commission_status: f.commission_status, received_on: f.commission_status === "Received" ? f.booking_date : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
+        closing_manager_name: f.closing_manager_name || null, closing_manager_mobile: f.closing_manager_mobile || null };
+      if (old) await Data.updateBooking(old.id, row); else await Data.addBooking({ enquiry_id: lead.dbId, ...row });
+      await Data.updateLead(lead.dbId, { status: "Booking Done", ...(needsReason(lead.status) ? { lostReason: "" } : {}) });
+      try { await Data.addActivity(lead, "Booking", "Booking details: " + f.project + " · " + config + " · " + (f.wing_no ? "Wing " + f.wing_no + ", " : "") + "Flat " + f.flat_no + " · ₹" + value.toLocaleString("en-IN")); } catch { /* the booking itself is saved */ }
+      toast("Booking recorded"); done && done();
     });
+  const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod);
+  wireCombo(mod, "project", () => props.projects.map((p) => p.name));
+  const pj = mod.querySelector('input[name="project"]'), dv = mod.querySelector('input[name="developer"]');
+  if (pj && dv) pj.addEventListener("change", () => { const hit = props.projects.find((p) => String(p.name).trim().toLowerCase() === pj.value.trim().toLowerCase()); if (hit && hit.developer && !dv.value.trim()) { dv.value = hit.developer; } });
 }
 function openCancelBooking(lead, done) {
   openModal("Cancel booking", html`<div class="form">${selectField("Reason", "reason", STAGE_REASONS["Booking Cancelled"], "", "full")}</div>`,
