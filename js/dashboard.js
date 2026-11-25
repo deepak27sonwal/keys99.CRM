@@ -1,12 +1,14 @@
 (async function () {
   const page = await mountShell("dashboard");
   if (!page) return;
-  let leads, visits, bookings;
-  try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); ({ leads, visits, bookings } = Scope.apply({ leads, visits, bookings })); }
-  catch (e) { page.innerHTML = '<div class="card empty">Could not load data: ' + esc(e.message) + "</div>"; return; }
+  let leads, visits, bookings, byId;
+  async function reload() {
+    try { [leads, visits, bookings] = await Promise.all([Data.getLeads(), Data.getSiteVisits(), Data.getBookings()]); ({ leads, visits, bookings } = Scope.apply({ leads, visits, bookings })); byId = new Map(leads.map((l) => [l.dbId, l])); return null; }
+    catch (e) { return e; }
+  }
+  { const err = await reload(); if (err) { page.innerHTML = '<div class="card empty">Could not load data: ' + esc(err.message) + "</div>"; return; } }
   let hols = [], meets = [];
   try { [hols, meets] = await Promise.all([Data.getHolidays(), Data.getMeetings()]); } catch { /* the calendar strip is optional */ }
-  const byId = new Map(leads.map((l) => [l.dbId, l]));
   const RANGES = { today: "Today", yesterday: "Yesterday", "30d": "Last 30 days", month: "This month", "90d": "Last 3 months", all: "All time", custom: "Custom range…" };
   const state = { range: "30d", cFrom: "", cTo: "", cErr: "" };
   const ymdOf = (dt) => dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0");
@@ -181,4 +183,5 @@
       options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks }, y: { grid, ticks, beginAtZero: true } } } }));
   }
   draw();
+  Data.onRemote(async () => { if (!(await reload())) draw(); });
 })();

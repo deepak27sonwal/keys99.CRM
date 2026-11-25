@@ -142,6 +142,7 @@
 
   // ---- wiring ----
   const refresh = async () => { await load(); draw(); };
+  Data.onRemote(refresh);
   const find = (all, key) => all.find((i) => i.key === key);
   // On a phone the details panel would sit far below the list, so a tapped card opens them in a bottom sheet instead.
   const isPhone = () => matchMedia("(max-width:900px)").matches;

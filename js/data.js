@@ -7,8 +7,51 @@ const Data = {
   configured: !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY),
   client: null,
   init() {
-    if (this.configured && window.supabase) this.client = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+    if (this.configured && window.supabase) this.client = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { global: { fetch: (u, o) => this._watchedFetch(u, o) } });
+    this._listenOtherTabs();
     return this;
+  },
+  // ---- "something changed" signals: every successful write to leads, visits, bookings or tasks (from any button or dialog) tells the rest of the page
+  // (alert icons, due counts) and every other open tab of the CRM, so a follow-up or site visit added in one place shows up everywhere without a reload.
+  _watchedFetch(u, o) {
+    return window.fetch(u, o).then((r) => {
+      try {
+        const m = String((o && o.method) || (u && u.method) || "GET").toUpperCase();
+        if (r.ok && m !== "GET" && m !== "HEAD") {
+          const url = String((u && u.url) || u), t = /\/rest\/v1\/(enquiries|site_visits|bookings|tasks|meetings)\b/.exec(url), rpc = /\/rest\/v1\/rpc\/(append_activity|transfer_leads)\b/.exec(url);
+          if (t || rpc) this.noteChange(t && t[1] === "tasks" ? "task" : "lead");
+        }
+      } catch { /* never break a request because of the signal */ }
+      return r;
+    });
+  },
+  _tab: Math.random().toString(36).slice(2), _pend: new Set(), _chan: null,
+  noteChange(kind) {
+    this._pend.add(kind); clearTimeout(this._ct);
+    this._ct = setTimeout(() => {
+      const ks = [...this._pend]; this._pend.clear();
+      ks.forEach((k) => window.dispatchEvent(new CustomEvent(k === "task" ? "k99:task-changed" : "k99:lead-changed")));
+      try { if (this._chan) this._chan.postMessage({ from: this._tab, kinds: ks }); else localStorage.setItem("k99.change", JSON.stringify({ from: this._tab, kinds: ks, at: Date.now() })); } catch { /* signal only */ }
+    }, 120);
+  },
+  _listenOtherTabs() {
+    if (this._listening) return; this._listening = true;
+    const got = (ks) => { (ks || []).forEach((k) => window.dispatchEvent(new CustomEvent(k === "task" ? "k99:task-changed" : "k99:lead-changed"))); window.dispatchEvent(new CustomEvent("k99:remote-changed")); };
+    try { if ("BroadcastChannel" in window) { this._chan = new BroadcastChannel("k99-data"); this._chan.onmessage = (e) => { if (e.data && e.data.from !== this._tab) got(e.data.kinds); }; } } catch { this._chan = null; }
+    window.addEventListener("storage", (e) => { if (e.key !== "k99.change" || !e.newValue) return; try { const v = JSON.parse(e.newValue); if (v.from !== this._tab) got(v.kinds); } catch { /* ignore */ } });
+  },
+  // A page registers how to reload itself; it runs when another tab (or a shell widget) changed data, never under an open dialog or in a hidden tab (it waits for you to come back).
+  onRemote(fn) {
+    let pending = false, running = false;
+    const go = async () => {
+      if (running) { pending = true; return; }
+      if (document.hidden || document.querySelector(".overlay.open")) { pending = true; return; }
+      running = true; pending = false; try { await fn(); } catch { /* keep what is shown */ }
+      running = false; if (pending) setTimeout(go, 400);
+    };
+    window.addEventListener("k99:remote-changed", go);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && pending) go(); });
+    setInterval(() => { if (pending && !document.hidden) go(); }, 3000);
   },
   async session() {
     if (!this.client) return null;

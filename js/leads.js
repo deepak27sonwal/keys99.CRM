@@ -109,6 +109,7 @@
   }
 
   const refresh = async () => { if (await load()) draw(); };
+  Data.onRemote(refresh);
   function bind(filtered) {
     page.querySelectorAll("[data-tab]").forEach((x) => (x.onclick = () => { state.tab = x.dataset.tab; state.page = 1; draw(); }));
     page.querySelectorAll("[data-f]").forEach((x) => (x.onchange = () => { state.f[x.dataset.f] = x.value; state.page = 1; draw(); }));

@@ -135,6 +135,7 @@
 
   // ---------- actions ----------
   const refresh = async () => { if (await load()) draw(); };
+  Data.onRemote(refresh);
   const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert("Could not save: " + e.message); } };
   const setStatus = guard(async (v, status) => {
     await Data.updateSiteVisit(v.id, await Data.visitStatusPatch(v.raw, status));

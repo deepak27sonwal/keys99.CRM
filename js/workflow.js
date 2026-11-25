@@ -23,7 +23,7 @@ window.Workflow = (() => {
         const patch = {}; if (f.follow_up) patch.followUp = fromLocalInput(f.follow_up);
         if (lead.status === "New Leads" && f.outcome.startsWith("Connected")) patch.status = "Contacted";
         if (Object.keys(patch).length) await Data.updateLead(lead.dbId, patch);
-        toast("Call logged"); window.dispatchEvent(new CustomEvent("k99:lead-changed", { detail: lead.dbId })); poll();
+        toast("Call logged"); window.dispatchEvent(new CustomEvent("k99:lead-changed", { detail: lead.dbId })); window.dispatchEvent(new CustomEvent("k99:remote-changed")); poll();
       }, "Save");
     const m = document.querySelector(".overlay.open .modal"), sel = m && m.querySelector('[name="outcome"]'), fu = m && m.querySelector('[name="follow_up"]');
     if (sel && fu) sel.addEventListener("change", () => { const o = OUTCOMES.find((x) => x[0] === sel.value); fu.value = o && o[1] !== null ? at(o[1]) : ""; });

@@ -99,4 +99,5 @@
     };
   }
   draw();
+  Data.onRemote(() => load().then((ok) => ok && draw()));
 })();

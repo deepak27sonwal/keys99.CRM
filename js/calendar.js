@@ -199,6 +199,7 @@
 
   // ---- wiring ----
   const refresh = async () => { await load(); draw(); };
+  Data.onRemote(refresh);
   function wire() {
     const $ = (s) => page.querySelector(s), on = (s, fn) => { const x = $(s); if (x) x.onclick = fn; };
     on("#cToday", () => { state.cur = state.view === "month" ? monthStart(new Date()) : startOfDay(new Date()); state.sel = dayKey(new Date()); draw(); }); on("#cPrev", () => { step(-1); draw(); }); on("#cNext", () => { step(1); draw(); });
