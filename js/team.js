@@ -27,7 +27,7 @@
   // one row of numbers per person in my team (the keys are the same as the Dashboard: bookings = leads moved to Booking Done / Post Sale in the period)
   function rows() {
     const b = bounds(), now = new Date(), bk = bookDatesOf(bookings), byOwner = new Map(), idByName = new Map(team.map((m) => [k(m.name), m.id])), idsByEmail = new Map(); team.forEach((m) => { if (m.email) (idsByEmail.get(k(m.email)) || idsByEmail.set(k(m.email), []).get(k(m.email))).push(m); });
-    leads.forEach((l) => { /* the email identifies the person; when two people share it, the name decides */ const same = k(l.agentEmail) ? idsByEmail.get(k(l.agentEmail)) : null, mid = same ? (same.find((m) => k(m.name) === k(l.agent)) || same[0]).id : idByName.get(k(l.agent)); if (mid == null) return; (byOwner.get(mid) || byOwner.set(mid, []).get(mid)).push(l); });      // by name, or by email when the person was renamed after the lead was assigned
+    leads.forEach((l) => { /* the email identifies the person; when two people share it, the name decides */ const same = k(l.agentEmail) ? idsByEmail.get(k(l.agentEmail)) : null, mid = same ? ((same.find((m) => k(m.name) === k(l.agent)) || (same.length === 1 ? same[0] : null)) || {}).id : idByName.get(k(l.agent)); if (mid == null) return; (byOwner.get(mid) || byOwner.set(mid, []).get(mid)).push(l); });      // by name, or by email when the person was renamed after the lead was assigned
     const idByLead = new Map(leads.map((l) => [l.dbId, l]));
     return team.map((m) => {
       const mine = byOwner.get(m.id) || [], inP = mine.filter((l) => inR(l.createdAt, b)), ids = new Set(mine.map((l) => l.dbId));
