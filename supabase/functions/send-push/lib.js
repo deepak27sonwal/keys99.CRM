@@ -8,7 +8,7 @@ export function buildPayload(row) {
   const id = Number(row.id), name = clean(row.name, 60) || "New enquiry", project = clean(row.project, 60), by = clean(assignedTo(row.manager_name), 40);
   const source = clean(row.source, 30) || "Website";
   return {
-    title: `New lead · ${source}`,
+    title: `New lead · ${source}${by ? "" : " · Unassigned"}`,
     body: clean([name, project, by ? "assigned to " + by : ""].filter(Boolean).join(" · "), 140),
     url: `leads.html?q=${encodeURIComponent("L-" + id)}`, tag: `lead-${id}`, id,
   };

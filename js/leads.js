@@ -4,7 +4,7 @@
   const TABS = ["All Leads", ...STATUSES];
   const PAGE = 25;
   const RANGES = { all: "All time", today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", month: "This month" };
-  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: "", priority: "" }, range: "all", page: 1, sig: "", checked: new Set() };
+  const state = { leads: [], tab: "All Leads", selected: null, q: new URLSearchParams(location.search).get("q") || "", f: { project: "", developer: "", source: "", agent: new URLSearchParams(location.search).get("unassigned") ? "__none" : "", priority: "" }, range: "all", page: 1, sig: "", checked: new Set() };
 
   async function load() {
     try { state.leads = Scope.leads(await Data.getLeads()); }
@@ -19,7 +19,7 @@
   const base = () => state.leads.filter((l) => inRange(l) &&
     (!state.q || [l.name, l.mobile, l.email, l.project, l.developer, l.source, l.id, l.location, l.agent].join(" ").toLowerCase().includes(state.q.toLowerCase())) &&
     (!state.f.project || l.project === state.f.project) && (!state.f.developer || l.developer === state.f.developer) &&
-    (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || l.agent === state.f.agent));
+    (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || (state.f.agent === "__none" ? !l.agent && l.status !== "Spam" : l.agent === state.f.agent)));
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
   function stepper(status) {
@@ -30,7 +30,7 @@
     if (!l) return raw("");
     const rows = [["hash", "Lead ID", l.id], ["share-2", "Source", sourceChip(l)], ["file-text", "Form", l.src && l.src.form], ["target", "Requirement", l.requirement], ["home", "Property type", l.propertyType],
       ["indian-rupee", "Budget", l.budget], ["layers", "BHK", l.bhk], ["building-2", "Project", l.project], ["briefcase", "Developer", l.developer],
-      ["map-pin", "Location", l.location], ["user", "Assigned Agent", l.agent], ["calendar-plus", "Created", fmtDay(l.createdAt) + " · " + fmtTime(l.createdAt)], ["calendar", "Next Follow-up", l.followUpTs ? l.followUp : ""]];
+      ["map-pin", "Location", l.location], ["user", "Assigned Agent", l.agent || html`<span class="un-chip"><i data-lucide="user-x"></i>Unassigned</span>`], ["calendar-plus", "Created", fmtDay(l.createdAt) + " · " + fmtTime(l.createdAt)], ["calendar", "Next Follow-up", l.followUpTs ? l.followUp : ""]];
     const lastNote = [...l.acts].filter((a) => ["Note", "Follow-up scheduled"].includes(a.title)).sort((a, b) => new Date(a.at) - new Date(b.at)).pop();
     return html`<aside class="card drawer"><div class="drawer-h"><h2>Lead Details</h2><button id="closeDrawer" aria-label="Close"><i data-lucide="x"></i></button></div>
       <div class="drawer-b"><div class="prof">${avatar(l.name, 64)}<div style="flex:1;min-width:0"><div class="row" style="flex-wrap:wrap"><h3>${l.name}</h3><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></div>
@@ -41,7 +41,7 @@
         <div class="box-b"><h4>Lead Progress</h4>${stepper(l.status)}</div>
         <div class="box-b"><h4>Notes</h4><div class="note"><i data-lucide="sticky-note" class="gold-t"></i><div>${lastNote ? lastNote.description : l.notes || "No notes yet."}${lastNote ? html`<div class="muted" style="font-size:12px;margin-top:4px">${fmtDate(lastNote.at)}${lastNote.by ? " • " + lastNote.by : ""}</div>` : raw("")}</div></div></div>
         <a class="btn brand" style="width:100%;justify-content:center" href="customer.html?id=${encodeURIComponent(l.id)}"><i data-lucide="user"></i>View Full Profile</a></div>
-      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button><button class="btn outline" id="dHist"><i data-lucide="history"></i>History</button><button class="btn outline" id="dTransfer"><i data-lucide="send"></i>Transfer</button></div></aside>`;
+      <div class="drawer-f"><button class="btn outline" id="dNote"><i data-lucide="list-checks"></i>Add Note</button><button class="btn gold" id="dFollow"><i data-lucide="calendar-plus"></i>Schedule</button><button class="btn outline" id="dHist"><i data-lucide="history"></i>History</button><button class="btn outline" id="dTransfer"><i data-lucide="send"></i>${l.agent ? "Transfer" : "Assign"}</button></div></aside>`;
   }
 
   // Follow-up chip: flags overdue / due-today follow-ups on open leads.
@@ -74,7 +74,8 @@
     const booked = BOOKED.reduce((t, k) => t + (counts[k] || 0), 0), visits = (counts["Visit Scheduled"] || 0) + (counts["Visit Done"] || 0);
     const kpis = [["Total Leads", b.length.toLocaleString("en-IN"), "", "users", 1], ["New Leads", counts["New Leads"] || 0, "", "user-plus"], ["Interested", counts.Interested || 0, "", "clipboard-check"],
       ["Visits", visits, "", "calendar-check"], ["Bookings", booked, "", "handshake"], ["Conversion Rate", b.length ? ((booked / b.length) * 100).toFixed(2) + "%" : "0%", "", "trending-up"]];
-    const sel = (key, label) => html`<select class="select" data-f="${key}"><option value="">${label}: All</option>${uniq(key).map((v) => html`<option ${state.f[key] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
+    const isAdm = !(window.ME && window.ME.role === "employee"), unN = state.leads.filter((l) => !l.agent && l.status !== "Spam").length;     // leads nobody owns (admins only ever see these)
+    const sel = (key, label) => html`<select class="select" data-f="${key}"><option value="">${label}: All</option>${key === "agent" ? html`<option value="__none" ${state.f.agent === "__none" ? raw("selected") : raw("")}>Unassigned</option>` : raw("")}${uniq(key).map((v) => html`<option ${state.f[key] === v ? raw("selected") : raw("")}>${v}</option>`)}</select>`;
 
     render(page, html`
       <div class="split"><div class="left">
@@ -82,16 +83,16 @@
           <div class="btns"><button class="btn" id="transferSel" aria-label="Transfer the ticked leads"><i data-lucide="send"></i>Transfer${state.checked.size ? " (" + state.checked.size + ")" : ""}</button><button class="btn" id="export"><i data-lucide="download"></i>Export</button><button class="btn gold" id="addLead"><i data-lucide="plus"></i>Add Lead</button></div></div>
         <div class="kpis k6">${kpis.map(kpiCard)}</div>
         <div class="tabs-pill">${TABS.map((t) => html`<button class="pill ${t === "All Leads" ? "" : "has-stage s-" + slug(t)} ${t === state.tab ? "active" : ""}" data-tab="${t}">${t} (${(counts[t] || 0).toLocaleString("en-IN")})</button>`)}</div>
-        <div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${window.ME && window.ME.role === "employee" ? "" : sel("agent", "Agent")}
+        ${isAdm && unN ? html`<button type="button" class="un-pill ${state.f.agent === "__none" ? "on" : ""}" id="unPill" aria-pressed="${state.f.agent === "__none"}"><i data-lucide="user-x"></i>Unassigned (${unN})</button>` : raw("")}<div class="filters">${sel("project", "Project")}${sel("developer", "Developer")}${sel("source", "Source")}${sel("priority", "Priority")}${window.ME && window.ME.role === "employee" ? "" : sel("agent", "Agent")}
           <select class="select" id="range">${Object.entries(RANGES).map(([k, v]) => html`<option value="${k}" ${k === state.range ? raw("selected") : raw("")}>${v}</option>`)}</select></div>
         <div class="card table-wrap"><table class="leads-t"><thead><tr><th><input type="checkbox" id="checkAll" aria-label="Select all"></th>
           ${["Lead ID", "Customer", "Mobile", "Requirement", "Project / Location", "Source", "Agent", "Status", "Created", "Follow-up", "Last activity", "Actions"].map((h) => html`<th>${h}</th>`)}</tr></thead>
-          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
+          <tbody>${rows.length ? rows.map((l, i) => { const fu = followUp(l), la = Data.lastActivity(l); return html`<tr class="lead-row s-${slug(l.status)} ${l.agent ? "" : "un-row"} ${state.selected && state.selected.dbId === l.dbId ? "sel" : ""} ${anim ? "enter" : ""}" style="--i:${Math.min(i, 12)}" data-id="${l.dbId}">
             <td data-label="Select"><input type="checkbox" data-check="${l.dbId}" ${state.checked.has(l.dbId) ? raw("checked") : raw("")}></td><td data-label="Lead ID">${l.id}</td>
             <td data-label="Customer"><div class="row">${avatar(l.name, 32)}<b>${l.name}</b>${(() => { const c = repOf(l); return c.same > 1 ? html`<span class="rep-chip" title="This number or email has enquired ${c.same} times about this project${c.other ? " and also about " + c.other + " other enquir" + (c.other === 1 ? "y" : "ies") + " for other projects" : ""}">Repeat ×${c.same}</span>` : raw(""); })()}</div></td><td data-label="Mobile">${l.mobile}</td>
             <td class="tight" data-label="Requirement">${l.requirement || "—"}<small>${l.budget}</small></td><td class="tight" data-label="Project / Location"><b>${l.project || "—"}</b><small>${l.location || l.developer}</small></td>
             <td data-label="Source">${sourceChip(l)}${l.src && l.src.form ? html`<small class="src-form" title="${l.src.form}">${l.src.form}</small>` : raw("")}</td>
-            <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : "—"}</td><td data-label="Status"><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></td>
+            <td data-label="Agent">${l.agent ? html`<div class="row">${avatar(l.agent, 24)}${l.agent}</div>` : html`<span class="un-chip" title="Nobody owns this lead yet"><i data-lucide="user-x"></i>Unassigned</span>`}</td><td data-label="Status"><span class="st-prio">${badge(l.status)}${priorityChip(l)}</span></td>
             <td data-label="Created" class="created"><span class="cr-d"><span class="cr-m">${fmtDay(l.createdAt).slice(0, 6)}</span><span class="cr-y">${fmtDay(l.createdAt).slice(6)}</span></span><span class="cr-t">${fmtTime(l.createdAt)}</span><small class="cr-a">${relTime(l.createdAt)}</small>${(() => { const w = Data.waiting(l); return w !== null && w >= WAIT_ALERT_MIN ? html`<small class="wait-chip" title="Nobody has worked on this lead yet">Waiting ${fmtWait(w)}</small>` : raw(""); })()}</td>
             <td data-label="Next Follow-up" class="fu-cell"><span class="fu ${fu.cls}">${fu.out}</span></td>
             <td data-label="Last activity" class="last-act"><i data-lucide="${la.icon}"></i><div><span class="la-label">${la.label}</span><p>${la.text}</p><small>${relTime(la.at)}${la.by ? " · " + la.by : ""}</small></div></td>
@@ -128,6 +129,7 @@
     page.querySelectorAll("[data-hist]").forEach((x) => (x.onclick = (e) => { e.stopPropagation(); openHistory(state.leads.find((l) => l.dbId === Number(x.dataset.hist))); }));
     const dh = page.querySelector("#dHist"); if (dh) dh.onclick = () => openHistory(state.selected);
     const afterTransfer = async () => { state.checked.clear(); state.selected = null; await refresh(); };
+    const up = page.querySelector("#unPill"); if (up) up.onclick = () => { state.f.agent = state.f.agent === "__none" ? "" : "__none"; state.page = 1; draw(); };
     const dt = page.querySelector("#dTransfer"); if (dt) dt.onclick = () => openTransfer(state.selected, afterTransfer);
     page.querySelector("#transferSel").onclick = () => openTransfer(state.leads.filter((l) => state.checked.has(l.dbId)), afterTransfer);
     const dn = page.querySelector("#dNote"); if (dn) dn.onclick = () => openNote(state.selected, refresh);
