@@ -26,8 +26,8 @@
 
   // one row of numbers per person in my team (the keys are the same as the Dashboard: bookings = leads moved to Booking Done / Post Sale in the period)
   function rows() {
-    const b = bounds(), now = new Date(), bk = bookDatesOf(bookings), byOwner = new Map(), idByName = new Map(team.map((m) => [k(m.name), m.id])), idByEmail = new Map(team.filter((m) => m.email).map((m) => [k(m.email), m.id]));
-    leads.forEach((l) => { const mid = k(l.agentEmail) ? idByEmail.get(k(l.agentEmail)) : idByName.get(k(l.agent)); if (mid == null) return; (byOwner.get(mid) || byOwner.set(mid, []).get(mid)).push(l); });      // by name, or by email when the person was renamed after the lead was assigned
+    const b = bounds(), now = new Date(), bk = bookDatesOf(bookings), byOwner = new Map(), idByName = new Map(team.map((m) => [k(m.name), m.id])), idsByEmail = new Map(); team.forEach((m) => { if (m.email) (idsByEmail.get(k(m.email)) || idsByEmail.set(k(m.email), []).get(k(m.email))).push(m); });
+    leads.forEach((l) => { /* the email identifies the person; when two people share it, the name decides */ const same = k(l.agentEmail) ? idsByEmail.get(k(l.agentEmail)) : null, mid = same ? (same.find((m) => k(m.name) === k(l.agent)) || same[0]).id : idByName.get(k(l.agent)); if (mid == null) return; (byOwner.get(mid) || byOwner.set(mid, []).get(mid)).push(l); });      // by name, or by email when the person was renamed after the lead was assigned
     const idByLead = new Map(leads.map((l) => [l.dbId, l]));
     return team.map((m) => {
       const mine = byOwner.get(m.id) || [], inP = mine.filter((l) => inR(l.createdAt, b)), ids = new Set(mine.map((l) => l.dbId));
@@ -76,7 +76,7 @@
   }
 
   function detail(r) {
-    const ls = leads.filter((l) => (k(l.agentEmail) ? !!k(r.m.email) && k(l.agentEmail) === k(r.m.email) : k(l.agent) === k(r.m.name))).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 8);
+    const ls = leads.filter((l) => (k(l.agentEmail) ? !!k(r.m.email) && k(l.agentEmail) === k(r.m.email) && (k(l.agent) === k(r.m.name) || !team.some((o) => o.id !== r.m.id && k(o.email) === k(l.agentEmail))) : k(l.agent) === k(r.m.name))).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 8);
     return html`<section class="card p tm-det" id="tmDet"><div class="ch"><h3>${r.m.name}</h3><button type="button" class="btn sm" id="tmClose" aria-label="Close details"><i data-lucide="x"></i>Close</button></div>
       <p class="sub" style="margin:0 0 10px">${[r.m.designation, r.m.team].filter(Boolean).join(" · ") || "Team member"} · ${r.all} lead${r.all === 1 ? "" : "s"} in total, ${r.pendingTasks} open task${r.pendingTasks === 1 ? "" : "s"}</p>
       <div class="tm-nums"><div><b>${r.leads}</b>Leads</div><div><b>${r.visits}</b>Visits</div><div><b>${r.bookings}</b>Bookings</div><div><b>${r.conv}%</b>Conversion</div><div><b>${r.over}</b>Overdue</div></div>
