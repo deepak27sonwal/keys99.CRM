@@ -373,7 +373,8 @@ function openSiteVisit(lead, done) {
 const needsBookingDetails = (from, to) => to === "Booking Done" && !BOOKED.includes(from);
 async function openBooking(lead, done) {
   const props = await Data.getPropertyNames().catch(() => ({ projects: [], developers: [] }));
-  const old = await Data.getLeadBooking(lead.dbId).catch(() => null);     // a lead that was booked before is edited, not duplicated
+  let old = null;     // a lead that was booked before is edited, not duplicated; if we cannot tell, stop instead of risking a second booking row
+  try { old = await Data.getLeadBooking(lead.dbId); } catch (e) { toast("Could not check this lead's existing booking, please try again"); return; }
   const cfgOf = (txt) => { const m = String(txt || "").split(" · "); return m.length > 1 ? { type: m[0], value: m.slice(1).join(" · ") } : { type: lead.propertyType || "", value: lead.bhk || "" }; };
   const cfg = old && old.configuration ? cfgOf(old.configuration) : { type: lead.propertyType || "", value: lead.bhk || "" };
   const rate0 = old && Number(old.agreement_rate) ? String(Number(old.agreement_rate)) : "", val0 = old && Number(old.booking_value) ? String(Number(old.booking_value)) : "";
