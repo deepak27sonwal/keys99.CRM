@@ -85,6 +85,7 @@ function fieldError(el, form) {
   if (name === "monthly_target" && Number(val) < 0) return "Target can't be negative";
   if ((name === "follow_up" || name === "visit_at") && changed && val < nowLocal()) return "Pick a date and time in the future";
   if (name === "date" && changed && val < todayStr()) return "Pick today or a later date";
+  if (name === "booked_at" && changed && val > toLocalInput(new Date(Date.now() + 60000))) return "Booking time can't be in the future";
   if ((name === "booking_date" || name === "joined_on") && changed && val > todayStr()) return label + " can't be in the future";
   const q = (n) => form.querySelector(`[name="${n}"]`);
   if (name === "end" && q("start") && q("start").value && val <= q("start").value) return "End time must be after the start time";
@@ -382,7 +383,7 @@ async function openBooking(lead, done) {
   openModal(old ? "Booking details" : "Booking Done · details", html`<div class="form">
     ${proj0 ? html`<div class="full bk-proj" id="bkProjFixed"><span class="bk-lab">Project name</span><div class="bk-row"><b id="bkProjName">${proj0}</b><button type="button" class="btn sm" id="bkChange"><i data-lucide="repeat"></i>Change project</button></div><small class="muted">Booked in a different project? Change it here.</small></div>` : raw("")}
     <div class="full" id="bkProjEdit" ${proj0 ? raw("hidden") : raw("")}>${proj0 ? html`<button type="button" class="link-btn" id="bkKeep">← Keep “${proj0}”</button>` : raw("")}${comboField("Project name *", "project", proj0, { placeholder: "Search a project or type a new one" })}<p class="full bk-note" id="bkNote" hidden></p></div>
-    ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date *", "booking_date", (old && old.booking_date) || dayKey(new Date()), "date", "required")}
+    ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date & time *", "booked_at", toLocalInput(old ? bookingTs(old) : new Date()), "datetime-local", "required")}
     ${configPicker({ type: cfg.type, value: cfg.value, label: "Configuration *" })}
     ${field("Wing No", "wing_no", (old && old.wing_no) || "")}${field("Flat No *", "flat_no", (old && old.flat_no) || "", "text", "required")}
     ${field("Agreement / Consideration value (₹) *", "booking_value", val0, "number", 'required min="1" step="1"', "full")}
@@ -395,8 +396,8 @@ async function openBooking(lead, done) {
       if (!(value > 0)) throw new Error("enter the agreement value");
       const taken = await Data.flatBookedElsewhere(f.project, f.wing_no, f.flat_no, lead.dbId);
       if (taken && !confirm("Flat " + f.flat_no + (f.wing_no ? ", wing " + f.wing_no : "") + " is already booked on " + f.project + " by another lead. Save anyway?")) throw new Error("not saved");
-      const row = { project: f.project, developer: f.developer || null, booking_date: f.booking_date, booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100,
-        commission_status: f.commission_status, received_on: f.commission_status === "Received" ? f.booking_date : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
+      const row = { project: f.project, developer: f.developer || null, booking_date: dayKey(new Date(f.booked_at)), booked_at: fromLocalInput(f.booked_at), booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100,
+        commission_status: f.commission_status, received_on: f.commission_status === "Received" ? dayKey(new Date(f.booked_at)) : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
         closing_manager_name: f.closing_manager_name || null, closing_manager_mobile: f.closing_manager_mobile || null };
       if (old) await Data.updateBooking(old.id, row); else await Data.addBooking({ enquiry_id: lead.dbId, ...row });
       const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), a = pk(lead.project), c = pk(f.project);

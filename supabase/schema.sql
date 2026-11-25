@@ -1634,3 +1634,6 @@ returns integer language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.flat_booked_elsewhere(text,text,text,bigint) from public, anon;
 grant execute on function public.flat_booked_elsewhere(text,text,text,bigint) to authenticated;
+
+-- Booking time: the booking date AND time (chosen on the Booking Done form); booking_date stays the local date of it
+alter table public.bookings add column if not exists booked_at timestamptz;

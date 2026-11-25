@@ -44,6 +44,9 @@ function fmtDay(ts) {
   const d = new Date(ts);
   return isNaN(d) ? "—" : d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 }
+// When a booking happened: the chosen date and time; older rows (date only) fall back to when they were recorded, never to midnight
+const bookingTs = (b) => b.booked_at || b.created_at || (b.booking_date ? b.booking_date + "T00:00:00" : null);
+function fmtDayTime(ts) { const d = new Date(ts); return !ts || isNaN(d) ? "—" : fmtDay(d) + " · " + fmtTime(d); }
 function fmtDate(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
