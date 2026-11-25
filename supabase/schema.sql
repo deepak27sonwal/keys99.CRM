@@ -1541,3 +1541,71 @@ end $f$;
 drop trigger if exists enquiries_a_source_project on public.enquiries;
 drop trigger if exists enquiries_a0_source_project on public.enquiries;
 create trigger enquiries_a0_source_project before insert on public.enquiries for each row execute function public.route_source_to_project();
+
+-- Codex review fixes: the waiting alert skips leads someone already worked; the stage history keeps the reason when a lead moves between Spam and Booking Cancelled with the same reason
+create or replace function public.manager_alert_rows(p_member_id bigint) returns jsonb
+language plpgsql stable security definer set search_path = '' as $f$
+declare
+  res jsonb; team_n integer;
+  ist_day_start timestamptz := (date_trunc('day', now() at time zone 'Asia/Kolkata')) at time zone 'Asia/Kolkata';
+  ist_hour integer := extract(hour from now() at time zone 'Asia/Kolkata');
+begin
+  select count(*) into team_n from public.team_members where reports_to = p_member_id;
+  if p_member_id is null or team_n = 0 then return jsonb_build_object('manager', false); end if;
+  with recursive down(id) as (
+      select t.id from public.team_members t where t.reports_to = p_member_id
+      union select t.id from public.team_members t join down d on t.reports_to = d.id),
+    tm as (select t.id, t.name, lower(trim(t.name)) as lname, nullif(lower(trim(coalesce(t.email, ''))), '') as lemail from public.team_members t where t.id in (select id from down) and t.id <> p_member_id),
+    tl as (select distinct on (e.id) e.id, e.name, e.project, e.status, e.created_at, e.follow_up, e.activities, tm.id as mid, tm.name as owner
+           from public.enquiries e join tm on (lower(trim(e.manager_name #>> '{}')) = tm.lname or (tm.lemail is not null and lower(trim(e.manager_email #>> '{}')) = tm.lemail))
+           order by e.id),
+    waiting as (select * from tl where status = 'New Leads' and created_at <= now() - interval '15 minutes' and follow_up is null
+                and not exists (select 1 from jsonb_array_elements(case when jsonb_typeof(tl.activities) = 'array' then tl.activities else '[]'::jsonb end) a where coalesce(a ->> 'by', '') like '%@%')),     -- same "touched" rule as the app: a follow-up or something a person logged
+    fu as (select * from tl where follow_up < now() and status not in ('Spam', 'Booking Done', 'Booking Cancelled', 'Post Sale')),
+    tk as (select t.id, t.title, t.due_at, t.enquiry_id, tm.name as owner, tm.id as mid from public.tasks t join tm on t.assigned_to = tm.id where t.done_at is null and t.due_at < now()),
+    vt as (select v.id, v.enquiry_id, v.visit_at, v.status, v.project, tl.name, tl.owner, tl.mid from public.site_visits v join tl on tl.id = v.enquiry_id),
+    vtoday as (select * from vt where status <> 'Cancelled' and visit_at >= ist_day_start and visit_at < ist_day_start + interval '1 day'),
+    vmiss as (select * from vt where status in ('Scheduled', 'Confirmed') and visit_at < now() - interval '1 hour' and visit_at > now() - interval '14 days'),
+    ms as (select tl.id, tl.name, tl.owner, a ->> 'to' as to_stage, a ->> 'from' as from_stage, (a ->> 'at')::timestamptz as at,
+                  nullif(substring(a ->> 'description' from E'Reason: (.*)$'), '') as reason
+           from tl, jsonb_array_elements(case when jsonb_typeof(tl.activities) = 'array' then tl.activities else '[]'::jsonb end) a
+           where a ->> 'type' = 'stage' and a ->> 'to' in ('Token Done', 'Booking Done', 'Booking Cancelled', 'Spam')
+             and (a ->> 'at')::timestamptz > now() - interval '24 hours'),
+    inact as (select tm.id, tm.name from tm where ist_hour >= 10
+              and exists (select 1 from public.app_users u where u.member_id = tm.id and u.active)
+              and not exists (select 1 from public.app_users u join public.active_time a on a.user_id = u.user_id where u.member_id = tm.id and a.day = (now() at time zone 'Asia/Kolkata')::date and a.minutes > 0))
+  select jsonb_build_object(
+    'manager', true,
+    'team_size', (select count(*) from tm),
+    'waiting', coalesce((select jsonb_agg(jsonb_build_object('lead_id', id, 'name', name, 'project', project, 'owner', owner, 'at', created_at) order by created_at) from (select * from waiting order by created_at limit 50) x), '[]'::jsonb),
+    'followups', coalesce((select jsonb_agg(jsonb_build_object('lead_id', id, 'name', name, 'project', project, 'owner', owner, 'at', follow_up) order by follow_up) from (select * from fu order by follow_up limit 50) x), '[]'::jsonb),
+    'tasks', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'title', title, 'owner', owner, 'at', due_at, 'lead_id', enquiry_id) order by due_at) from (select * from tk order by due_at limit 50) x), '[]'::jsonb),
+    'visits_today', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'lead_id', enquiry_id, 'name', name, 'owner', owner, 'project', project, 'status', status, 'at', visit_at) order by visit_at) from (select * from vtoday order by visit_at limit 50) x), '[]'::jsonb),
+    'visits_missed', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'lead_id', enquiry_id, 'name', name, 'owner', owner, 'project', project, 'status', status, 'at', visit_at) order by visit_at desc) from (select * from vmiss order by visit_at desc limit 50) x), '[]'::jsonb),
+    'milestones', coalesce((select jsonb_agg(jsonb_build_object('lead_id', id, 'name', name, 'owner', owner, 'to', to_stage, 'from', from_stage, 'reason', reason, 'at', at) order by at desc) from (select * from ms order by at desc limit 30) x), '[]'::jsonb),
+    'inactive', coalesce((select jsonb_agg(jsonb_build_object('member_id', id, 'name', name) order by name) from inact), '[]'::jsonb),
+    'counts', jsonb_build_object('waiting', (select count(*) from waiting), 'followups', (select count(*) from fu), 'tasks', (select count(*) from tk), 'visits_today', (select count(*) from vtoday),
+                                 'visits_missed', (select count(*) from vmiss), 'milestones', (select count(*) from ms), 'inactive', (select count(*) from inact),
+                                 'new_today', (select count(*) from tl where created_at >= ist_day_start))
+  ) into res;
+  return res;
+end $f$;
+
+create or replace function public.log_stage_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status is distinct from old.status then
+    begin
+      new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'type', 'stage', 'title', 'Stage changed',
+        'description', coalesce(old.status, '—') || ' → ' || coalesce(new.status, '—')
+          || case when coalesce(btrim(new.lost_reason), '') <> '' and (new.lost_reason is distinct from old.lost_reason or new.status in ('Spam', 'Booking Cancelled')) then E'\nReason: ' || new.lost_reason else '' end,
+        'from', old.status, 'to', new.status,
+        'at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'by', coalesce(auth.jwt() ->> 'email', '')));
+    exception when others then raise warning 'log_stage_change skipped: %', sqlerrm;
+    end;
+  end if;
+  return new;
+end $$;
+

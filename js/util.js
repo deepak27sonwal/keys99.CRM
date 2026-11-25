@@ -204,14 +204,15 @@ const Scope = {
   set(v) { try { localStorage.setItem("k99.scope", v); } catch { /* not saved */ } },
   people() { return ((window.ME && window.ME.team) || []).filter((m) => m.id !== window.ME.memberId); },
   label() { const s = this.get(); if (s === "mine") return "My leads"; if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? p.name : "My team"; } return "My team"; },
-  ownerOk(agent) {
+  // a lead belongs to a person by name, or by email when the name was changed after the lead was assigned (the database resolves owners the same way)
+  ownerOk(agent, email) {
     if (!this.isMgr()) return true;
-    const s = this.get(), k = (x) => String(x || "").trim().toLowerCase();
-    if (s === "mine") return k(agent) === k(window.ME.name);
-    if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? k(agent) === k(p.name) : true; }
+    const s = this.get(), k = (x) => String(x || "").trim().toLowerCase(), is = (name, mail) => k(agent) === k(name) || (!!k(mail) && k(email) === k(mail));
+    if (s === "mine") return is(window.ME.name, window.ME.member && window.ME.member.email);
+    if (s.startsWith("m:")) { const p = this.people().find((m) => String(m.id) === s.slice(2)); return p ? is(p.name, p.email) : true; }
     return true;
   },
-  leads(list) { return this.isMgr() ? list.filter((l) => this.ownerOk(l.agent)) : list; },
+  leads(list) { return this.isMgr() ? list.filter((l) => this.ownerOk(l.agent, l.agentEmail)) : list; },
   // keep only the rows (visits, bookings, ...) that belong to the leads that stay in view
   rows(rows, leads, key = "enquiry_id") { if (!this.isMgr() || this.get() === "team") return rows; const ids = new Set(leads.map((l) => l.dbId)); return rows.filter((r) => ids.has(r[key])); },
   tasks(list) { if (!this.isMgr() || this.get() === "team") return list; const s = this.get(), id = s === "mine" ? window.ME.memberId : Number(s.slice(2)); return list.filter((t) => t.assigned_to === id); },
