@@ -85,7 +85,7 @@ const Data = {
     return {
       id: "L-" + r.id, dbId: r.id, name: r.name || "Unknown", mobile: r.phone || "", email: r.email || "",
       requirement: r.interest || "", budget: r.budget || "", project: r.project || "", developer: r.developer || "",
-      location: r.location || "", agent, status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
+      location: r.location || "", agent, agentEmail: typeof r.manager_email === "string" ? r.manager_email : "", status: r.status || "New Leads", followUpTs: r.follow_up, followUp: fmtDate(r.follow_up),
       source: r.source || "Website", propertyType: r.property_type || "", bhk: r.bhk || "", priority: r.priority || "",
       notes: r.notes || "", lostReason: r.lost_reason || "", createdAt: r.created_at, acts: Array.isArray(r.activities) ? r.activities : [],
       touched: (r.status && r.status !== "New Leads") || !!r.follow_up || (Array.isArray(r.activities) && r.activities.some((a) => a && /@/.test(a.by || ""))),   // someone has worked on it (status moved, follow-up set, or a person logged something)
@@ -438,6 +438,7 @@ const Data = {
     return this._props;
   },
   async saveProperty(table, id, row) {
+    this._props = null;                       // registered names changed: the Add Lead pick lists must be read again
     const clean = {}; Object.entries(row).forEach(([k, v]) => (clean[k] = typeof v === "string" ? (v.trim() || null) : v));
     if (!clean.name) throw new Error("Name is required");
     const s = await this.session();
@@ -464,8 +465,8 @@ const Data = {
   async countUnrouted(forms, campaigns) { const { data, error } = await this.client.rpc("count_unrouted", { p_forms: forms, p_campaigns: campaigns }); if (error) throw error; return Number(data) || 0; },
   async applyToPastLeads(projectId) { const { data, error } = await this.client.rpc("connect_apply_existing", { p_project_id: projectId }); if (error) throw error; return Number(data) || 0; },
   async previewAssignee(project) { const { data, error } = await this.client.rpc("assignee_detail", { p_project: project || "" }); if (error) throw error; return (data && data[0]) || null; },
-  async retargetProjects(ids, developer) { const { error } = await this.client.from("projects").update({ developer }).in("id", ids); if (error) throw error; },
-  async deleteProperty(table, id) { const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; },
+  async retargetProjects(ids, developer) { this._props = null; const { error } = await this.client.from("projects").update({ developer }).in("id", ids); if (error) throw error; },
+  async deleteProperty(table, id) { this._props = null; const { error } = await this.client.from(table).delete().eq("id", id); if (error) throw error; },
   async deleteMember(id) { this._team = null; const { error } = await this.client.from("team_members").delete().eq("id", id); if (error) throw error; },
   async updateSiteVisit(id, patch) {
     const { error } = await this.client.from("site_visits").update(patch).eq("id", id);

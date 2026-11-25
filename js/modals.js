@@ -45,7 +45,7 @@ function attachSuggest(input, getItems, onPick, opts = {}) {
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); hide(); }
     else if (e.key === "Tab") hide();
   }, true);
-  pop.addEventListener("mousedown", (e) => { const li = e.target.closest("li"); if (li) { e.preventDefault(); pick(Number(li.dataset.i)); } });
+  pop.addEventListener("mousedown", (e) => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(Number(li.dataset.i)); } });
   window.addEventListener("resize", () => { if (!pop.hidden) place(); });
   const toggle = () => { if (!pop.hidden) return hide(); typed = false; input.focus(); render(); };
   return { refresh: render, hide, toggle };
@@ -165,7 +165,7 @@ function wireConfigs(root) {
     list.querySelectorAll(".ms-o").forEach((l) => { const hit = !t || l.textContent.toLowerCase().includes(t); l.hidden = !hit; if (hit) shown++; });
     let none = list.querySelector(".ms-nomatch"); if (!shown && list.querySelector(".ms-o")) { if (!none) { none = document.createElement("p"); none.className = "ms-none ms-nomatch"; none.textContent = "No match."; list.appendChild(none); } } else if (none) none.remove();
   };
-  if (q) q.addEventListener("input", applyQ);
+  if (q) { q.addEventListener("input", applyQ); q.addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); }); }     // Enter in the search must not submit the whole form
   const build = () => {
     const opts = CONFIGS[type.value] || [];
     const known = Object.values(CONFIGS).flat();   // a pick that belongs to some type is dropped when it does not fit the current one (or no type is chosen); custom text from older entries is kept

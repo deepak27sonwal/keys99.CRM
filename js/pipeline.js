@@ -11,7 +11,7 @@
 
   async function load() {
     try {
-      [state.leads, state.bookings, state.visits] = await Promise.all([Data.getLeads(), Data.getBookings(), Data.getSiteVisits()]);
+      [state.leads, state.bookings, state.visits] = await Promise.all([Data.getLeads(), Data.getBookings(), Data.getSiteVisits().catch(() => [])]);
       ({ leads: state.leads, bookings: state.bookings, visits: state.visits } = Scope.apply({ leads: state.leads, bookings: state.bookings, visits: state.visits }));
       try { state.team = await Data.getTeamCached(); } catch { state.team = []; }
     } catch (e) { page.innerHTML = '<div class="card empty">Could not load the pipeline: ' + esc(e.message) + "</div>"; return false; }
@@ -71,7 +71,7 @@
     const ids = new Set(bookedL.map((l) => l.dbId)), active = L.filter((l) => !CLOSED.includes(l.status)).length;
     const booked = bookedL.length, comm = state.bookings.filter((b) => ids.has(b.enquiry_id)).reduce((t, b) => t + Number(b.commission_amount || 0), 0);
     const kpis = [["Total Leads", L.length.toLocaleString("en-IN"), "", "users", 1], ["Active in Pipeline", active, "", "filter"], ["In Negotiation", counts["On Negotiations"] || 0, "", "handshake"],
-      ["Booking Done", booked, "", "calendar-check"], ["Estimated Commission", fmtMoney(comm), "", "check-circle-2", 0, 1], ["Conversion Rate", Math.min(100, pct(booked, L.length)) + "%", "", "trophy"]];
+      ["Booking Done", booked, "", "calendar-check"], ["Estimated Commission", fmtMoney(comm), "", "check-circle-2", 0, 1], ["Bookings ÷ New Leads", Math.min(100, pct(booked, L.length)) + "%", "", "trophy"]];
     const types = [...new Set(state.leads.map((l) => l.propertyType).filter(Boolean))].sort();
     const projMap = new Map(); L.forEach((l) => { if (!l.project) return; const p = projMap.get(l.project) || { t: 0, b: 0 }; p.t++; if (BOOKED.includes(l.status)) p.b++; projMap.set(l.project, p); });
     const tops = [...projMap].map(([n, p]) => [n, pct(p.b, p.t), p.t]).sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 5), topMax = Math.max(1, ...tops.map((t) => t[1]));
@@ -110,7 +110,7 @@
     chart = new Chart(cv, { data: { labels: months.map((d) => d.toLocaleString("en-US", { month: "short" })), datasets: [
       { type: "bar", label: "Leads created", data: ls, backgroundColor: "#9adbc8", borderRadius: 4, yAxisID: "y" }, { type: "bar", label: "Bookings (Booking Done / Post Sale)", data: bs, backgroundColor: "#0f7a6b", borderRadius: 4, yAxisID: "y" },
       { type: "bar", label: "Site visits", data: vs, backgroundColor: "#3b82f6", borderRadius: 4, yAxisID: "y" },
-      { type: "line", label: "Conversion Rate (%)", data: months.map((d, i) => Math.min(100, pct(bs[i], ls[i]))), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
+      { type: "line", label: "Bookings ÷ leads created (%)", data: months.map((d, i) => Math.min(100, pct(bs[i], ls[i]))), borderColor: "#e8a91f", backgroundColor: "#e8a91f", tension: 0.3, yAxisID: "y1" }] },
       options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false }, ticks }, y: { beginAtZero: true, grid, ticks: { ...ticks, precision: 0 } }, y1: { position: "right", beginAtZero: true, grid: { display: false }, ticks } } } });
   }
 
@@ -206,6 +206,7 @@
   page.addEventListener("pointerdown", (e) => {
     if (state.select || state.view !== "kanban" || (e.pointerType === "mouse" && e.button !== 0)) return;
     const c = e.target.closest(".kb-card"); if (!c || e.target.closest("a,button,input,select,textarea")) return;
+    if (dnd.s) { if (dnd.s.active) return; clearTimeout(dnd.s.timer); dnd.s = null; }      // a second finger never replaces a drag in progress (it would strand the first one)
     const s = dnd.s = { c, id: c.dataset.id, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, type: e.pointerType, pid: e.pointerId, active: false, ghost: null, col: null, timer: 0, raf: 0, ox: 0, oy: 0 };
     if (e.pointerType !== "mouse") s.timer = setTimeout(() => { if (dnd.s === s) dndBegin(s); }, LONG);
   });
