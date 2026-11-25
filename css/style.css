@@ -1634,3 +1634,12 @@ tr.un-row>td:first-child{box-shadow:inset 4px 0 0 #f59e0b}
 :root[data-theme="dark"] .un-chip,:root[data-theme="dark"] .un-pill,:root[data-theme="dark"] .un-strip{background:rgba(245,158,11,.16);color:#fcd34d;border-color:rgba(245,158,11,.45)}
 :root[data-theme="dark"] .un-pill.on{background:#f59e0b;color:#1f1300}
 :root[data-theme="dark"] .kb-card .kb-who.un{color:#fcd34d}
+
+/* Booking Done form: the lead's project is the default; "Change project" opens the search */
+.bk-proj{display:flex;flex-direction:column;gap:4px}
+.bk-proj .bk-lab{font-size:12px;font-weight:600;color:var(--muted)}
+.bk-proj .bk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2,var(--card))}
+.bk-proj .bk-row b{min-width:0;overflow-wrap:anywhere;color:var(--text)}
+.bk-proj .btn.sm{flex:none;padding:5px 10px;font-size:12px}
+.bk-note{margin:6px 0 0;padding:6px 10px;border-radius:8px;font-size:12px;background:color-mix(in srgb,#e8a91f 18%,transparent);color:var(--text);border:1px solid color-mix(in srgb,#e8a91f 45%,transparent)}
+.link-btn{background:none;border:0;padding:4px 0;margin-top:4px;font-size:12px;color:var(--brand-700);cursor:pointer;text-decoration:underline}

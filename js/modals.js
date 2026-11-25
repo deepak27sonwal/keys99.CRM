@@ -377,9 +377,11 @@ async function openBooking(lead, done) {
   try { old = await Data.getLeadBooking(lead.dbId); } catch (e) { toast("Could not check this lead's existing booking, please try again"); return; }
   const cfgOf = (txt) => { const m = String(txt || "").split(" · "); return m.length > 1 ? { type: m[0], value: m.slice(1).join(" · ") } : { type: lead.propertyType || "", value: lead.bhk || "" }; };
   const cfg = old && old.configuration ? cfgOf(old.configuration) : { type: lead.propertyType || "", value: lead.bhk || "" };
+  const proj0 = (old && old.project) || lead.project || "";     // the project the lead came in for stays the default; changing it is explicit
   const rate0 = old && Number(old.agreement_rate) ? String(Number(old.agreement_rate)) : "", val0 = old && Number(old.booking_value) ? String(Number(old.booking_value)) : "";
   openModal(old ? "Booking details" : "Booking Done · details", html`<div class="form">
-    ${comboField("Project name *", "project", (old && old.project) || lead.project || "", { cls: "full", placeholder: "Search a project or type a new one" })}
+    ${proj0 ? html`<div class="full bk-proj" id="bkProjFixed"><span class="bk-lab">Project name</span><div class="bk-row"><b id="bkProjName">${proj0}</b><button type="button" class="btn sm" id="bkChange"><i data-lucide="repeat"></i>Change project</button></div><small class="muted">Booked in a different project? Change it here.</small></div>` : raw("")}
+    <div class="full" id="bkProjEdit" ${proj0 ? raw("hidden") : raw("")}>${proj0 ? html`<button type="button" class="link-btn" id="bkKeep">← Keep “${proj0}”</button>` : raw("")}${comboField("Project name *", "project", proj0, { placeholder: "Search a project or type a new one" })}<p class="full bk-note" id="bkNote" hidden></p></div>
     ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date *", "booking_date", (old && old.booking_date) || dayKey(new Date()), "date", "required")}
     ${configPicker({ type: cfg.type, value: cfg.value, label: "Configuration *" })}
     ${field("Wing No", "wing_no", (old && old.wing_no) || "")}${field("Flat No *", "flat_no", (old && old.flat_no) || "", "text", "required")}
@@ -397,13 +399,23 @@ async function openBooking(lead, done) {
         commission_status: f.commission_status, received_on: f.commission_status === "Received" ? f.booking_date : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
         closing_manager_name: f.closing_manager_name || null, closing_manager_mobile: f.closing_manager_mobile || null };
       if (old) await Data.updateBooking(old.id, row); else await Data.addBooking({ enquiry_id: lead.dbId, ...row });
-      await Data.updateLead(lead.dbId, { status: "Booking Done", ...(needsReason(lead.status) ? { lostReason: "" } : {}) });
+      const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), a = pk(lead.project), c = pk(f.project);
+      const changedProject = !!c && a !== c && !(a.length >= 3 && c.length >= 3 && (a.startsWith(c) || c.startsWith(a)));     // same loose rule as the database (equal, or one is a prefix of the other)
+      await Data.updateLead(lead.dbId, { status: "Booking Done", ...(needsReason(lead.status) ? { lostReason: "" } : {}), ...(changedProject ? { project: f.project, ...(f.developer ? { developer: f.developer } : {}) } : {}) });
+      if (changedProject) { try { await Data.addActivity(lead, "Project", "Project changed from " + (lead.project || "(none)") + " to " + f.project + " at booking"); } catch { /* the booking itself is saved */ } }
       try { await Data.addActivity(lead, "Booking", "Booking details: " + f.project + " · " + config + " · " + (f.wing_no ? "Wing " + f.wing_no + ", " : "") + "Flat " + f.flat_no + " · ₹" + value.toLocaleString("en-IN")); } catch { /* the booking itself is saved */ }
       toast("Booking recorded"); done && done();
     });
   const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod);
   wireCombo(mod, "project", () => props.projects.map((p) => p.name));
   const pj = mod.querySelector('input[name="project"]'), dv = mod.querySelector('input[name="developer"]');
+  const fixed = mod.querySelector("#bkProjFixed"), edit = mod.querySelector("#bkProjEdit"), note = mod.querySelector("#bkNote"), same = () => { const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), a = pk(proj0), c = pk(pj.value); return !c || a === c || (a.length >= 3 && c.length >= 3 && (a.startsWith(c) || c.startsWith(a))); };
+  const showNote = () => { if (!note) return; const diff = !same(); note.hidden = !diff; note.textContent = diff ? "The lead's project will change from " + (lead.project || "(none)") + " to " + pj.value.trim() + "." : ""; };
+  if (fixed && pj) {
+    mod.querySelector("#bkChange").onclick = () => { fixed.hidden = true; edit.hidden = false; pj.focus(); pj.select(); };
+    mod.querySelector("#bkKeep").onclick = () => { pj.value = proj0; showNote(); edit.hidden = true; fixed.hidden = false; };
+    ["input", "change"].forEach((ev) => pj.addEventListener(ev, showNote));
+  }
   if (pj && dv) pj.addEventListener("change", () => { const hit = props.projects.find((p) => String(p.name).trim().toLowerCase() === pj.value.trim().toLowerCase()); if (hit && hit.developer && !dv.value.trim()) { dv.value = hit.developer; } });
 }
 function openCancelBooking(lead, done) {

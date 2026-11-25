@@ -122,7 +122,7 @@ const Data = {
 
   async updateLead(dbId, p) {
     const m = { status: "status", followUp: "follow_up", budget: "budget", location: "location", propertyType: "property_type",
-      bhk: "bhk", priority: "priority", notes: "notes", lostReason: "lost_reason", agent: "manager_name" };
+      bhk: "bhk", priority: "priority", notes: "notes", lostReason: "lost_reason", agent: "manager_name", project: "project", developer: "developer" };
     const row = {};
     for (const [k, col] of Object.entries(m)) if (k in p) row[col] = p[k] === "" ? null : p[k];
     if ("agentEmail" in p) row.manager_email = p.agentEmail || null;          // keep the lead's email alert address in step with the person
