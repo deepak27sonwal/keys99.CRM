@@ -19,7 +19,7 @@
   const base = () => state.leads.filter((l) => inRange(l) &&
     (!state.q || [l.name, l.mobile, l.email, l.project, l.developer, l.source, l.id, l.location, l.agent].join(" ").toLowerCase().includes(state.q.toLowerCase())) &&
     (!state.f.project || l.project === state.f.project) && (!state.f.developer || l.developer === state.f.developer) &&
-    (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || (state.f.agent === "__none" ? !l.agent : l.agent === state.f.agent)));
+    (!state.f.source || l.source === state.f.source) && (!state.f.priority || l.priority === state.f.priority) && (!state.f.agent || (state.f.agent === "__none" ? !l.agent && l.status !== "Spam" : l.agent === state.f.agent)));
   const uniq = (k) => [...new Set(state.leads.map((l) => l[k]).filter(Boolean))].sort();
 
   function stepper(status) {
