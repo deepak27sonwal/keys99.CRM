@@ -8,7 +8,7 @@ function buildTimeline(cust) {
     t.push({ type: "new", title: i === 0 ? "Lead Created" : "Enquired Again", description: "Enquiry from " + r.source + (r.project ? " for " + r.project : "") + "." + (more.length ? "\n" + more.join("\n") : ""), ts: r.createdAt, by: "", multi: more.length > 0 });
   });
   cust.visits.forEach((v) => t.push({ type: "visit", title: "Site Visit " + v.status, description: v.project || "", ts: v.visit_at, by: v.created_by ? "by " + v.created_by : "" }));
-  cust.bookings.forEach((b) => t.push({ type: "deal", title: "Booking Recorded", description: (b.project || "") + " · " + fmtMoney(b.booking_value), ts: b.booking_date + "T00:00:00", by: b.created_by ? "by " + b.created_by : "" }));
+  cust.bookings.forEach((b) => t.push({ type: "deal", title: "Booking Recorded", description: (b.project || "") + " · " + fmtMoney(b.booking_value), ts: bookingTs(b), by: b.created_by ? "by " + b.created_by : "" }));
   return t.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 }
 function timelineList(items) { return items.length ? html`<ul class="tl">${items.map((x) => { const [bg, ic] = IC[x.type] || IC.new; return html`<li><span class="ic" style="background:${bg}"><i data-lucide="${ic}"></i></span><div class="bd"><div class="t"><b>${x.title}</b><small>${fmtDate(x.ts)}</small></div><div class="t"><small class="${x.multi ? "ml" : ""}">${x.description}</small><small>${x.by}</small></div></div></li>`; })}</ul>` : html`<div class="empty-sm">Nothing here yet.</div>`; }
