@@ -282,6 +282,8 @@ const Data = {
     const r = await this.fetchAll("tasks", (q) => q.is("done_at", null).not("due_at", "is", null).lte("due_at", end.toISOString()), "id,title,type,due_at,enquiry_id");
     return r.sort((x, y) => new Date(x.due_at) - new Date(y.due_at));
   },
+  // What needs a reporting manager's attention in their team (one call; the database answers only for the signed-in manager and returns { manager: false } for everyone else).
+  async getManagerAlerts() { const { data, error } = await this.client.rpc("manager_alerts"); if (error) throw error; return data || { manager: false }; },
   async getPrefs() { const { data, error } = await this.client.from("user_prefs").select("*").limit(1).maybeSingle(); if (error) throw error; return data; },
   async savePrefs(p) { const s = await this.session(); if (!s) return; const { error } = await this.client.from("user_prefs").upsert({ ...p, user_id: s.user.id, updated_at: new Date().toISOString() }, { onConflict: "user_id" }); if (error) throw error; },
   async savePushSub(sub) { const s = await this.session(); const { error } = await this.client.from("push_subscriptions").upsert({ ...sub, user_id: s.user.id }, { onConflict: "endpoint" }); if (error) throw error; },

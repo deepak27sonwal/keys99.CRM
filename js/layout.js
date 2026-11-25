@@ -71,6 +71,7 @@ async function mountShell(active) {
             <div class="bell-wrap"><button type="button" class="bell" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button></div>
             <div class="bell-wrap" id="fuWrap"><button type="button" class="bell al-btn" id="fuBtn" aria-label="Follow-ups" aria-haspopup="dialog" aria-expanded="false" title="Follow-ups"><i data-lucide="phone-call"></i><span class="bell-n" hidden></span></button></div>
             <div class="bell-wrap" id="tkWrap"><button type="button" class="bell al-btn" id="tkBtn" aria-label="Tasks" aria-haspopup="dialog" aria-expanded="false" title="Tasks"><i data-lucide="list-checks"></i><span class="bell-n" hidden></span></button></div>
+            ${me.isManager ? html`<div class="bell-wrap" id="tmaWrap"><button type="button" class="bell al-btn" id="tmaBtn" aria-label="Team alerts" aria-haspopup="dialog" aria-expanded="false" title="Team alerts"><i data-lucide="users-round"></i><span class="bell-n" hidden></span></button></div>` : raw("")}
             <button type="button" class="bell th-btn" id="themeBtn" data-theme-toggle aria-label="Theme" title="Theme"><i data-lucide="monitor"></i></button>
             <i data-lucide="message-circle" class="wa"></i>
             <a href="calendar.html" class="cal-link" aria-label="Open the calendar" title="Calendar"><i data-lucide="calendar-days" class="cal"></i></a>
@@ -104,6 +105,7 @@ async function mountShell(active) {
   const ns = document.createElement("script"); ns.src = "js/notify.js"; ns.onload = () => window.Notify && Notify.init(sess); document.head.appendChild(ns);
   const ac = document.createElement("script"); ac.src = "js/activity.js"; ac.onload = () => window.Activity && Activity.init(); document.head.appendChild(ac);
   const as = document.createElement("script"); as.src = "js/alerts.js"; as.onload = () => window.Alerts && Alerts.init(); document.head.appendChild(as);
+  if (me.isManager) { const ts = document.createElement("script"); ts.src = "js/teamalerts.js"; ts.onload = () => window.TeamAlerts && TeamAlerts.init(); document.head.appendChild(ts); }
   const ws = document.createElement("script"); ws.src = "js/workflow.js"; ws.onload = () => window.Workflow && Workflow.init(); document.head.appendChild(ws);
   return document.getElementById("page");
 }
