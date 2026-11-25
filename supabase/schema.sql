@@ -1511,15 +1511,15 @@ create or replace function public.auto_assign_enquiry() returns trigger language
 declare on_ boolean; a record; has_mgr boolean;
 begin
   select coalesce(value = 'true'::jsonb, false) into on_ from public.app_settings where key = 'auto_assign';
-  if not coalesce(on_, false) then return new; end if;
   if public.my_member_id() is not null then return new; end if;
-  if btrim(coalesce(new.project, '')) = '' then          -- no project = no automatic owner: leave the lead unassigned and say why on its history
+  if btrim(coalesce(new.project, '')) = '' then          -- no project = no automatic owner: leave the lead unassigned and say why on its history (whether or not auto-assign is switched on)
     if not (new.manager_name is not null and new.manager_name not in ('null'::jsonb, '""'::jsonb, '[]'::jsonb)) then
       new.activities := coalesce(new.activities, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'by', 'Auto-assign', 'type', 'doc', 'title', 'Left unassigned',
         'description', 'This lead has no project, so it was not assigned automatically.'));
     end if;
     return new;
   end if;
+  if not coalesce(on_, false) then return new; end if;
   if auth.uid() is null and exists (select 1 from public.repeat_owner(new.phone, new.project, new.email)) then return new; end if;
   perform pg_advisory_xact_lock(727001);
   select * into a from public.assignee_detail(new.project);
