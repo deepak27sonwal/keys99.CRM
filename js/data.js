@@ -431,7 +431,7 @@ const Data = {
   async getPropertyNames() {
     if (this._props && Date.now() - this._props.at < 300000) return this._props;
     let projects = [], developers = [];
-    try { const [p, dv] = await Promise.all([this.getProjects(), this.getDevelopers()]); projects = p.filter((x) => x.name).map((x) => ({ name: x.name, developer: x.developer || "" })); developers = dv.map((x) => x.name).filter(Boolean); }
+    try { const [p, dv] = await Promise.all([this.getProjects(), this.getDevelopers()]); projects = p.filter((x) => x.name).map((x) => ({ id: x.id, name: x.name, developer: x.developer || "" })); developers = dv.map((x) => x.name).filter(Boolean); }
     catch { /* free-text fallback */ }
     const uniq = (a) => [...new Set(a)].sort((x, y) => x.localeCompare(y));
     this._props = { at: Date.now(), projects: projects.sort((a, b) => a.name.localeCompare(b.name)), developers: uniq([...developers, ...projects.map((p) => p.developer).filter(Boolean)]) };

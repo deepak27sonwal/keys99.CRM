@@ -372,18 +372,30 @@ function openSiteVisit(lead, done) {
 }
 // Moving a lead INTO Booking Done always asks for the booking details first (from any stage that is not already Booking Done / Post Sale).
 const needsBookingDetails = (from, to) => to === "Booking Done" && !BOOKED.includes(from);
+// Same project? Mirrors the database: each name is first resolved to a REGISTERED project (exact name wins, else the longest registered name it matches loosely);
+// two names that resolve to different registered projects are different even when one starts with the other ("Oak" vs "Oak Residency").
+// Names that do not resolve fall back to the loose rule (equal, or one is a prefix of the other).
+function sameRegisteredProject(projects, a, b) {
+  const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), x = pk(a), y = pk(b);
+  const resolve = (k) => (projects || []).map((p) => ({ n: p.name, k: pk(p.name), id: p.id })).filter((p) => p.k.length >= 3 && k.length >= 3 && (p.k === k || k.startsWith(p.k) || p.k.startsWith(k)))
+    .sort((m, n) => (n.k === k) - (m.k === k) || n.n.length - m.n.length || (m.id ?? 0) - (n.id ?? 0))[0];     // exact first, then the longer name, then the lower id: the same order as project_for_name
+  const ra = resolve(x), rb = resolve(y);
+  if (ra && rb) return ra.k === rb.k;
+  return x === y || (x.length >= 3 && y.length >= 3 && (x.startsWith(y) || y.startsWith(x)));
+}
 async function openBooking(lead, done) {
   const props = await Data.getPropertyNames().catch(() => ({ projects: [], developers: [] }));
   let old = null;     // a lead that was booked before is edited, not duplicated; if we cannot tell, stop instead of risking a second booking row
   try { old = await Data.getLeadBooking(lead.dbId); } catch (e) { toast("Could not check this lead's existing booking, please try again"); return; }
   const cfgOf = (txt) => { const m = String(txt || "").split(" · "); return m.length > 1 ? { type: m[0], value: m.slice(1).join(" · ") } : { type: lead.propertyType || "", value: lead.bhk || "" }; };
   const cfg = old && old.configuration ? cfgOf(old.configuration) : { type: lead.propertyType || "", value: lead.bhk || "" };
+  const initAt = toLocalInput(old ? bookingTs(old) : new Date());     // what the date & time box starts with, to tell whether it was changed
   const proj0 = (old && old.project) || lead.project || "";     // the project the lead came in for stays the default; changing it is explicit
   const rate0 = old && Number(old.agreement_rate) ? String(Number(old.agreement_rate)) : "", val0 = old && Number(old.booking_value) ? String(Number(old.booking_value)) : "";
   openModal(old ? "Booking details" : "Booking Done · details", html`<div class="form">
     ${proj0 ? html`<div class="full bk-proj" id="bkProjFixed"><span class="bk-lab">Project name</span><div class="bk-row"><b id="bkProjName">${proj0}</b><button type="button" class="btn sm" id="bkChange"><i data-lucide="repeat"></i>Change project</button></div><small class="muted">Booked in a different project? Change it here.</small></div>` : raw("")}
     <div class="full" id="bkProjEdit" ${proj0 ? raw("hidden") : raw("")}>${proj0 ? html`<button type="button" class="link-btn" id="bkKeep">← Keep “${proj0}”</button>` : raw("")}${comboField("Project name *", "project", proj0, { placeholder: "Search a project or type a new one" })}<p class="full bk-note" id="bkNote" hidden></p></div>
-    ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date & time *", "booked_at", toLocalInput(old ? bookingTs(old) : new Date()), "datetime-local", "required")}
+    ${field("Developer", "developer", (old && old.developer) || lead.developer || "")}${field("Booking date & time *", "booked_at", initAt, "datetime-local", "required")}
     ${configPicker({ type: cfg.type, value: cfg.value, label: "Configuration *" })}
     ${field("Wing No", "wing_no", (old && old.wing_no) || "")}${field("Flat No *", "flat_no", (old && old.flat_no) || "", "text", "required")}
     ${field("Agreement / Consideration value (₹) *", "booking_value", val0, "number", 'required min="1" step="1"', "full")}
@@ -396,12 +408,13 @@ async function openBooking(lead, done) {
       if (!(value > 0)) throw new Error("enter the agreement value");
       const taken = await Data.flatBookedElsewhere(f.project, f.wing_no, f.flat_no, lead.dbId);
       if (taken && !confirm("Flat " + f.flat_no + (f.wing_no ? ", wing " + f.wing_no : "") + " is already booked on " + f.project + " by another lead. Save anyway?")) throw new Error("not saved");
-      const row = { project: f.project, developer: f.developer || null, booking_date: dayKey(new Date(f.booked_at)), booked_at: fromLocalInput(f.booked_at), booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100,
-        commission_status: f.commission_status, received_on: f.commission_status === "Received" ? dayKey(new Date(f.booked_at)) : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
+      const legacyKept = !!old && !old.booked_at && f.booked_at === initAt;     // an older date-only booking whose time was not touched keeps its own booking date
+      const dateDay = legacyKept ? old.booking_date : dayKey(new Date(f.booked_at));
+      const row = { project: f.project, developer: f.developer || null, ...(legacyKept ? {} : { booking_date: dateDay, booked_at: fromLocalInput(f.booked_at) }), booking_value: value, agreement_rate: rate, commission_amount: Math.round(value * rate) / 100,
+        commission_status: f.commission_status, received_on: f.commission_status === "Received" ? dateDay : null, configuration: config, wing_no: f.wing_no || null, flat_no: f.flat_no,
         closing_manager_name: f.closing_manager_name || null, closing_manager_mobile: f.closing_manager_mobile || null };
       if (old) await Data.updateBooking(old.id, row); else await Data.addBooking({ enquiry_id: lead.dbId, ...row });
-      const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), a = pk(lead.project), c = pk(f.project);
-      const changedProject = !!c && a !== c && !(a.length >= 3 && c.length >= 3 && (a.startsWith(c) || c.startsWith(a)));     // same loose rule as the database (equal, or one is a prefix of the other)
+      const changedProject = !!String(f.project || "").trim() && !sameRegisteredProject(props.projects, lead.project, f.project);
       await Data.updateLead(lead.dbId, { status: "Booking Done", ...(needsReason(lead.status) ? { lostReason: "" } : {}), ...(changedProject ? { project: f.project, ...(f.developer ? { developer: f.developer } : {}) } : {}) });
       if (changedProject) { try { await Data.addActivity(lead, "Project", "Project changed from " + (lead.project || "(none)") + " to " + f.project + " at booking"); } catch { /* the booking itself is saved */ } }
       try { await Data.addActivity(lead, "Booking", "Booking details: " + f.project + " · " + config + " · " + (f.wing_no ? "Wing " + f.wing_no + ", " : "") + "Flat " + f.flat_no + " · ₹" + value.toLocaleString("en-IN")); } catch { /* the booking itself is saved */ }
@@ -410,7 +423,7 @@ async function openBooking(lead, done) {
   const mod = document.querySelector(".overlay.open .modal") || document; wireConfigs(mod);
   wireCombo(mod, "project", () => props.projects.map((p) => p.name));
   const pj = mod.querySelector('input[name="project"]'), dv = mod.querySelector('input[name="developer"]');
-  const fixed = mod.querySelector("#bkProjFixed"), edit = mod.querySelector("#bkProjEdit"), note = mod.querySelector("#bkNote"), same = () => { const pk = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), a = pk(proj0), c = pk(pj.value); return !c || a === c || (a.length >= 3 && c.length >= 3 && (a.startsWith(c) || c.startsWith(a))); };
+  const fixed = mod.querySelector("#bkProjFixed"), edit = mod.querySelector("#bkProjEdit"), note = mod.querySelector("#bkNote"), same = () => !pj.value.trim() || sameRegisteredProject(props.projects, lead.project || proj0, pj.value);
   const showNote = () => { if (!note) return; const diff = !same(); note.hidden = !diff; note.textContent = diff ? "The lead's project will change from " + (lead.project || "(none)") + " to " + pj.value.trim() + "." : ""; };
   if (fixed && pj) {
     mod.querySelector("#bkChange").onclick = () => { fixed.hidden = true; edit.hidden = false; pj.focus(); pj.select(); };
